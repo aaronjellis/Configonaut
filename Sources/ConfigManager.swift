@@ -202,11 +202,18 @@ class ConfigManager: ObservableObject {
     func reloadAll() {
         loadActive()
         loadStored()
-        loadHooks()
         loadBackups()
-        loadEnabledPlugins()
-        loadAgents()
-        loadSkills()
+        if mode == .cli {
+            loadEnabledPlugins()
+            loadHooks()
+            loadAgents()
+            loadSkills()
+        } else {
+            hookRules = []
+            agents = []
+            skills = []
+            enabledPlugins = [:]
+        }
     }
 
     // MARK: - Parse Input
@@ -231,7 +238,7 @@ class ConfigManager: ObservableObject {
 
         if saveConfig(root) {
             loadActive()
-            if mode == .desktop { needsRestart = true }
+            needsRestart = true
             let names = entries.map(\.0).joined(separator: ", ")
             setStatus("Added to config: \(names)", isError: false)
         }
@@ -262,7 +269,7 @@ class ConfigManager: ObservableObject {
         if saveConfig(root), saveStored(stored) {
             loadActive()
             loadStored()
-            if mode == .desktop { needsRestart = true }
+            needsRestart = true
             setStatus("Turned off \"\(name)\" -- saved for later.", isError: false)
         }
     }
@@ -281,7 +288,7 @@ class ConfigManager: ObservableObject {
         if saveConfig(root), saveStored(stored) {
             loadActive()
             loadStored()
-            if mode == .desktop { needsRestart = true }
+            needsRestart = true
             setStatus("Turned on \"\(name)\".", isError: false)
         }
     }
@@ -295,7 +302,7 @@ class ConfigManager: ObservableObject {
             root["mcpServers"] = mcp
             if saveConfig(root) {
                 loadActive()
-                if mode == .desktop { needsRestart = true }
+                needsRestart = true
                 setStatus("Removed \"\(name)\" from config.", isError: false)
             }
         case .stored:
@@ -325,7 +332,7 @@ class ConfigManager: ObservableObject {
             root["mcpServers"] = mcp
             if saveConfig(root) {
                 loadActive()
-                if mode == .desktop { needsRestart = true }
+                needsRestart = true
                 setStatus("Updated \"\(name)\" config.", isError: false)
                 return true
             }
@@ -520,7 +527,7 @@ class ConfigManager: ObservableObject {
 
             try data.write(to: configURL, options: .atomic)
             loadActive()
-            if mode == .desktop { needsRestart = true }
+            needsRestart = true
             setStatus("Restored backup from \(backup.formattedDate).", isError: false)
             return true
         } catch {
