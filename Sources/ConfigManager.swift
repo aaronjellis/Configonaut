@@ -202,18 +202,11 @@ class ConfigManager: ObservableObject {
     func reloadAll() {
         loadActive()
         loadStored()
+        loadHooks()
         loadBackups()
-        if mode == .cli {
-            loadEnabledPlugins()
-            loadHooks()
-            loadAgents()
-            loadSkills()
-        } else {
-            hookRules = []
-            agents = []
-            skills = []
-            enabledPlugins = [:]
-        }
+        loadEnabledPlugins()
+        loadAgents()
+        loadSkills()
     }
 
     // MARK: - Parse Input

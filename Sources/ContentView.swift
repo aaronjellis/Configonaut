@@ -86,11 +86,6 @@ struct ContentView: View {
             }
         }
         .frame(minWidth: 920, minHeight: 660)
-        .onChange(of: config.mode) { _, newMode in
-            if newMode == .desktop && !isSectionAvailable(selection) {
-                withAnimation { selection = .servers }
-            }
-        }
     }
 
     // MARK: - Sidebar
@@ -146,6 +141,7 @@ struct ContentView: View {
                 }
             }
             .pickerStyle(.segmented)
+            .labelsHidden()
             .padding(.horizontal, 14)
             .padding(.bottom, 12)
 
@@ -198,7 +194,6 @@ struct ContentView: View {
 
     private func sidebarItem(_ item: SidebarSection) -> some View {
         Button {
-            guard isSectionAvailable(item) else { return }
             withAnimation(.easeInOut(duration: 0.2)) { selection = item }
         } label: {
             HStack(spacing: 10) {
@@ -219,7 +214,7 @@ struct ContentView: View {
                 Spacer()
 
                 // Badge count
-                let count = displayBadgeCount(for: item)
+                let count = badgeCount(for: item)
                 if count > 0 {
                     Text("\(count)")
                         .font(.system(size: 9, weight: .bold, design: .rounded))
@@ -280,7 +275,6 @@ struct ContentView: View {
             }
         }
         .buttonStyle(.plain)
-        .opacity(isSectionAvailable(item) ? 1.0 : 0.4)
         .padding(.horizontal, 8)
     }
 
@@ -294,34 +288,6 @@ struct ContentView: View {
         }
     }
 
-    private func isSectionAvailable(_ section: SidebarSection) -> Bool {
-        switch section {
-        case .servers, .backups: return true
-        case .hooks, .agents, .skills: return config.mode == .cli
-        }
-    }
-
-    private func displayBadgeCount(for item: SidebarSection) -> Int {
-        guard isSectionAvailable(item) else { return 0 }
-        return badgeCount(for: item)
-    }
-
-    private func unavailablePlaceholder(for section: SidebarSection) -> some View {
-        VStack(spacing: 16) {
-            Image(systemName: section.icon)
-                .font(.system(size: 40))
-                .foregroundStyle(.quaternary)
-            Text("Not available for Claude Desktop")
-                .font(.system(size: 15, weight: .medium))
-                .foregroundStyle(.secondary)
-            Text("\(section.rawValue) are only used by Claude Code (CLI).")
-                .font(.system(size: 12))
-                .foregroundStyle(.tertiary)
-                .multilineTextAlignment(.center)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-
     // MARK: - Detail
 
     @ViewBuilder
@@ -330,23 +296,11 @@ struct ContentView: View {
         case .servers:
             MCPView(config: config)
         case .hooks:
-            if config.mode == .cli {
-                HooksView(config: config)
-            } else {
-                unavailablePlaceholder(for: .hooks)
-            }
+            HooksView(config: config)
         case .agents:
-            if config.mode == .cli {
-                AgentsView(config: config)
-            } else {
-                unavailablePlaceholder(for: .agents)
-            }
+            AgentsView(config: config)
         case .skills:
-            if config.mode == .cli {
-                SkillsView(config: config)
-            } else {
-                unavailablePlaceholder(for: .skills)
-            }
+            SkillsView(config: config)
         case .backups:
             BackupsView(config: config)
         }
