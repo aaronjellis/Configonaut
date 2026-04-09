@@ -177,7 +177,7 @@ struct ContentView: View {
             // Version footer
             HStack {
                 Spacer()
-                Text("v1.1.0")
+                Text("v1.2.0")
                     .font(.system(size: 9, weight: .medium, design: .monospaced))
                     .foregroundStyle(.quaternary)
                 Spacer()

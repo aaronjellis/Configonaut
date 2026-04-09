@@ -3,7 +3,7 @@ set -e
 
 APP_NAME="Configonaut"
 DMG_NAME="${APP_NAME}-Installer"
-VERSION="1.1.0"
+VERSION="1.2.0"
 VOLUME_NAME="${APP_NAME}"
 
 cd "$(dirname "$0")"
