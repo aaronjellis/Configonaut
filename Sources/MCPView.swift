@@ -130,9 +130,9 @@ struct MCPView: View {
                             .padding(.vertical, 2)
                             .background(Theme.green.opacity(0.12), in: Capsule())
                     }
-                    Text("Drag servers between Active and Inactive to toggle them.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    Text(config.configURL.path.replacingOccurrences(of: NSHomeDirectory(), with: "~"))
+                        .font(.system(size: 10, design: .monospaced))
+                        .foregroundStyle(.tertiary)
                 }
                 Spacer()
 
@@ -259,7 +259,7 @@ struct MCPView: View {
             Image(systemName: "arrow.trianglehead.2.clockwise.rotate.90")
                 .font(.system(size: 14, weight: .bold))
                 .foregroundStyle(.white)
-            Text("Changes saved! Quit and reopen Claude Desktop to apply.")
+            Text("Changes saved! Quit and reopen \(config.mode == .desktop ? "Claude Desktop" : "Claude Code") to apply.")
                 .font(.callout.weight(.semibold))
                 .foregroundStyle(.white)
             Spacer()
