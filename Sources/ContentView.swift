@@ -125,14 +125,24 @@ struct ContentView: View {
                 VStack(alignment: .leading, spacing: 1) {
                     Text("Configonaut")
                         .font(.system(size: 15, weight: .bold))
-                    Text("Config Explorer")
+                    Text(config.mode == .desktop ? "Desktop Config" : "CLI Config")
                         .font(.system(size: 10, weight: .medium))
-                        .foregroundStyle(Theme.green.opacity(0.5))
+                        .foregroundStyle(config.mode == .desktop ? Theme.green.opacity(0.5) : Theme.blue.opacity(0.5))
                 }
             }
             .padding(.horizontal, 14)
             .padding(.top, 14)
             .padding(.bottom, 18)
+
+            // Desktop / CLI toggle
+            Picker("Mode", selection: $config.mode) {
+                ForEach(AppMode.allCases, id: \.self) { mode in
+                    Text(mode.rawValue).tag(mode)
+                }
+            }
+            .pickerStyle(.segmented)
+            .padding(.horizontal, 14)
+            .padding(.bottom, 12)
 
             // Tools section
             sectionLabel("TOOLS")
