@@ -2,6 +2,11 @@ import Foundation
 
 // MARK: - Data Models
 
+enum AppMode: String, CaseIterable {
+    case desktop = "Desktop"
+    case cli = "CLI"
+}
+
 struct ServerEntry: Identifiable, Equatable {
     let name: String
     let configJSON: String
@@ -88,6 +93,16 @@ class ConfigManager: ObservableObject {
     @Published var statusMessage = ""
     @Published var statusIsError = false
     @Published var needsRestart = false
+    @Published var mode: AppMode {
+        didSet {
+            if oldValue != mode {
+                UserDefaults.standard.set(mode.rawValue, forKey: "appMode")
+                needsRestart = false
+                lastBackupHash = nil
+                reloadAll()
+            }
+        }
+    }
     private var lastBackupDate: Date?
     private var lastBackupHash: Int?
 
@@ -131,7 +146,11 @@ class ConfigManager: ObservableObject {
             .appendingPathComponent(".claude/plugins/marketplaces/claude-plugins-official/plugins")
     }()
 
-    init() { reloadAll() }
+    init() {
+        let saved = UserDefaults.standard.string(forKey: "appMode") ?? AppMode.desktop.rawValue
+        self.mode = AppMode(rawValue: saved) ?? .desktop
+        reloadAll()
+    }
 
     func reloadAll() {
         loadActive()
