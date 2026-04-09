@@ -6,3 +6,5 @@ xcuserdata/
 DerivedData/
 .DS_Store
 *.app
+*.dmg
+dmg-staging/
