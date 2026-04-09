@@ -160,7 +160,43 @@ class ConfigManager: ObservableObject {
     init() {
         let saved = UserDefaults.standard.string(forKey: "appMode") ?? AppMode.desktop.rawValue
         self.mode = AppMode(rawValue: saved) ?? .desktop
+        migrateIfNeeded()
         reloadAll()
+    }
+
+    /// One-time migration: move pre-toggle data into desktop-specific paths
+    private func migrateIfNeeded() {
+        let key = "migrated_v2_mode_split"
+        guard !UserDefaults.standard.bool(forKey: key) else { return }
+        defer { UserDefaults.standard.set(true, forKey: key) }
+
+        let fm = FileManager.default
+
+        // Migrate stored_servers.json → stored_servers_desktop.json
+        let oldStored = storageDir.appendingPathComponent("stored_servers.json")
+        let newStored = storageDir.appendingPathComponent("stored_servers_desktop.json")
+        if fm.fileExists(atPath: oldStored.path) && !fm.fileExists(atPath: newStored.path) {
+            try? fm.moveItem(at: oldStored, to: newStored)
+        }
+
+        // Migrate backups/*.json → backups/desktop/*.json
+        let oldBackupDir = storageDir.appendingPathComponent("backups")
+        let newBackupDir = storageDir.appendingPathComponent("backups/desktop")
+        // Only migrate if the old flat backup dir has JSON files directly in it
+        if let items = try? fm.contentsOfDirectory(at: oldBackupDir, includingPropertiesForKeys: nil) {
+            let jsonFiles = items.filter { $0.pathExtension == "json" }
+            if !jsonFiles.isEmpty {
+                try? fm.createDirectory(at: newBackupDir, withIntermediateDirectories: true)
+                for file in jsonFiles {
+                    let dest = newBackupDir.appendingPathComponent(file.lastPathComponent)
+                    try? fm.moveItem(at: file, to: dest)
+                }
+            }
+        }
+
+        // Create CLI backup dir
+        let cliBackupDir = storageDir.appendingPathComponent("backups/cli")
+        try? fm.createDirectory(at: cliBackupDir, withIntermediateDirectories: true)
     }
 
     func reloadAll() {
