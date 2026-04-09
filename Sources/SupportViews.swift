@@ -662,7 +662,7 @@ struct BackupsView: View {
             }
         } else {
             // This is the newest backup -- compare against current config
-            let configURL = ConfigManager.configURL
+            let configURL = config.configURL
             if let currentData = try? Data(contentsOf: configURL),
                let currentObj = try? JSONSerialization.jsonObject(with: currentData) as? [String: Any],
                let servers = currentObj["mcpServers"] as? [String: Any] {
@@ -684,7 +684,7 @@ struct BackupsView: View {
     }
 
     private func openBackupFolder() {
-        let url = ConfigManager.backupDir
+        let url = config.backupDir
         try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
         NSWorkspace.shared.open(url)
     }

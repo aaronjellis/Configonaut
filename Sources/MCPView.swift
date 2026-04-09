@@ -839,7 +839,7 @@ struct MCPView: View {
     }
 
     private func openConfigInFinder() {
-        let url = ConfigManager.configURL
+        let url = config.configURL
         if FileManager.default.fileExists(atPath: url.path) {
             NSWorkspace.shared.activateFileViewerSelecting([url])
         } else {

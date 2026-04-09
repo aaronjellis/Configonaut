@@ -108,42 +108,53 @@ class ConfigManager: ObservableObject {
 
     // MARK: - File Paths
 
-    static let configURL: URL = {
-        FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent("Library/Application Support/Claude/claude_desktop_config.json")
-    }()
+    private static let home = FileManager.default.homeDirectoryForCurrentUser
 
-    static let storageDir: URL = {
-        FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent("Library/Application Support/Configonaut")
-    }()
+    /// The config file that holds mcpServers for the current mode
+    var configURL: URL {
+        switch mode {
+        case .desktop:
+            return Self.home
+                .appendingPathComponent("Library/Application Support/Claude/claude_desktop_config.json")
+        case .cli:
+            return Self.home.appendingPathComponent(".claude/settings.json")
+        }
+    }
 
-    static var storedURL: URL { storageDir.appendingPathComponent("stored_servers.json") }
-    static var backupDir: URL { storageDir.appendingPathComponent("backups") }
+    /// Configonaut's own storage directory
+    var storageDir: URL {
+        Self.home.appendingPathComponent("Library/Application Support/Configonaut")
+    }
 
+    /// Stored (inactive) servers file — separate per mode
+    var storedURL: URL {
+        storageDir.appendingPathComponent("stored_servers_\(mode.rawValue.lowercased()).json")
+    }
+
+    /// Backup directory — separate per mode
+    var backupDir: URL {
+        storageDir.appendingPathComponent("backups/\(mode.rawValue.lowercased())")
+    }
+
+    /// Claude Code global settings (always ~/.claude/settings.json, used for hooks & plugins)
     static let globalSettingsURL: URL = {
-        FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".claude/settings.json")
+        home.appendingPathComponent(".claude/settings.json")
     }()
 
     static let commandsDir: URL = {
-        FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".claude/commands")
+        home.appendingPathComponent(".claude/commands")
     }()
 
     static let skillsDir: URL = {
-        FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".claude/skills")
+        home.appendingPathComponent(".claude/skills")
     }()
 
     static let personalAgentsDir: URL = {
-        FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".claude/agents")
+        home.appendingPathComponent(".claude/agents")
     }()
 
     static let pluginsDir: URL = {
-        FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".claude/plugins/marketplaces/claude-plugins-official/plugins")
+        home.appendingPathComponent(".claude/plugins/marketplaces/claude-plugins-official/plugins")
     }()
 
     init() {
@@ -439,7 +450,7 @@ class ConfigManager: ObservableObject {
 
     func loadBackups() {
         guard let files = try? FileManager.default.contentsOfDirectory(
-            at: Self.backupDir,
+            at: backupDir,
             includingPropertiesForKeys: [.fileSizeKey, .creationDateKey]
         ) else {
             backupFiles = []
@@ -471,7 +482,7 @@ class ConfigManager: ObservableObject {
                 return false
             }
 
-            try data.write(to: Self.configURL, options: .atomic)
+            try data.write(to: configURL, options: .atomic)
             loadActive()
             needsRestart = true
             setStatus("Restored backup from \(backup.formattedDate).", isError: false)
@@ -885,14 +896,14 @@ class ConfigManager: ObservableObject {
     }
 
     private func loadConfigRoot() -> [String: Any] {
-        guard let data = try? Data(contentsOf: Self.configURL),
+        guard let data = try? Data(contentsOf: configURL),
               let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
         else { return [:] }
         return obj
     }
 
     private func loadStoredRoot() -> [String: Any] {
-        guard let data = try? Data(contentsOf: Self.storedURL),
+        guard let data = try? Data(contentsOf: storedURL),
               let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
         else { return [:] }
         return obj
@@ -909,13 +920,13 @@ class ConfigManager: ObservableObject {
     private func saveConfig(_ root: [String: Any]) -> Bool {
         do {
             createBackup()
-            let dir = Self.configURL.deletingLastPathComponent()
+            let dir = configURL.deletingLastPathComponent()
             try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
             let data = try JSONSerialization.data(
                 withJSONObject: root,
                 options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
             )
-            try data.write(to: Self.configURL, options: .atomic)
+            try data.write(to: configURL, options: .atomic)
             return true
         } catch {
             setStatus("Save error: \(error.localizedDescription)", isError: true)
@@ -927,13 +938,13 @@ class ConfigManager: ObservableObject {
     private func saveStored(_ stored: [String: Any]) -> Bool {
         do {
             createBackup()
-            try Self.ensureSecureDirectory(Self.storageDir)
+            try Self.ensureSecureDirectory(storageDir)
             let data = try JSONSerialization.data(
                 withJSONObject: stored,
                 options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
             )
-            try data.write(to: Self.storedURL, options: .atomic)
-            Self.lockFile(Self.storedURL)
+            try data.write(to: storedURL, options: .atomic)
+            Self.lockFile(storedURL)
             return true
         } catch {
             setStatus("Storage error: \(error.localizedDescription)", isError: true)
@@ -956,10 +967,10 @@ class ConfigManager: ObservableObject {
     /// Creates a backup only if the config has changed AND at least 5 minutes
     /// have passed since the last backup. Use `forceBackup()` to bypass debounce.
     func createBackup() {
-        guard FileManager.default.fileExists(atPath: Self.configURL.path) else { return }
+        guard FileManager.default.fileExists(atPath: configURL.path) else { return }
 
         // Check content hash -- skip if config hasn't changed
-        guard let currentData = try? Data(contentsOf: Self.configURL) else { return }
+        guard let currentData = try? Data(contentsOf: configURL) else { return }
         let currentHash = currentData.hashValue
         if currentHash == lastBackupHash { return }
 
@@ -971,19 +982,19 @@ class ConfigManager: ObservableObject {
 
     /// Force a backup regardless of debounce (used by restore)
     func forceBackup() {
-        guard FileManager.default.fileExists(atPath: Self.configURL.path),
-              let data = try? Data(contentsOf: Self.configURL)
+        guard FileManager.default.fileExists(atPath: configURL.path),
+              let data = try? Data(contentsOf: configURL)
         else { return }
         writeBackup(data: data, hash: data.hashValue)
     }
 
     private func writeBackup(data: Data, hash: Int) {
         do {
-            try Self.ensureSecureDirectory(Self.backupDir)
+            try Self.ensureSecureDirectory(backupDir)
             let formatter = DateFormatter()
             formatter.dateFormat = "yyyy-MM-dd_HH-mm-ss"
             let timestamp = formatter.string(from: Date())
-            let backupURL = Self.backupDir.appendingPathComponent("config_\(timestamp).json")
+            let backupURL = backupDir.appendingPathComponent("config_\(timestamp).json")
             try data.write(to: backupURL, options: .atomic)
             Self.lockFile(backupURL)
 
@@ -992,7 +1003,7 @@ class ConfigManager: ObservableObject {
 
             // Keep only last 30 backups
             let backups = try FileManager.default.contentsOfDirectory(
-                at: Self.backupDir, includingPropertiesForKeys: nil
+                at: backupDir, includingPropertiesForKeys: nil
             ).filter { $0.pathExtension == "json" }
              .sorted { $0.lastPathComponent < $1.lastPathComponent }
 
