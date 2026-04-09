@@ -534,7 +534,7 @@ struct BackupsView: View {
                 Image(systemName: "info.circle")
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
-                Text("~/Library/Application Support/Configonaut/backups/")
+                Text(config.backupDir.path.replacingOccurrences(of: NSHomeDirectory(), with: "~"))
                     .font(.caption)
                     .foregroundStyle(.tertiary)
                 Spacer()

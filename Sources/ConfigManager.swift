@@ -195,7 +195,7 @@ class ConfigManager: ObservableObject {
 
         if saveConfig(root) {
             loadActive()
-            needsRestart = true
+            if mode == .desktop { needsRestart = true }
             let names = entries.map(\.0).joined(separator: ", ")
             setStatus("Added to config: \(names)", isError: false)
         }
@@ -226,7 +226,7 @@ class ConfigManager: ObservableObject {
         if saveConfig(root), saveStored(stored) {
             loadActive()
             loadStored()
-            needsRestart = true
+            if mode == .desktop { needsRestart = true }
             setStatus("Turned off \"\(name)\" -- saved for later.", isError: false)
         }
     }
@@ -245,7 +245,7 @@ class ConfigManager: ObservableObject {
         if saveConfig(root), saveStored(stored) {
             loadActive()
             loadStored()
-            needsRestart = true
+            if mode == .desktop { needsRestart = true }
             setStatus("Turned on \"\(name)\".", isError: false)
         }
     }
@@ -259,7 +259,7 @@ class ConfigManager: ObservableObject {
             root["mcpServers"] = mcp
             if saveConfig(root) {
                 loadActive()
-                needsRestart = true
+                if mode == .desktop { needsRestart = true }
                 setStatus("Removed \"\(name)\" from config.", isError: false)
             }
         case .stored:
@@ -289,7 +289,7 @@ class ConfigManager: ObservableObject {
             root["mcpServers"] = mcp
             if saveConfig(root) {
                 loadActive()
-                needsRestart = true
+                if mode == .desktop { needsRestart = true }
                 setStatus("Updated \"\(name)\" config.", isError: false)
                 return true
             }
@@ -484,7 +484,7 @@ class ConfigManager: ObservableObject {
 
             try data.write(to: configURL, options: .atomic)
             loadActive()
-            needsRestart = true
+            if mode == .desktop { needsRestart = true }
             setStatus("Restored backup from \(backup.formattedDate).", isError: false)
             return true
         } catch {
