@@ -1,0 +1,8 @@
+.build/
+.swiftpm/
+.claude-flow/
+*.xcodeproj/
+xcuserdata/
+DerivedData/
+.DS_Store
+*.app
