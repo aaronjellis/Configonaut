@@ -5,6 +5,8 @@ APP_NAME="Configonaut"
 DMG_NAME="${APP_NAME}-Installer"
 VERSION="1.2.0"
 VOLUME_NAME="${APP_NAME}"
+SIGN_IDENTITY="Developer ID Application: YOUR_NAME (YOUR_TEAM_ID)"
+NOTARIZE_PROFILE="configonaut-notarize"
 
 cd "$(dirname "$0")"
 
@@ -103,15 +105,25 @@ hdiutil convert dmg-rw.dmg -format UDZO -imagekey zlib-level=9 \
     -o "${DMG_NAME}.dmg" -ov -quiet
 rm -f dmg-rw.dmg
 
+# Step 6: Sign the DMG
+echo "Signing DMG..."
+codesign --force --sign "$SIGN_IDENTITY" "${DMG_NAME}.dmg"
+
+# Step 7: Notarize the DMG
+echo "Notarizing DMG (this may take a few minutes)..."
+xcrun notarytool submit "${DMG_NAME}.dmg" \
+    --keychain-profile "$NOTARIZE_PROFILE" \
+    --wait
+
+echo "Stapling notarization ticket to DMG..."
+xcrun stapler staple "${DMG_NAME}.dmg"
+
 DMG_SIZE=$(du -h "${DMG_NAME}.dmg" | cut -f1 | xargs)
 echo ""
-echo "DMG created: $(pwd)/${DMG_NAME}.dmg  (${DMG_SIZE})"
+echo "DMG created: $(pwd)/${DMG_NAME}.dmg  (${DMG_SIZE})  [signed + notarized]"
 echo ""
 echo "Users can:"
 echo "  1. Double-click ${DMG_NAME}.dmg"
 echo "  2. Drag ${APP_NAME} to Applications"
 echo "  3. Eject the disk image"
 echo "  4. Launch from Applications or Spotlight"
-echo ""
-echo "Note: The app is unsigned. Recipients must right-click > Open"
-echo "      (or allow it in System Settings > Privacy & Security)"

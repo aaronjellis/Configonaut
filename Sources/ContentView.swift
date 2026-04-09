@@ -135,14 +135,17 @@ struct ContentView: View {
             .padding(.bottom, 18)
 
             // Desktop / CLI toggle
-            Picker("Mode", selection: $config.mode) {
-                ForEach(AppMode.allCases, id: \.self) { mode in
-                    Text(mode.rawValue).tag(mode)
+            HStack {
+                Spacer()
+                Picker("Mode", selection: $config.mode) {
+                    ForEach(AppMode.allCases, id: \.self) { mode in
+                        Text(mode.rawValue).tag(mode)
+                    }
                 }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                Spacer()
             }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .padding(.horizontal, 14)
             .padding(.bottom, 12)
 
             // Tools section

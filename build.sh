@@ -1,6 +1,10 @@
 #!/bin/bash
 set -e
 
+# Code signing identity and notarization profile
+SIGN_IDENTITY="Developer ID Application: YOUR_NAME (YOUR_TEAM_ID)"
+NOTARIZE_PROFILE="configonaut-notarize"
+
 echo "Building Configonaut..."
 cd "$(dirname "$0")"
 
@@ -54,8 +58,36 @@ cat > "$APP/Contents/Info.plist" << 'PLIST'
 </plist>
 PLIST
 
+# --- Code Signing ---
 echo ""
-echo "Build complete: $(pwd)/$APP"
+echo "Signing $APP..."
+codesign --deep --force --options runtime \
+    --sign "$SIGN_IDENTITY" \
+    "$APP"
+echo "Verifying signature..."
+codesign --verify --deep --strict "$APP"
+echo "Signature valid."
+
+# --- Notarization ---
+echo ""
+echo "Notarizing $APP (this may take a few minutes)..."
+# Create a zip for notarization submission
+ZIP_FOR_NOTARIZE="${APP%.app}-notarize.zip"
+ditto -c -k --keepParent "$APP" "$ZIP_FOR_NOTARIZE"
+
+xcrun notarytool submit "$ZIP_FOR_NOTARIZE" \
+    --keychain-profile "$NOTARIZE_PROFILE" \
+    --wait
+
+rm -f "$ZIP_FOR_NOTARIZE"
+
+# Staple the notarization ticket to the app
+echo "Stapling notarization ticket..."
+xcrun stapler staple "$APP"
+echo "Notarization complete."
+
+echo ""
+echo "Build complete: $(pwd)/$APP  (signed + notarized)"
 echo ""
 echo "To install:  drag 'Configonaut.app' to /Applications"
 echo "To run now:  open '$APP'"
