@@ -1,0 +1,213 @@
+<Window
+    x:Class="Configonaut.MainWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:Configonaut"
+    xmlns:views="using:Configonaut.Views"
+    xmlns:ctc="using:CommunityToolkit.WinUI.Controls"
+    Title="Configonaut">
+
+    <Grid Background="{StaticResource BgPrimaryBrush}">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="220" />
+            <ColumnDefinition Width="1" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+
+        <!-- Sidebar -->
+        <Grid Grid.Column="0" Background="{ThemeResource AcrylicBackgroundFillColorDefaultBrush}">
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <StackPanel Spacing="2" Padding="0,0,0,8">
+
+                    <!-- App branding -->
+                    <StackPanel Orientation="Horizontal" Spacing="10"
+                                Padding="14,14,14,18">
+                        <Grid Width="38" Height="38">
+                            <Ellipse Width="48" Height="48" Opacity="0.3"
+                                     Fill="{StaticResource NeonGreenBrush}" />
+                            <Image Source="Assets/AppIcon.png" Width="38" Height="38"
+                                   Stretch="UniformToFill">
+                                <Image.Clip>
+                                    <RectangleGeometry Rect="0,0,38,38" RadiusX="9" RadiusY="9" />
+                                </Image.Clip>
+                            </Image>
+                        </Grid>
+                        <StackPanel VerticalAlignment="Center" Spacing="1">
+                            <TextBlock Text="Configonaut"
+                                       FontSize="15" FontWeight="Bold"
+                                       Foreground="{StaticResource PrimaryTextBrush}" />
+                            <TextBlock x:Name="ModeSubtitle"
+                                       FontSize="10" FontWeight="Medium"
+                                       Foreground="{StaticResource NeonGreenBrush}"
+                                       Opacity="0.5" />
+                        </StackPanel>
+                    </StackPanel>
+
+                    <!-- Desktop / CLI toggle -->
+                    <Grid Padding="8,0,8,12" HorizontalAlignment="Center">
+                        <ctc:Segmented x:Name="ModeToggle"
+                                       SelectionMode="Single"
+                                       SelectionChanged="ModeToggle_SelectionChanged">
+                            <ctc:SegmentedItem Content="Desktop" Tag="Desktop" />
+                            <ctc:SegmentedItem Content="CLI" Tag="CLI" />
+                        </ctc:Segmented>
+                    </Grid>
+
+                    <!-- TOOLS section -->
+                    <TextBlock Text="TOOLS" Style="{StaticResource SectionLabelStyle}" />
+
+                    <Button x:Name="BtnServers" Style="{StaticResource SidebarItemStyle}"
+                            Click="SidebarItem_Click" Tag="Servers">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <FontIcon Grid.Column="0" Glyph="&#xE83B;" FontSize="14"
+                                      Foreground="{StaticResource NeonGreenBrush}"
+                                      Margin="0,0,10,0" />
+                            <StackPanel Grid.Column="1">
+                                <TextBlock Text="MCP Servers" FontSize="13" FontWeight="SemiBold"
+                                           Foreground="{StaticResource PrimaryTextBrush}" />
+                                <TextBlock Text="Add, remove &amp; swap tools" FontSize="10"
+                                           Foreground="{StaticResource TertiaryTextBrush}" />
+                            </StackPanel>
+                            <Border Grid.Column="2" x:Name="BadgeServers"
+                                    Style="{StaticResource BadgeStyle}"
+                                    Background="{StaticResource NeonGreenBrush}" Opacity="0.7">
+                                <TextBlock x:Name="BadgeServersCount" FontSize="9"
+                                           FontWeight="Bold" Foreground="White" />
+                            </Border>
+                        </Grid>
+                    </Button>
+
+                    <Button x:Name="BtnHooks" Style="{StaticResource SidebarItemStyle}"
+                            Click="SidebarItem_Click" Tag="Hooks">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <FontIcon Grid.Column="0" Glyph="&#xE8D8;" FontSize="14"
+                                      Foreground="{StaticResource NeonBlueBrush}"
+                                      Margin="0,0,10,0" />
+                            <StackPanel Grid.Column="1">
+                                <TextBlock Text="Hooks" FontSize="13" FontWeight="SemiBold"
+                                           Foreground="{StaticResource PrimaryTextBrush}" />
+                                <TextBlock Text="Automation triggers" FontSize="10"
+                                           Foreground="{StaticResource TertiaryTextBrush}" />
+                            </StackPanel>
+                            <Border Grid.Column="2" x:Name="BadgeHooks"
+                                    Style="{StaticResource BadgeStyle}"
+                                    Background="{StaticResource NeonBlueBrush}" Opacity="0.4">
+                                <TextBlock x:Name="BadgeHooksCount" FontSize="9"
+                                           FontWeight="Bold" Foreground="White" />
+                            </Border>
+                        </Grid>
+                    </Button>
+
+                    <!-- EXTEND section -->
+                    <TextBlock Text="EXTEND" Style="{StaticResource SectionLabelStyle}"
+                               Margin="18,10,0,2" />
+
+                    <Button x:Name="BtnAgents" Style="{StaticResource SidebarItemStyle}"
+                            Click="SidebarItem_Click" Tag="Agents">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <FontIcon Grid.Column="0" Glyph="&#xE716;" FontSize="14"
+                                      Foreground="{StaticResource NeonPurpleBrush}"
+                                      Margin="0,0,10,0" />
+                            <StackPanel Grid.Column="1">
+                                <TextBlock Text="Agents" FontSize="13" FontWeight="SemiBold"
+                                           Foreground="{StaticResource PrimaryTextBrush}" />
+                                <TextBlock Text="Plugin agent configs" FontSize="10"
+                                           Foreground="{StaticResource TertiaryTextBrush}" />
+                            </StackPanel>
+                            <Border Grid.Column="2" x:Name="BadgeAgents"
+                                    Style="{StaticResource BadgeStyle}"
+                                    Background="{StaticResource NeonPurpleBrush}" Opacity="0.4">
+                                <TextBlock x:Name="BadgeAgentsCount" FontSize="9"
+                                           FontWeight="Bold" Foreground="White" />
+                            </Border>
+                        </Grid>
+                    </Button>
+
+                    <Button x:Name="BtnSkills" Style="{StaticResource SidebarItemStyle}"
+                            Click="SidebarItem_Click" Tag="Skills">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <FontIcon Grid.Column="0" Glyph="&#xE734;" FontSize="14"
+                                      Foreground="{StaticResource NeonAmberBrush}"
+                                      Margin="0,0,10,0" />
+                            <StackPanel Grid.Column="1">
+                                <TextBlock Text="Skills" FontSize="13" FontWeight="SemiBold"
+                                           Foreground="{StaticResource PrimaryTextBrush}" />
+                                <TextBlock Text="Commands &amp; slash skills" FontSize="10"
+                                           Foreground="{StaticResource TertiaryTextBrush}" />
+                            </StackPanel>
+                            <Border Grid.Column="2" x:Name="BadgeSkills"
+                                    Style="{StaticResource BadgeStyle}"
+                                    Background="{StaticResource NeonAmberBrush}" Opacity="0.4">
+                                <TextBlock x:Name="BadgeSkillsCount" FontSize="9"
+                                           FontWeight="Bold" Foreground="White" />
+                            </Border>
+                        </Grid>
+                    </Button>
+
+                    <!-- Spacer -->
+                    <Grid Height="1" Margin="14,0" Opacity="0.15"
+                          Background="{StaticResource NeonCyanBrush}" />
+
+                    <Button x:Name="BtnBackups" Style="{StaticResource SidebarItemStyle}"
+                            Click="SidebarItem_Click" Tag="Backups">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <FontIcon Grid.Column="0" Glyph="&#xE81C;" FontSize="14"
+                                      Foreground="{StaticResource NeonCyanBrush}"
+                                      Margin="0,0,10,0" />
+                            <StackPanel Grid.Column="1">
+                                <TextBlock Text="Backups" FontSize="13" FontWeight="SemiBold"
+                                           Foreground="{StaticResource PrimaryTextBrush}" />
+                                <TextBlock Text="Config history &amp; restore" FontSize="10"
+                                           Foreground="{StaticResource TertiaryTextBrush}" />
+                            </StackPanel>
+                            <Border Grid.Column="2" x:Name="BadgeBackups"
+                                    Style="{StaticResource BadgeStyle}"
+                                    Background="{StaticResource NeonCyanBrush}" Opacity="0.4">
+                                <TextBlock x:Name="BadgeBackupsCount" FontSize="9"
+                                           FontWeight="Bold" Foreground="White" />
+                            </Border>
+                        </Grid>
+                    </Button>
+
+                    <!-- Version footer -->
+                    <TextBlock Text="v1.0.0" FontSize="9" FontWeight="Medium"
+                               FontFamily="{StaticResource MonoFont}"
+                               Foreground="{StaticResource TertiaryTextBrush}"
+                               HorizontalAlignment="Center" Opacity="0.5"
+                               Margin="0,8,0,0" />
+                </StackPanel>
+            </ScrollViewer>
+        </Grid>
+
+        <!-- Separator -->
+        <Rectangle Grid.Column="1" Fill="{StaticResource SubtleBorderBrush}" />
+
+        <!-- Content area -->
+        <Frame x:Name="ContentFrame" Grid.Column="2" />
+    </Grid>
+</Window>
