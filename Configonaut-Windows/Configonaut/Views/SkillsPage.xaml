@@ -1,0 +1,172 @@
+<Page
+    x:Class="Configonaut.Views.SkillsPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:ctc="using:CommunityToolkit.WinUI.Controls"
+    Background="Transparent">
+
+    <Grid Padding="24">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <Grid Grid.Row="0" Margin="0,0,0,12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <StackPanel>
+                <TextBlock Text="Skills" FontSize="22" FontWeight="Bold"
+                           Foreground="{StaticResource PrimaryTextBrush}" />
+                <TextBlock Text="Commands &amp; slash skills"
+                           FontSize="12" Foreground="{StaticResource TertiaryTextBrush}" />
+            </StackPanel>
+            <Button Grid.Column="1" Content="＋ New Skill" Click="NewSkill_Click"
+                    VerticalAlignment="Top"
+                    Background="{StaticResource NeonAmberBrush}" Foreground="Black"
+                    FontWeight="SemiBold" CornerRadius="8" Padding="16,8" />
+        </Grid>
+
+        <!-- Search -->
+        <TextBox Grid.Row="1" x:Name="SearchBox" PlaceholderText="Search skills..."
+                 TextChanged="SearchBox_TextChanged" Margin="0,0,0,12"
+                 CornerRadius="8" Background="{StaticResource CardFillBrush}"
+                 Foreground="{StaticResource PrimaryTextBrush}" />
+
+        <!-- Skill list or empty state -->
+        <Grid Grid.Row="2">
+            <StackPanel x:Name="EmptyState" Visibility="Collapsed"
+                        HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="12">
+                <FontIcon Glyph="&#xE734;" FontSize="48"
+                          Foreground="{StaticResource TertiaryTextBrush}"
+                          HorizontalAlignment="Center" />
+                <TextBlock Text="No skills found" FontSize="16" FontWeight="SemiBold"
+                           HorizontalAlignment="Center"
+                           Foreground="{StaticResource SecondaryTextBrush}" />
+            </StackPanel>
+
+            <ListView x:Name="SkillList" SelectionMode="Single"
+                      SelectionChanged="SkillList_SelectionChanged"
+                      Background="Transparent">
+                <ListView.ItemTemplate>
+                    <DataTemplate>
+                        <Border CornerRadius="10" Padding="14,10" Margin="0,2"
+                                Background="{StaticResource CardFillBrush}"
+                                BorderBrush="{StaticResource CardBorderBrush}"
+                                BorderThickness="1">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <Ellipse Grid.Column="0" Width="8" Height="8"
+                                         Fill="{StaticResource NeonAmberBrush}"
+                                         Margin="0,4,10,0" VerticalAlignment="Top" />
+                                <StackPanel Grid.Column="1" Spacing="2">
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <TextBlock Text="{Binding Name}"
+                                                   FontFamily="{StaticResource MonoFont}"
+                                                   FontSize="13" FontWeight="SemiBold"
+                                                   Foreground="{StaticResource PrimaryTextBrush}" />
+                                        <Border CornerRadius="4" Padding="4,1"
+                                                Background="{StaticResource CardFillBrush}">
+                                            <TextBlock Text="{Binding SourceLabel}" FontSize="10"
+                                                       Foreground="{StaticResource TertiaryTextBrush}" />
+                                        </Border>
+                                    </StackPanel>
+                                    <TextBlock Text="{Binding Description}" FontSize="11"
+                                               Foreground="{StaticResource TertiaryTextBrush}"
+                                               TextTrimming="CharacterEllipsis" MaxLines="1" />
+                                </StackPanel>
+                                <FontIcon Grid.Column="2" Glyph="&#xE76C;" FontSize="12"
+                                          Foreground="{StaticResource TertiaryTextBrush}"
+                                          VerticalAlignment="Center" />
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </ListView.ItemTemplate>
+            </ListView>
+        </Grid>
+
+        <!-- Editor panel -->
+        <Border Grid.Row="3" x:Name="EditorPanel" Visibility="Collapsed"
+                CornerRadius="12" Margin="0,16,0,0" Padding="16"
+                Background="{StaticResource CardFillBrush}"
+                BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1"
+                MinHeight="200" MaxHeight="400">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <Grid Grid.Row="0" Margin="0,0,0,8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <TextBlock x:Name="EditorTitle" FontSize="14" FontWeight="Bold"
+                                   Foreground="{StaticResource PrimaryTextBrush}" />
+                        <Border x:Name="EditorSourceBadge" CornerRadius="4" Padding="6,2"
+                                Background="{StaticResource CardFillBrush}">
+                            <TextBlock x:Name="EditorSourceText" FontSize="10"
+                                       Foreground="{StaticResource TertiaryTextBrush}" />
+                        </Border>
+                    </StackPanel>
+                    <Button Grid.Column="1" Content="✕" Click="CloseEditor_Click"
+                            Background="Transparent" Foreground="{StaticResource TertiaryTextBrush}"
+                            FontSize="16" Padding="4" />
+                </Grid>
+
+                <!-- Create mode: name + type picker -->
+                <StackPanel Grid.Row="1" x:Name="CreatePanel" Visibility="Collapsed"
+                            Spacing="8" Margin="0,0,0,8">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <TextBlock Text="Name:" FontSize="13" VerticalAlignment="Center"
+                                   Foreground="{StaticResource SecondaryTextBrush}" />
+                        <TextBox x:Name="SkillNameField" Width="200"
+                                 FontFamily="{StaticResource MonoFont}"
+                                 PlaceholderText="my-skill"
+                                 TextChanged="SkillNameField_TextChanged" />
+                    </StackPanel>
+                    <ctc:Segmented x:Name="TypeToggle" SelectionMode="Single"
+                                   SelectionChanged="TypeToggle_SelectionChanged">
+                        <ctc:SegmentedItem Content="Command" Tag="Command" />
+                        <ctc:SegmentedItem Content="Skill" Tag="Skill" />
+                    </ctc:Segmented>
+                </StackPanel>
+
+                <TextBox Grid.Row="2" x:Name="SkillEditor"
+                         AcceptsReturn="True" TextWrapping="Wrap"
+                         FontFamily="{StaticResource MonoFont}" FontSize="12"
+                         Background="{StaticResource BgPrimaryBrush}"
+                         Foreground="{StaticResource PrimaryTextBrush}"
+                         BorderThickness="1" CornerRadius="8"
+                         BorderBrush="{StaticResource CardBorderBrush}" />
+
+                <StackPanel Grid.Row="3" Orientation="Horizontal" Spacing="8"
+                            HorizontalAlignment="Right" Margin="0,8,0,0">
+                    <Button x:Name="BtnSaveSkill" Content="Save" Click="SaveSkill_Click"
+                            Visibility="Collapsed"
+                            Background="{StaticResource NeonGreenBrush}" Foreground="Black"
+                            FontWeight="SemiBold" CornerRadius="6" Padding="12,6" />
+                    <Button x:Name="BtnToggleSkill" Click="ToggleSkill_Click"
+                            Visibility="Collapsed"
+                            CornerRadius="6" Padding="12,6" FontWeight="SemiBold" />
+                    <Button x:Name="BtnCreateSkill" Content="Create" Click="CreateSkill_Click"
+                            Visibility="Collapsed"
+                            Background="{StaticResource NeonAmberBrush}" Foreground="Black"
+                            FontWeight="SemiBold" CornerRadius="6" Padding="12,6" />
+                </StackPanel>
+            </Grid>
+        </Border>
+    </Grid>
+</Page>
