@@ -1,0 +1,2728 @@
+/* Configonaut theme — ported from Sources/Theme.swift.
+ * Near-black background with a saturated neon accent palette and soft
+ * glass cards. The ambient gradient orbs behind the whole window give it
+ * the same "control panel" vibe the SwiftUI version has.
+ */
+
+:root {
+  color-scheme: dark;
+
+  /* Background */
+  --bg: #0a0e15;
+  --bg-elevated: #111827;
+  --bg-input: rgba(255, 255, 255, 0.04);
+
+  /* Neon accents */
+  --green: #00f5a0;
+  --red: #ff5c8a;
+  --blue: #00b4ff;
+  --purple: #b36cff;
+  --amber: #ffd43b;
+  --cyan: #00e5ff;
+  --orange: #ff8a3d;
+
+  /* Card surfaces (echo Theme.cardFill / Theme.cardBorder) */
+  --card-fill: rgba(255, 255, 255, 0.04);
+  --card-fill-hover: rgba(255, 255, 255, 0.08);
+  --card-border: rgba(255, 255, 255, 0.08);
+  --card-border-hover: rgba(255, 255, 255, 0.14);
+  --subtle-border: rgba(255, 255, 255, 0.06);
+
+  /* Text tiers mirror SwiftUI's .primary / .secondary / .tertiary / .quaternary */
+  --text: rgba(255, 255, 255, 0.92);
+  --text-secondary: rgba(255, 255, 255, 0.58);
+  --text-tertiary: rgba(255, 255, 255, 0.36);
+  --text-quaternary: rgba(255, 255, 255, 0.22);
+
+  --radius: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 14px;
+
+  --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo,
+    Consolas, "Liberation Mono", monospace;
+  --sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui,
+    Roboto, "Helvetica Neue", Arial, sans-serif;
+
+  /* macOS traffic-light inset — reserved when titleBarStyle=Overlay so our
+   * content doesn't hide behind the close/min/max buttons. */
+  --titlebar-height: 28px;
+
+  font-family: var(--sans);
+  font-size: 13.5px;
+  line-height: 1.5;
+  letter-spacing: -0.003em;
+  color: var(--text);
+  background: var(--bg);
+
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-feature-settings: "cv11", "ss01", "ss03"; /* Inter: nicer digits + a/g */
+  text-rendering: optimizeLegibility;
+}
+
+/* Headings use slightly tighter tracking the way Inter expects. */
+h1, h2, h3, h4, h5, h6 {
+  letter-spacing: -0.015em;
+  font-feature-settings: "cv11", "ss01", "ss03";
+}
+
+code, pre, textarea, .mono {
+  font-feature-settings: normal;
+  letter-spacing: 0;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  overflow: hidden;
+  /* Native-app feel: no stray text selection when the user clicks on chrome
+   * (sidebar, header, nav items). Without this, dragging the window from a
+   * drag region smears a blue selection across every label it passes over.
+   * Real text content — JSON editors, free-form inputs — opts back in below. */
+  -webkit-user-select: none;
+  user-select: none;
+  cursor: default;
+}
+
+/* Re-enable text selection for elements the user actually wants to read or
+ * copy from: editors, form fields, the config path banner, and anything that
+ * explicitly opts in with `.allow-select`. */
+input,
+textarea,
+pre,
+code,
+.allow-select,
+.main-header .config-path,
+.mcp-view textarea,
+.detail-body textarea {
+  -webkit-user-select: text;
+  user-select: text;
+  cursor: auto;
+}
+
+/* Ambient gradient background — two soft orbs, matching Theme.GradientBackground */
+.app-root::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(
+      900px 600px at 18% 12%,
+      rgba(0, 245, 160, 0.12),
+      transparent 60%
+    ),
+    radial-gradient(
+      800px 600px at 82% 88%,
+      rgba(0, 180, 255, 0.1),
+      transparent 60%
+    ),
+    radial-gradient(
+      600px 500px at 50% 50%,
+      rgba(179, 108, 255, 0.05),
+      transparent 70%
+    );
+  z-index: 0;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  background: transparent;
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius);
+  padding: 5px 11px;
+  cursor: pointer;
+  transition: background 120ms ease, border-color 120ms ease,
+    color 120ms ease;
+}
+
+button:hover:not(:disabled) {
+  background: var(--card-fill-hover);
+  border-color: var(--card-border-hover);
+}
+
+button:active:not(:disabled) {
+  transform: translateY(0.5px);
+}
+
+button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+button.primary {
+  background: linear-gradient(90deg, #22c55e, var(--green));
+  border-color: rgba(255, 255, 255, 0.1);
+  color: #052014;
+  font-weight: 600;
+  box-shadow: 0 4px 14px rgba(0, 245, 160, 0.18);
+}
+
+/* Re-state the gradient background here so it wins over the generic
+   `button:hover` rule (which otherwise swaps in a dark fill and leaves the
+   near-black primary text unreadable). */
+button.primary:hover:not(:disabled) {
+  background: linear-gradient(90deg, #2fd66c, #4ffbb7);
+  border-color: rgba(255, 255, 255, 0.18);
+  color: #041a10;
+  box-shadow: 0 6px 18px rgba(0, 245, 160, 0.28);
+}
+
+button.danger {
+  background: transparent;
+  border-color: rgba(255, 92, 138, 0.35);
+  color: var(--red);
+}
+
+button.danger:hover:not(:disabled) {
+  background: rgba(255, 92, 138, 0.08);
+  border-color: var(--red);
+}
+
+button.ghost {
+  background: transparent;
+  border-color: transparent;
+  color: var(--text-secondary);
+}
+
+button.ghost:hover:not(:disabled) {
+  color: var(--text);
+  background: var(--card-fill);
+}
+
+button.icon {
+  padding: 5px 8px;
+  color: var(--text-secondary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+button.icon svg {
+  display: block;
+}
+
+button.icon:hover:not(:disabled) {
+  color: var(--text);
+}
+
+input,
+textarea,
+select {
+  font: inherit;
+  color: var(--text);
+  background: var(--bg-input);
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius);
+  padding: 6px 10px;
+  outline: none;
+  transition: border-color 120ms ease, background 120ms ease;
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+  border-color: rgba(0, 180, 255, 0.5);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+textarea {
+  resize: vertical;
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+code,
+pre {
+  font-family: var(--mono);
+}
+
+a {
+  color: var(--blue);
+  text-decoration: none;
+}
+
+a:hover {
+  color: #4dd0ff;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.16);
+}
+
+/* ----- Glass card helper — echoes SwiftUI .glassCard() ----- */
+.glass {
+  background:
+    linear-gradient(rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0.02)),
+    rgba(17, 24, 39, 0.5);
+  backdrop-filter: blur(18px) saturate(140%);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius-xl);
+}
+
+/* ----- Root layout ----- */
+
+.app-root {
+  position: relative;
+  display: grid;
+  /* Sidebar column is 260px — the old 220px was tight to begin with,
+   * and the new 16px of horizontal margin (12px left + 4px right) on
+   * the sidebar card ate into the usable interior, clipping nav item
+   * subtitles like "Add, remove & swa…". */
+  grid-template-columns: 260px 1fr;
+  /* Row 1 is the titlebar drag strip (fixed 28px to match the macOS
+   * traffic-light inset), row 2 is the actual app content. Putting the
+   * drag strip in its own row — instead of absolutely positioning it
+   * over the layout — means Tauri's data-tauri-drag-region handler
+   * sees a real element with real dimensions, and the sidebar/main
+   * can't accidentally steal the mousedown events. */
+  grid-template-rows: var(--titlebar-height) 1fr;
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+  z-index: 0;
+}
+
+.app-root > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* ---------- Sidebar ---------- */
+
+.sidebar {
+  grid-column: 1;
+  grid-row: 2;
+  /* Floating-card treatment: instead of sitting edge-to-edge like a wall,
+   * the sidebar is inset on all four sides so the ambient gradient
+   * background shows through the gutter. The left/bottom margins are a
+   * bit larger than the top gap (which is already created by the drag
+   * strip row above) to keep the optical inset roughly even. */
+  margin: 6px 4px 12px 12px;
+  background: rgba(10, 14, 21, 0.55);
+  backdrop-filter: blur(22px) saturate(140%);
+  -webkit-backdrop-filter: blur(22px) saturate(140%);
+  border: 1px solid var(--subtle-border);
+  border-radius: 16px;
+  box-shadow:
+    0 18px 40px rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  display: flex;
+  flex-direction: column;
+  /* Clip children (the active-view highlight bar, the version footer,
+   * etc.) to the rounded corners. */
+  overflow: hidden;
+}
+
+.sidebar-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 14px 18px;
+}
+
+.sidebar-brand .icon-wrap {
+  position: relative;
+  width: 56px;
+  height: 56px;
+  border-radius: 14px;
+  overflow: hidden;
+  flex-shrink: 0;
+  /* Slightly stronger glow to match the larger footprint — scales the
+   * 22px blur up proportionally with the 40→56 bump. */
+  box-shadow:
+    0 0 28px rgba(0, 245, 160, 0.26),
+    0 6px 16px rgba(0, 0, 0, 0.45);
+}
+
+.sidebar-brand .icon-wrap img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.sidebar-brand .icon-wrap::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  /* Must match the wrapper's border-radius so the inner hairline border
+   * traces the same rounded corners. */
+  border-radius: 14px;
+  border: 0.5px solid rgba(255, 255, 255, 0.22);
+  pointer-events: none;
+}
+
+.sidebar-brand .title {
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.sidebar-brand .mode-caption {
+  font-size: 10px;
+  font-weight: 500;
+  margin-top: 2px;
+}
+
+.sidebar-brand .mode-caption.desktop {
+  color: rgba(0, 245, 160, 0.55);
+}
+
+.sidebar-brand .mode-caption.cli {
+  color: rgba(0, 180, 255, 0.55);
+}
+
+/* Segmented mode picker. Horizontal margin matches .nav-item (8px) so
+ * the Desktop/CLI segmented control lines up flush with the nav rows
+ * below it — same left edge, same right edge. Without this the picker
+ * looks narrower than the nav list and the sidebar reads as two
+ * unrelated columns. */
+.mode-picker {
+  margin: 0 8px 14px;
+  display: flex;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--card-border);
+  border-radius: 7px;
+  padding: 2px;
+}
+
+.mode-picker button {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 11.5px;
+  font-weight: 500;
+  padding: 4px 8px;
+  border-radius: 5px;
+}
+
+.mode-picker button.active {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.02));
+  color: var(--text);
+  box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.2),
+    0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+.section-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  color: var(--text-tertiary);
+  padding: 10px 18px 4px;
+}
+
+.nav-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 1px 8px;
+  padding: 8px 10px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  text-align: left;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease;
+}
+
+.nav-item:hover {
+  background: var(--card-fill);
+  color: var(--text);
+}
+
+.nav-item .glyph {
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  color: var(--text-secondary);
+  font-size: 14px;
+  transition: color 120ms ease;
+}
+
+.nav-item .labels {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  min-width: 0;
+  flex: 1;
+}
+
+.nav-item .labels .title {
+  font-size: 13px;
+  font-weight: 400;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.nav-item .labels .subtitle {
+  font-size: 10px;
+  color: var(--text-tertiary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.nav-item .badge {
+  font-size: 9px;
+  font-weight: 700;
+  color: #fff;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.14);
+}
+
+/* Selected state — per-section accent color set via inline style */
+.nav-item.active {
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.06),
+    rgba(255, 255, 255, 0.02)
+  );
+  color: var(--text);
+  border-color: var(--card-border);
+}
+
+.nav-item.active .glyph {
+  color: var(--nav-accent, var(--green));
+  filter: drop-shadow(0 0 6px var(--nav-accent, var(--green)));
+}
+
+.nav-item.active .labels .title {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.nav-item.active .badge {
+  background: color-mix(in srgb, var(--nav-accent, var(--green)) 55%, transparent);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--nav-accent, var(--green)) 60%, transparent);
+}
+
+.nav-item.active::before {
+  content: "";
+  position: absolute;
+  left: -2px;
+  top: 6px;
+  bottom: 6px;
+  width: 3px;
+  border-radius: 2px;
+  background: var(--nav-accent, var(--green));
+  box-shadow: 0 0 8px var(--nav-accent, var(--green)),
+    0 0 18px color-mix(in srgb, var(--nav-accent, var(--green)) 40%, transparent);
+}
+
+.sidebar-divider {
+  height: 1px;
+  margin: 10px 14px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(0, 229, 255, 0.15),
+    transparent
+  );
+}
+
+.sidebar-spacer {
+  flex: 1;
+}
+
+.sidebar-version {
+  text-align: center;
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 500;
+  color: var(--text-quaternary);
+  padding: 10px 0 12px;
+}
+
+/* ---------- Main pane ---------- */
+
+.main {
+  grid-column: 2;
+  grid-row: 2;
+  /* Matching inset to the sidebar. The left margin is intentionally
+   * small (4px) so the sidebar and main pane look like paired cards
+   * with a consistent gutter, rather than two unrelated regions. */
+  margin: 6px 12px 12px 4px;
+  background: rgba(10, 14, 21, 0.42);
+  backdrop-filter: blur(22px) saturate(140%);
+  -webkit-backdrop-filter: blur(22px) saturate(140%);
+  border: 1px solid var(--subtle-border);
+  border-radius: 16px;
+  box-shadow:
+    0 18px 40px rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-width: 0;
+}
+
+/* Full-width titlebar drag strip. Lives as row 1 of the .app-root grid
+ * (grid-column: 1 / -1) so it spans the entire window width from the
+ * right edge of the macOS traffic-light buttons to the far right. The
+ * strip has no background or children — it's purely a target for
+ * Tauri's data-tauri-drag-region handler, which reads mousedown events
+ * and translates them into native window moves. */
+.app-titlebar-drag {
+  grid-column: 1 / -1;
+  grid-row: 1;
+  height: var(--titlebar-height);
+  -webkit-user-select: none;
+  user-select: none;
+  cursor: default;
+}
+
+/* On Windows and Linux, Tauri gives the window its native chrome
+ * (titleBarStyle=Overlay is a macOS-only config option). We collapse
+ * our custom drag strip to zero height so it doesn't stack on top of
+ * the native title bar and eat 28px of layout. Only macOS keeps the
+ * frameless drag strip — see main.tsx where the OS tag is set. */
+html[data-os="windows"],
+html[data-os="linux"],
+html[data-os="other"] {
+  --titlebar-height: 0px;
+}
+html[data-os="windows"] .app-titlebar-drag,
+html[data-os="linux"] .app-titlebar-drag,
+html[data-os="other"] .app-titlebar-drag {
+  display: none;
+}
+
+button,
+input,
+textarea,
+select,
+a {
+  -webkit-app-region: no-drag;
+}
+
+.main-header {
+  padding: 12px 18px 14px;
+  border-bottom: 1px solid var(--subtle-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.main-header .title-block {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.main-header .title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.main-header h2 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.2px;
+}
+
+.count-pill {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--green);
+  background: rgba(0, 245, 160, 0.12);
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
+.main-header .config-path {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text-tertiary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 520px;
+}
+
+.main-header .header-actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-left: auto;
+}
+
+.main-body {
+  flex: 1;
+  overflow: auto;
+  padding: 14px 18px 16px;
+  min-height: 0;
+}
+
+/* Modifier for views that manage their own internal scrolling (e.g. the
+   Backups master/detail layout). We swap the scrollable parent for a
+   bounded flex column so nested panes can each own their scroll. */
+.main-body.main-body--flex {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.banner {
+  background: linear-gradient(
+    90deg,
+    rgba(0, 180, 255, 0.12),
+    rgba(179, 108, 255, 0.1)
+  );
+  border: 1px solid rgba(0, 180, 255, 0.3);
+  color: #cfeaff;
+  padding: 9px 14px;
+  border-radius: var(--radius);
+  margin: 0 0 12px;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.banner.error {
+  background: rgba(255, 92, 138, 0.1);
+  border-color: rgba(255, 92, 138, 0.35);
+  color: var(--red);
+}
+
+/* ---------- MCP columns ---------- */
+
+.mcp-view {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  gap: 6px;
+  min-height: 0;
+}
+
+.mcp-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  flex: 1;
+  min-height: 0;
+}
+
+.column {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 0;
+  background:
+    linear-gradient(rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0.02)),
+    rgba(17, 24, 39, 0.5);
+  backdrop-filter: blur(18px) saturate(140%);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius-xl);
+}
+
+.column.active-column {
+  border-color: rgba(0, 245, 160, 0.22);
+  background:
+    linear-gradient(rgba(0, 245, 160, 0.04), rgba(0, 245, 160, 0.01)),
+    rgba(17, 24, 39, 0.5);
+}
+
+.column.inactive-column {
+  border-color: rgba(255, 92, 138, 0.18);
+  background:
+    linear-gradient(rgba(255, 92, 138, 0.03), rgba(255, 92, 138, 0.01)),
+    rgba(17, 24, 39, 0.5);
+}
+
+.column-header {
+  padding: 10px 14px 6px;
+}
+
+.column-header-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.column-header-row .icon {
+  font-size: 12px;
+}
+
+.column-header-row h3 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+}
+
+.column-header-row .count-mini {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 7px;
+  border-radius: 999px;
+}
+
+.column.active-column .column-header-row h3 {
+  color: var(--green);
+}
+.column.active-column .column-header-row .icon {
+  color: var(--green);
+  filter: drop-shadow(0 0 5px var(--green));
+}
+.column.active-column .column-header-row .count-mini {
+  color: var(--green);
+  background: rgba(0, 245, 160, 0.12);
+}
+
+.column.inactive-column .column-header-row h3 {
+  color: var(--red);
+}
+.column.inactive-column .column-header-row .icon {
+  color: var(--red);
+}
+.column.inactive-column .column-header-row .count-mini {
+  color: var(--red);
+  background: rgba(255, 92, 138, 0.12);
+}
+
+.column-subtitle {
+  font-size: 11px;
+  padding: 2px 14px 10px;
+}
+.column.active-column .column-subtitle {
+  color: rgba(0, 245, 160, 0.6);
+}
+.column.inactive-column .column-subtitle {
+  color: rgba(255, 92, 138, 0.55);
+}
+
+.column-divider {
+  height: 1px;
+  background: var(--subtle-border);
+}
+
+.column-body {
+  flex: 1;
+  overflow: auto;
+  padding: 6px;
+}
+
+.server-row {
+  padding: 9px 12px;
+  margin: 2px 0;
+  border-radius: var(--radius);
+  cursor: grab;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border: 1px solid transparent;
+  transition: background 120ms ease, border-color 120ms ease;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+}
+
+.server-row:active {
+  cursor: grabbing;
+}
+
+/* Origin row while it's being dragged — collapses into a dashed slot so the
+ * list doesn't reflow when the preview lifts off. */
+.server-row.origin-ghost {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px dashed rgba(255, 255, 255, 0.12);
+  cursor: default;
+}
+
+/* The inbound slot rendered in the target column while dragging. */
+.server-row.drop-placeholder {
+  cursor: default;
+  justify-content: center;
+  border: 1px dashed currentColor;
+  color: var(--text-tertiary);
+  animation: drop-pulse 1.2s ease-in-out infinite;
+}
+.column.active-column .drop-placeholder {
+  color: rgba(0, 245, 160, 0.75);
+  background: rgba(0, 245, 160, 0.06);
+}
+.column.inactive-column .drop-placeholder {
+  color: rgba(255, 92, 138, 0.75);
+  background: rgba(255, 92, 138, 0.06);
+}
+.drop-placeholder .placeholder-text {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+@keyframes drop-pulse {
+  0%, 100% { opacity: 0.75; }
+  50% { opacity: 1; }
+}
+
+/* Floating card that follows the cursor during a drag. */
+.drag-preview {
+  filter: drop-shadow(0 14px 28px rgba(0, 0, 0, 0.45))
+    drop-shadow(0 4px 10px rgba(0, 0, 0, 0.35));
+  transform: rotate(-1.5deg);
+}
+.drag-preview .drag-preview-card {
+  margin: 0;
+  height: 100%;
+  background:
+    linear-gradient(rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.02)),
+    rgba(17, 24, 39, 0.96);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--card-border-hover);
+  cursor: grabbing;
+}
+.drag-preview .drag-preview-card.from-active {
+  border-color: rgba(0, 245, 160, 0.55);
+  box-shadow: 0 0 0 1px rgba(0, 245, 160, 0.25) inset;
+}
+.drag-preview .drag-preview-card.from-inactive {
+  border-color: rgba(255, 92, 138, 0.55);
+  box-shadow: 0 0 0 1px rgba(255, 92, 138, 0.25) inset;
+}
+
+/* Highlight the opposite column while a drag is hovering over it. */
+.column.drop-target {
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.18) inset,
+    0 0 24px rgba(255, 255, 255, 0.06);
+}
+.column.active-column.drop-target {
+  box-shadow:
+    0 0 0 1px rgba(0, 245, 160, 0.45) inset,
+    0 0 26px rgba(0, 245, 160, 0.18);
+  background:
+    linear-gradient(rgba(0, 245, 160, 0.08), rgba(0, 245, 160, 0.02)),
+    rgba(17, 24, 39, 0.55);
+}
+.column.inactive-column.drop-target {
+  box-shadow:
+    0 0 0 1px rgba(255, 92, 138, 0.4) inset,
+    0 0 26px rgba(255, 92, 138, 0.18);
+  background:
+    linear-gradient(rgba(255, 92, 138, 0.07), rgba(255, 92, 138, 0.02)),
+    rgba(17, 24, 39, 0.55);
+}
+
+.server-row:hover {
+  background: var(--card-fill);
+}
+
+.server-row.selected {
+  background: var(--card-fill);
+  border-color: var(--card-border-hover);
+}
+
+.server-row .name {
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.server-row .actions {
+  display: flex;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity 120ms;
+}
+
+.server-row:hover .actions,
+.server-row.selected .actions {
+  opacity: 1;
+}
+
+.server-row .actions button {
+  padding: 3px 8px;
+  font-size: 11px;
+}
+
+.empty {
+  padding: 28px 14px;
+  text-align: center;
+  color: var(--text-tertiary);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+/* ---------- Detail panel ---------- */
+
+.detail-panel {
+  display: flex;
+  flex-direction: column;
+  /* Height is driven by the user's drag handle (inline style). We keep a
+     sensible floor so the panel never collapses completely if the stored
+     value is corrupt. */
+  min-height: 180px;
+  background:
+    linear-gradient(rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0.02)),
+    rgba(17, 24, 39, 0.5);
+  backdrop-filter: blur(18px) saturate(140%);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius-xl);
+}
+
+/* ---------- Resize handle between columns and detail panel ---------- */
+
+.detail-resize-handle {
+  position: relative;
+  height: 12px;
+  flex: none;
+  cursor: ns-resize;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.detail-resize-handle .detail-resize-grip {
+  width: 46px;
+  height: 3px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  transition: background 120ms ease, transform 120ms ease;
+}
+
+.detail-resize-handle:hover .detail-resize-grip,
+body.is-resizing .detail-resize-handle .detail-resize-grip {
+  background: rgba(140, 170, 255, 0.55);
+  transform: scaleX(1.15);
+}
+
+/* While resizing, lock the cursor globally and kill selection so the drag
+   feels crisp no matter where the pointer ends up. */
+body.is-resizing {
+  cursor: ns-resize !important;
+}
+
+body.is-resizing,
+body.is-resizing * {
+  user-select: none !important;
+  -webkit-user-select: none !important;
+}
+
+/* Same treatment while a server row is being dragged between columns —
+   without this, sweeping the cursor across "Active" / "Inactive" headings
+   highlights the text and looks broken. */
+body.is-dragging,
+body.is-dragging * {
+  user-select: none !important;
+  -webkit-user-select: none !important;
+  cursor: grabbing !important;
+}
+
+.detail-header {
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--subtle-border);
+}
+
+.detail-header .title {
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.detail-header .source-tag {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--text-tertiary);
+  margin-left: 8px;
+}
+
+.detail-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 12px 14px 14px;
+  gap: 10px;
+  min-height: 0;
+}
+
+.detail-body textarea {
+  flex: 1;
+  min-height: 140px;
+}
+
+/* Realtime validation — the editor's border + subtle glow goes red
+ * while the JSON doesn't parse or is missing required fields. Matches
+ * the `.banner.error` palette so the signal is consistent. Shared
+ * between the MCP detail editor and the Add Server → Paste JSON tab. */
+.detail-body textarea.invalid,
+.modal-body textarea.invalid {
+  border-color: rgba(255, 92, 138, 0.55);
+  box-shadow: 0 0 0 1px rgba(255, 92, 138, 0.35),
+    0 0 18px rgba(255, 92, 138, 0.12);
+}
+
+.detail-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.status-footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 4px 0;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.status-footer .glow-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--green);
+  box-shadow: 0 0 6px var(--green);
+}
+
+.status-footer .spacer {
+  flex: 1;
+}
+
+.status-footer .counts {
+  color: var(--text-tertiary);
+}
+
+/* ---------- Backups ---------- */
+
+.backups-layout {
+  display: grid;
+  grid-template-columns: minmax(300px, 360px) 1fr;
+  /* Single row, explicitly bounded with minmax(0, 1fr) so grid items can
+     shrink below their content height and let their own overflow kick in. */
+  grid-template-rows: minmax(0, 1fr);
+  gap: 14px;
+  flex: 1;
+  min-height: 0;
+}
+
+.backup-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 6px;
+  min-height: 0;
+  /* Each pane is its own grid cell — allow it to shrink below content height
+     so the inner overflow can actually scroll. */
+  min-width: 0;
+}
+
+.backup-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: var(--card-fill);
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: background 120ms ease, border-color 120ms ease;
+}
+
+.backup-row:hover {
+  background: var(--card-fill-hover);
+  border-color: var(--card-border-hover);
+}
+
+.backup-row.selected {
+  background: rgba(0, 229, 255, 0.08);
+  border-color: rgba(0, 229, 255, 0.35);
+}
+
+.backup-row .meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.backup-row .filename {
+  font-size: 12.5px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.backup-row .latest-tag {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: var(--cyan);
+  background: rgba(0, 229, 255, 0.14);
+  padding: 1px 6px;
+  border-radius: 999px;
+}
+
+.backup-row .sub {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  font-family: var(--mono);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.backup-row .actions {
+  display: flex;
+  gap: 6px;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+.backup-row:hover .actions,
+.backup-row.selected .actions {
+  opacity: 1;
+}
+
+.backup-row .actions button {
+  padding: 4px 9px;
+  font-size: 11px;
+}
+
+/* --- Preview pane --- */
+
+.backup-preview {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  /* Same reason as .backup-list — let the 1fr grid cell shrink so the
+     <pre> inside can scroll instead of overflowing. */
+  min-width: 0;
+  overflow: hidden;
+  background:
+    linear-gradient(rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0.02)),
+    rgba(17, 24, 39, 0.5);
+  backdrop-filter: blur(18px) saturate(140%);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius-xl);
+  overflow: hidden;
+}
+
+.backup-preview-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: var(--text-tertiary);
+  padding: 40px 20px;
+  text-align: center;
+}
+
+.backup-preview-empty .hint-glyph {
+  font-size: 32px;
+  color: rgba(0, 229, 255, 0.4);
+  filter: drop-shadow(0 0 8px rgba(0, 229, 255, 0.3));
+  margin-bottom: 6px;
+}
+
+.backup-preview-empty .sub {
+  font-size: 11px;
+  color: var(--text-quaternary);
+}
+
+.backup-preview-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--subtle-border);
+  background: rgba(0, 0, 0, 0.15);
+}
+
+.backup-preview-header .label {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: var(--cyan);
+}
+
+.backup-preview-header .sub {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--text-tertiary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.diff-summary {
+  padding: 10px 14px;
+  background: rgba(0, 0, 0, 0.12);
+  border-bottom: 1px solid var(--subtle-border);
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.diff-label {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  margin-bottom: 4px;
+}
+
+.diff-label.muted {
+  color: var(--text-tertiary);
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: 0;
+  font-family: var(--sans);
+  font-size: 11px;
+  margin: 0;
+}
+
+.diff-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  font-weight: 500;
+}
+
+.diff-row .glyph {
+  width: 14px;
+  text-align: center;
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.diff-row.removed {
+  color: var(--red);
+}
+.diff-row.removed .glyph {
+  color: var(--red);
+}
+
+.diff-row.added {
+  color: var(--green);
+}
+.diff-row.added .glyph {
+  color: var(--green);
+}
+
+.backup-preview-body {
+  flex: 1;
+  overflow: auto;
+  margin: 0;
+  padding: 14px;
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 1.55;
+  color: var(--text-secondary);
+  white-space: pre;
+  background: rgba(0, 0, 0, 0.1);
+}
+
+/* ---------- Modal ---------- */
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+  backdrop-filter: blur(3px);
+}
+
+.modal {
+  width: 640px;
+  max-width: 90vw;
+  max-height: 84vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background:
+    linear-gradient(rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.01)),
+    rgba(17, 24, 39, 0.88);
+  border: 1px solid var(--card-border-hover);
+  border-radius: var(--radius-xl);
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6);
+}
+
+.modal-header {
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--subtle-border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.modal-header h3 {
+  margin: 0;
+  font-size: 14px;
+}
+
+.modal-body {
+  padding: 14px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow: auto;
+  flex: 1;
+}
+
+.modal-body label {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.modal-body textarea {
+  min-height: 220px;
+}
+
+.modal-footer {
+  padding: 12px 18px;
+  border-top: 1px solid var(--subtle-border);
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/* ---------- Stub views ---------- */
+
+.stub {
+  padding: 48px 20px;
+  text-align: center;
+  color: var(--text-tertiary);
+}
+
+.stub h3 {
+  color: var(--text);
+  margin: 0 0 6px;
+  font-size: 16px;
+}
+
+/* ---------- Add Server modal (tabbed) ---------- */
+
+/* Wider than the default modal so the category sidebar + server rows fit. */
+.modal.modal-wide {
+  width: 900px;
+  max-width: 95vw;
+  height: 640px;
+  max-height: 90vh;
+}
+
+.modal-tabs {
+  display: flex;
+  gap: 2px;
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid var(--subtle-border);
+  border-radius: var(--radius);
+  padding: 2px;
+}
+
+.modal-tabs button {
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 11.5px;
+  font-weight: 500;
+  padding: 5px 14px;
+  border-radius: 6px;
+  transition: background 0.1s, color 0.1s;
+}
+
+.modal-tabs button:hover {
+  color: var(--text);
+}
+
+.modal-tabs button.active {
+  background: rgba(0, 180, 255, 0.14);
+  color: var(--text);
+  box-shadow: 0 0 10px rgba(0, 180, 255, 0.15) inset;
+}
+
+/* ---------- Marketplace tab ---------- */
+
+.modal-body.marketplace-body {
+  padding: 12px 14px;
+  gap: 10px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.marketplace-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.marketplace-header .search-box {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  background: rgba(0, 0, 0, 0.28);
+  border: 1px solid var(--card-border);
+  border-radius: 7px;
+}
+
+.marketplace-header .search-box:focus-within {
+  border-color: rgba(0, 180, 255, 0.5);
+  box-shadow: 0 0 0 1px rgba(0, 180, 255, 0.2);
+}
+
+.marketplace-header .search-box .icon {
+  color: var(--text-tertiary);
+  font-size: 12px;
+}
+
+.marketplace-header .search-box input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: var(--text);
+  font-size: 12px;
+  outline: none;
+}
+
+.marketplace-header .search-box input::placeholder {
+  color: var(--text-tertiary);
+}
+
+.marketplace-header .search-box button.clear {
+  padding: 0 4px;
+  color: var(--text-tertiary);
+  background: transparent;
+}
+
+.marketplace-header button.icon {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border-radius: 6px;
+  background: var(--card-fill);
+  border: 1px solid var(--card-border);
+  color: var(--text-secondary);
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.marketplace-header button.icon:hover:not(:disabled) {
+  background: var(--card-fill-hover);
+  color: var(--text);
+}
+
+.marketplace-columns {
+  display: flex;
+  gap: 12px;
+  flex: 1;
+  min-height: 0;
+}
+
+.marketplace-categories {
+  width: 190px;
+  flex-shrink: 0;
+  background: rgba(0, 0, 0, 0.22);
+  border: 1px solid var(--card-border);
+  border-radius: 9px;
+  padding: 4px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.category-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 9px;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 11.5px;
+  text-align: left;
+  border: none;
+  cursor: pointer;
+}
+
+.category-row:hover {
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text);
+}
+
+.category-row.selected {
+  background: rgba(0, 180, 255, 0.1);
+  color: var(--text);
+  font-weight: 600;
+}
+
+.category-row .icon {
+  color: var(--text-tertiary);
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.category-row .icon svg {
+  display: block;
+}
+
+.category-row.selected .icon {
+  color: var(--blue);
+}
+
+.category-row .label {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.category-row .count {
+  color: var(--text-quaternary);
+  font-size: 10px;
+  flex-shrink: 0;
+}
+
+.marketplace-servers {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 2px 4px 2px 2px;
+  min-width: 0;
+}
+
+/* ---------- Marketplace server card ---------- */
+
+.server-card {
+  background: var(--card-fill);
+  border: 1px solid var(--card-border);
+  border-radius: 9px;
+  padding: 10px;
+  transition: background 0.1s, border-color 0.1s;
+}
+
+.server-card:hover {
+  background: var(--card-fill-hover);
+  border-color: var(--card-border-hover);
+}
+
+.server-card.selected {
+  background: rgba(0, 180, 255, 0.07);
+  border-color: rgba(0, 180, 255, 0.3);
+}
+
+.server-card-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  cursor: pointer;
+}
+
+.server-card-header .glow-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-top: 5px;
+  flex-shrink: 0;
+}
+
+.server-card-header .labels {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.server-card-header .title-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  flex-wrap: wrap;
+}
+
+.server-card-header .name {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.server-card-header .verified {
+  color: var(--blue);
+  font-size: 10px;
+}
+
+.server-card-header .publisher {
+  color: var(--text-tertiary);
+  font-size: 10px;
+}
+
+.server-card-header .keys-pill {
+  color: var(--amber);
+  font-size: 9.5px;
+  background: rgba(255, 212, 59, 0.1);
+  padding: 1px 6px;
+  border-radius: 10px;
+}
+
+.server-card-header .description {
+  font-size: 11px;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+.server-card:not(.selected) .server-card-header .description {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.server-card-header .installed-pill {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--green);
+  background: rgba(0, 245, 160, 0.1);
+  padding: 3px 8px;
+  border-radius: 12px;
+  flex-shrink: 0;
+  align-self: center;
+}
+
+.server-card-header .chevron {
+  color: var(--text-tertiary);
+  font-size: 11px;
+  flex-shrink: 0;
+  align-self: center;
+  padding: 2px 6px;
+}
+
+.server-card-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 10px;
+  margin-top: 8px;
+  border-top: 1px solid var(--subtle-border);
+}
+
+.server-card-detail .setup-notes {
+  font-size: 10.5px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.server-card-detail .env-vars-required {
+  background: rgba(0, 0, 0, 0.22);
+  padding: 8px;
+  border-radius: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.server-card-detail .required-label {
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 2px;
+}
+
+.server-card-detail .env-var-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  color: var(--text);
+}
+
+.server-card-detail .env-var-row .key-icon {
+  color: var(--amber);
+  font-size: 9px;
+}
+
+.server-card-detail .env-var-row code {
+  font-family: var(--mono);
+  color: var(--text);
+}
+
+.server-card-detail .env-var-desc {
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.server-card-detail .env-var-row a {
+  color: var(--blue);
+  text-decoration: none;
+}
+
+.editor-label-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.editor-label-row .editor-hint {
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.editor-label-row .spacer {
+  flex: 1;
+}
+
+.editor-label-row button.small {
+  font-size: 10px;
+  padding: 2px 8px;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.marketplace-editor {
+  width: 100%;
+  min-height: 140px;
+  font-family: var(--mono);
+  font-size: 11px;
+  padding: 8px;
+  background: rgba(0, 0, 0, 0.32);
+  border: 1px solid var(--card-border);
+  border-radius: 6px;
+  color: var(--text);
+  resize: vertical;
+  outline: none;
+}
+
+.marketplace-editor:focus {
+  border-color: rgba(0, 180, 255, 0.4);
+}
+
+.detail-footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.detail-footer .spacer {
+  flex: 1;
+}
+
+.detail-footer .link-chip {
+  font-size: 9.5px;
+  font-weight: 500;
+  color: var(--blue);
+  text-decoration: none;
+  padding: 3px 8px;
+  border-radius: 10px;
+  background: rgba(0, 180, 255, 0.08);
+}
+
+.detail-footer .link-chip:hover {
+  background: rgba(0, 180, 255, 0.14);
+}
+
+.detail-footer .license-chip {
+  font-size: 9px;
+  color: var(--text-tertiary);
+  padding: 3px 7px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+/* ============================================================ */
+/* Hooks / Agents / Skills — shared styles                       */
+/* ============================================================ */
+
+/* ---------- Gradient "New X" button ---------- */
+
+.gradient-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  cursor: pointer;
+  transition: filter 120ms ease, transform 120ms ease;
+}
+
+.gradient-btn:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+
+.gradient-btn:active:not(:disabled) {
+  transform: translateY(0.5px);
+}
+
+.gradient-btn .plus {
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.gradient-btn--blue {
+  background: linear-gradient(90deg, var(--blue), var(--purple));
+  box-shadow: 0 0 14px rgba(0, 180, 255, 0.25);
+}
+
+/* Re-state the gradient + border on hover so the generic
+   `button:hover:not(:disabled)` rule (specificity 0,2,1) doesn't swap
+   our gradient out for a flat dark card fill, which otherwise flattens
+   the button into an unreadable slab. */
+.gradient-btn--blue:hover:not(:disabled) {
+  background: linear-gradient(90deg, var(--blue), var(--purple));
+  border-color: rgba(255, 255, 255, 0.2);
+  color: white;
+}
+
+.gradient-btn--amber {
+  background: linear-gradient(90deg, var(--amber), var(--orange));
+  box-shadow: 0 0 14px rgba(255, 138, 61, 0.2);
+  color: #1b1405;
+}
+
+/* Same fix for the amber variant — without this, hover swaps to the
+   dark card fill and the dark-brown label text disappears. */
+.gradient-btn--amber:hover:not(:disabled) {
+  background: linear-gradient(90deg, var(--amber), var(--orange));
+  border-color: rgba(255, 255, 255, 0.2);
+  color: #1b1405;
+}
+
+/* ---------- Search bar ---------- */
+
+.search-bar-wrap {
+  padding: 0 18px 10px;
+  border-bottom: 1px solid var(--subtle-border);
+}
+
+.search-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: rgba(0, 0, 0, 0.24);
+  border: 1px solid var(--card-border);
+  border-radius: 8px;
+  color: var(--text-tertiary);
+}
+
+.search-bar:focus-within {
+  border-color: rgba(0, 180, 255, 0.45);
+  box-shadow: 0 0 0 1px rgba(0, 180, 255, 0.18);
+}
+
+.search-bar input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--text);
+  font-size: 12.5px;
+  font-family: var(--sans);
+}
+
+.search-bar input::placeholder {
+  color: var(--text-tertiary);
+}
+
+.search-bar .clear {
+  background: transparent;
+  border: none;
+  padding: 0 4px;
+  color: var(--text-tertiary);
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.search-bar .clear:hover {
+  color: var(--text);
+}
+
+/* ---------- Scrollable groups list ---------- */
+
+.groups-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 4px 4px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* ---------- Generic claude list (hooks uses this too) ---------- */
+
+.claude-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 2px 2px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* ---------- Glow dot ---------- */
+
+.glow-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* ---------- Hook rows ---------- */
+
+.hook-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 10px 13px;
+  background: var(--card-fill);
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: background 120ms ease, border-color 120ms ease;
+  user-select: none;
+}
+
+.hook-row:hover {
+  background: var(--card-fill-hover);
+  border-color: var(--card-border-hover);
+}
+
+.hook-row.off .hook-event,
+.hook-row.off .hook-command {
+  opacity: 0.65;
+}
+
+.hook-event {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+}
+
+.hook-matcher {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--text-secondary);
+  background: rgba(255, 255, 255, 0.05);
+  padding: 1px 7px;
+  border-radius: 10px;
+}
+
+.hook-command {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-tertiary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+}
+
+.state-pill {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  padding: 2px 8px;
+  border-radius: 10px;
+  flex-shrink: 0;
+}
+
+.chevron {
+  color: var(--text-tertiary);
+  font-size: 13px;
+  width: 14px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.spacer {
+  flex: 1;
+}
+
+/* ---------- Hook editor ---------- */
+
+.hook-editor {
+  padding: 12px 14px 14px;
+  gap: 10px;
+}
+
+.hook-editor-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--subtle-border);
+}
+
+.hook-editor-textarea {
+  flex: 1;
+  width: 100%;
+  min-height: 120px;
+  resize: none;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  line-height: 1.5;
+  padding: 10px 12px;
+  background: rgba(0, 0, 0, 0.34);
+  border: 1px solid rgba(0, 180, 255, 0.22);
+  border-radius: 8px;
+  color: var(--text);
+  outline: none;
+}
+
+.hook-editor-textarea:focus {
+  border-color: rgba(0, 180, 255, 0.45);
+}
+
+.hook-editor-footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.settings-path-hint {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text-tertiary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 48%;
+  direction: rtl;
+  text-align: left;
+}
+
+.inline-error {
+  font-size: 11px;
+  color: var(--red);
+  background: rgba(255, 92, 138, 0.08);
+  border: 1px solid rgba(255, 92, 138, 0.25);
+  padding: 5px 9px;
+  border-radius: 6px;
+}
+
+/* ---------- Hooks / Agents / Skills footer ---------- */
+
+.hooks-footer {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 18px;
+  border-top: 1px solid var(--subtle-border);
+  background: rgba(0, 0, 0, 0.12);
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--subtle-border);
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+.status-pill .dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  box-shadow: 0 0 6px currentColor;
+}
+
+.status-pill.error {
+  color: var(--red);
+  border-color: rgba(255, 92, 138, 0.3);
+  background: rgba(255, 92, 138, 0.08);
+}
+
+.footer-counts {
+  color: var(--text-tertiary);
+  font-size: 11px;
+}
+
+/* ---------- Empty states ---------- */
+
+.empty-wrap {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 40px 24px;
+  text-align: center;
+}
+
+.empty-glow {
+  position: relative;
+  width: 72px;
+  height: 72px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.empty-glow::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  filter: blur(14px);
+  opacity: 0.35;
+  z-index: -1;
+}
+
+.empty-glow--blue {
+  color: rgba(0, 180, 255, 0.6);
+}
+.empty-glow--blue::before {
+  background: rgba(0, 180, 255, 0.35);
+}
+
+.empty-glow--purple {
+  color: rgba(179, 108, 255, 0.6);
+}
+.empty-glow--purple::before {
+  background: rgba(179, 108, 255, 0.35);
+}
+
+.empty-glow--amber {
+  color: rgba(255, 212, 59, 0.55);
+}
+.empty-glow--amber::before {
+  background: rgba(255, 212, 59, 0.28);
+}
+
+.empty-glow--muted {
+  color: var(--text-quaternary);
+}
+
+.empty-wrap h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.empty-blurb {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+  max-width: 420px;
+}
+
+.empty-card {
+  margin-top: 6px;
+  padding: 14px 16px;
+  background: var(--card-fill);
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius-xl);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 300px;
+  text-align: left;
+}
+
+.empty-card-label {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: var(--text-tertiary);
+}
+
+.hook-type-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  font-size: 11px;
+}
+
+.hook-type-name {
+  font-weight: 600;
+  min-width: 96px;
+  font-family: var(--mono);
+}
+
+.hook-type-desc {
+  color: var(--text-secondary);
+}
+
+/* ============================================================ */
+/* Agents & Skills — grouped lists                               */
+/* ============================================================ */
+
+.agent-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.agent-group-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  background: rgba(0, 180, 255, 0.04);
+  border: 1px solid rgba(0, 180, 255, 0.1);
+  border-radius: 10px;
+  font-size: 12.5px;
+}
+
+.agent-group-header.plugin {
+  background: rgba(179, 108, 255, 0.04);
+  border-color: rgba(179, 108, 255, 0.1);
+}
+
+.agent-group-header .group-title {
+  font-weight: 700;
+  color: var(--text);
+}
+
+.count-mini-pill {
+  font-size: 9.5px;
+  font-weight: 600;
+  padding: 1px 7px;
+  border-radius: 10px;
+  letter-spacing: 0.03em;
+}
+
+.agent-group-body {
+  display: flex;
+  align-items: stretch;
+  padding-left: 8px;
+  padding-top: 6px;
+}
+
+.thread-line {
+  width: 1.5px;
+  flex-shrink: 0;
+  margin: 4px 18px 4px 8px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 1px;
+}
+
+.agent-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+}
+
+.agent-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: var(--card-fill);
+  border: 1px solid var(--card-border);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 120ms ease, border-color 120ms ease;
+  user-select: none;
+}
+
+.agent-card:hover {
+  background: var(--card-fill-hover);
+  border-color: var(--card-border-hover);
+}
+
+.agent-card.off {
+  opacity: 0.6;
+}
+
+.agent-name {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text);
+  flex-shrink: 0;
+}
+
+.agent-model {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  background: rgba(255, 255, 255, 0.06);
+  padding: 1px 7px;
+  border-radius: 10px;
+  flex-shrink: 0;
+}
+
+.agent-desc {
+  font-size: 11px;
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+}
+
+.plugin-off-tag {
+  font-size: 10px;
+  color: rgba(255, 92, 138, 0.65);
+  font-style: italic;
+  flex-shrink: 0;
+}
+
+.source-pill {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 10px;
+  flex-shrink: 0;
+}
+
+/* ---------- Mini buttons (Enable / Disable for plugin groups) ---------- */
+
+.mini-btn {
+  font-size: 10.5px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  background: transparent;
+}
+
+.mini-btn.success {
+  color: var(--green);
+  background: rgba(0, 245, 160, 0.1);
+  border-color: rgba(0, 245, 160, 0.2);
+}
+.mini-btn.success:hover {
+  background: rgba(0, 245, 160, 0.18);
+}
+
+.mini-btn.danger {
+  color: var(--red);
+  background: rgba(255, 92, 138, 0.1);
+  border-color: rgba(255, 92, 138, 0.2);
+}
+.mini-btn.danger:hover {
+  background: rgba(255, 92, 138, 0.18);
+}
+
+/* ---------- Agent / skill editor panel ---------- */
+
+.agent-editor {
+  padding: 12px 14px 14px;
+  gap: 10px;
+}
+
+.agent-editor-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--subtle-border);
+}
+
+.code-editor {
+  flex: 1;
+  width: 100%;
+  min-height: 100px;
+  resize: none;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  line-height: 1.55;
+  padding: 10px 12px;
+  background: rgba(0, 0, 0, 0.34);
+  border: 1px solid rgba(0, 180, 255, 0.22);
+  border-radius: 8px;
+  color: var(--text);
+  outline: none;
+}
+
+.code-editor:focus {
+  border-color: rgba(0, 180, 255, 0.45);
+}
+
+.agent-editor-footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.path-hint {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text-tertiary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 50%;
+  direction: rtl;
+  text-align: left;
+}
+
+/* ---------- Create panel (inherits from .agent-editor) ---------- */
+
+.create-panel {
+  border: 1px solid rgba(0, 245, 160, 0.15);
+}
+
+.create-panel .code-editor {
+  border-color: rgba(0, 245, 160, 0.25);
+}
+
+.create-panel .code-editor:focus {
+  border-color: rgba(0, 245, 160, 0.5);
+}
+
+.create-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: rgba(0, 245, 160, 0.12);
+  color: var(--green);
+  font-size: 16px;
+  font-weight: 700;
+  box-shadow: 0 0 8px rgba(0, 245, 160, 0.35);
+}
+
+.name-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.name-row label {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.name-input {
+  flex: 1;
+  background: rgba(0, 0, 0, 0.24);
+  border: 1px solid var(--card-border);
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text);
+  outline: none;
+}
+
+.name-input:focus {
+  border-color: rgba(0, 245, 160, 0.4);
+}
+
+/* ---------- Segmented control (Command / Skill) ---------- */
+
+.segmented {
+  display: inline-flex;
+  padding: 2px;
+  background: rgba(0, 0, 0, 0.28);
+  border: 1px solid var(--card-border);
+  border-radius: 7px;
+  gap: 2px;
+}
+
+.segmented button {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 500;
+  padding: 4px 12px;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.segmented button:hover {
+  color: var(--text);
+}
+
+.segmented button.active {
+  background: rgba(0, 180, 255, 0.14);
+  color: var(--text);
+  box-shadow: 0 0 8px rgba(0, 180, 255, 0.12) inset;
+}
+
+.slash-cmd {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--amber);
+}
+
+/* ----------------------------------------------------------------------
+   Modal editor — the agent/skill editor is rendered in a modal so the
+   user has room to work with longer files. These rules extend the base
+   .modal and .modal-wide styles by making the body a single-pane flex
+   column and giving the textarea the full remaining height.
+   ---------------------------------------------------------------------- */
+
+.modal.modal-editor {
+  /* Default modal-wide is 900×640; the editor needs a bit more vertical
+     real estate because agent/skill markdown files can be long. */
+  height: 720px;
+  max-height: 92vh;
+}
+
+.modal-editor-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--subtle-border);
+}
+
+.modal-editor-body {
+  padding: 14px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Undo the tiny min-height from the base modal-body textarea rule — in
+   the editor we want the textarea to grow to fill the modal. */
+.modal-editor-body textarea {
+  min-height: 0;
+}
+
+.modal-editor-footer {
+  padding: 12px 18px;
+  border-top: 1px solid var(--subtle-border);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Taller code-editor variant used inside the modal. The base .code-editor
+   rule has min-height: 100px which is fine for the old inline panel; in
+   the modal we want it to stretch to fill the available space instead. */
+.code-editor.code-editor--large {
+  flex: 1 1 auto;
+  min-height: 280px;
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+
+/* When the create-panel class is applied to the modal (for the "new
+   skill"/"new agent" flow), swap the border tint to green to match the
+   old inline create panel. */
+.modal.modal-editor.create-panel {
+  border: 1px solid rgba(0, 245, 160, 0.18);
+}
+.modal.modal-editor.create-panel .code-editor {
+  border-color: rgba(0, 245, 160, 0.25);
+}
+.modal.modal-editor.create-panel .code-editor:focus {
+  border-color: rgba(0, 245, 160, 0.5);
+}
+
+.modal-editor-footer .path-hint {
+  max-width: 60%;
+}
+

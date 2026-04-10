@@ -1,0 +1,58 @@
+[package]
+name = "configonaut"
+version = "0.1.0"
+description = "Configonaut — MCP server, hook, and skill manager for Claude Desktop and Claude Code."
+authors = ["aaronjellis"]
+edition = "2021"
+
+# The `_lib` suffix keeps the lib name unique from the bin name on Windows.
+[lib]
+name = "configonaut_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+# Cargo package names must be lowercase, but the binary we ship is what
+# macOS reads for the dock/menubar process name in `tauri dev`, and for the
+# executable inside the bundled .app. Giving it the proper casing here
+# means users see "Configonaut" instead of "configonaut" everywhere.
+[[bin]]
+name = "Configonaut"
+path = "src/main.rs"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+# `macos-private-api` enables true window transparency on macOS, which
+# the splash window relies on. `transparent: true` in tauri.conf.json
+# only takes effect when this feature is enabled — otherwise the OS
+# still draws an opaque window background behind the webview and the
+# "transparent" splash ends up with a visible white frame. This flag
+# uses NSWindow private API, which precludes Mac App Store
+# distribution, but Configonaut is direct-distributed so that's fine.
+tauri = { version = "2", features = ["macos-private-api"] }
+tauri-plugin-opener = "2"
+
+# JSON: we preserve the original key order when writing config files so diffs
+# stay minimal, hence the preserve_order feature on serde_json.
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+
+# Cross-platform path discovery (home dir, AppData, ~/.config, etc.)
+dirs = "5"
+
+# Timestamps for backup filenames and "last modified" displays.
+chrono = { version = "0.4", features = ["serde"] }
+
+# Ergonomic error handling inside commands.
+anyhow = "1"
+thiserror = "1"
+
+# Reqwest for the remote catalog fetch. rustls keeps Windows builds simple
+# (no OpenSSL toolchain required).
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json", "blocking"] }
+
+# Filesystem helpers.
+walkdir = "2"
+
+# Regex for the SecretValidator placeholder heuristics (xxxx..., <TOKEN>, etc.)
+regex = "1"

@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Configonaut</title>
+    <style>
+      /* Transparent window background — the "card" below is what the
+         user actually sees. Keeps the splash feeling like a floating
+         badge rather than a small window. */
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        background: transparent;
+        overflow: hidden;
+        -webkit-font-smoothing: antialiased;
+        font-family:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          "Helvetica Neue", Arial, sans-serif;
+        color: #e6f1ff;
+        /* Prevent the splash from being draggable as a file or text;
+           users shouldn't be able to select anything here. */
+        user-select: none;
+        -webkit-user-select: none;
+      }
+
+      body {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      /* The floating card. Subtle gradient + inner border matches the
+         dark cosmic vibe of the main app. */
+      .card {
+        width: 340px;
+        height: 340px;
+        border-radius: 32px;
+        background:
+          radial-gradient(
+            circle at 30% 20%,
+            rgba(0, 245, 160, 0.12),
+            transparent 60%
+          ),
+          radial-gradient(
+            circle at 80% 90%,
+            rgba(0, 180, 255, 0.1),
+            transparent 55%
+          ),
+          linear-gradient(180deg, #0b1020 0%, #070914 100%);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        box-shadow:
+          0 0 0 1px rgba(0, 0, 0, 0.4),
+          0 30px 80px rgba(0, 0, 0, 0.55),
+          0 0 90px rgba(0, 245, 160, 0.15);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 18px;
+        position: relative;
+        /* Fade-in so the splash doesn't flash on. */
+        animation: card-in 350ms ease-out both;
+      }
+
+      @keyframes card-in {
+        from {
+          opacity: 0;
+          transform: scale(0.96);
+        }
+        to {
+          opacity: 1;
+          transform: scale(1);
+        }
+      }
+
+      /* Outer ring wrapper — this is what spins. The ring is a full
+         circle (border-radius: 50%) on purpose: rotating a rounded
+         SQUARE with a conic gradient looks like the whole outline is
+         spinning, because the rotating square's corners swing in and
+         out as they cross the cardinal axes. A circle rotates
+         invisibly — only the conic gradient "highlight" appears to
+         travel around the ring, which is the spinner effect we want.
+         The icon inside stays as a rounded square, so the result is a
+         halo of light sweeping around a square icon. */
+      .icon-ring {
+        position: relative;
+        width: 208px;
+        height: 208px;
+        border-radius: 50%;
+        /* Drop shadow lives on the ring wrapper so the glow doesn't
+           rotate with the stroke. */
+        filter: drop-shadow(0 0 40px rgba(0, 245, 160, 0.35))
+          drop-shadow(0 18px 36px rgba(0, 0, 0, 0.55));
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .icon-ring::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        border-radius: inherit;
+        padding: 3px;
+        background: conic-gradient(
+          from 0deg,
+          rgba(0, 245, 160, 0) 0deg,
+          rgba(0, 245, 160, 0) 70deg,
+          rgba(0, 245, 160, 0.35) 140deg,
+          #00f5a0 200deg,
+          #6cffd1 230deg,
+          #00f5a0 260deg,
+          rgba(0, 245, 160, 0.35) 290deg,
+          rgba(0, 245, 160, 0) 360deg
+        );
+        /* Donut cutout: fill the element fully once, fill only the
+           content box once, and XOR them so only the padding (the
+           stroke) remains visible. */
+        -webkit-mask:
+          linear-gradient(#000 0 0) content-box,
+          linear-gradient(#000 0 0);
+        -webkit-mask-composite: xor;
+        mask:
+          linear-gradient(#000 0 0) content-box,
+          linear-gradient(#000 0 0);
+        mask-composite: exclude;
+        animation: spin 1.4s linear infinite;
+        pointer-events: none;
+      }
+
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+
+      /* Faint static backdrop ring so the stroke always has something
+         to read against, even in the gaps where the conic gradient is
+         transparent. */
+      .icon-ring::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        border-radius: inherit;
+        box-shadow: 0 0 0 1px rgba(0, 245, 160, 0.12) inset;
+        pointer-events: none;
+      }
+
+      /* The icon sits inside the circular ring as a rounded square.
+         Size is 208 / √2 ≈ 147, rounded down to 144 so the square's
+         corners sit just inside the circle's circumference with a
+         few pixels of clearance. */
+      .icon-inner {
+        position: relative;
+        width: 144px;
+        height: 144px;
+        border-radius: 30px;
+        overflow: hidden;
+        background: #000;
+        box-shadow:
+          inset 0 0 0 0.5px rgba(255, 255, 255, 0.18),
+          0 8px 20px rgba(0, 0, 0, 0.5);
+      }
+
+      .icon-inner img {
+        width: 100%;
+        height: 100%;
+        display: block;
+        object-fit: cover;
+      }
+
+      .wordmark {
+        font-size: 18px;
+        font-weight: 600;
+        letter-spacing: 0.5px;
+        color: #e6f1ff;
+        text-shadow: 0 0 16px rgba(0, 245, 160, 0.25);
+      }
+
+      .tagline {
+        font-size: 11px;
+        font-weight: 500;
+        letter-spacing: 0.8px;
+        text-transform: uppercase;
+        color: rgba(230, 241, 255, 0.55);
+        margin-top: -10px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <div class="icon-ring">
+        <div class="icon-inner">
+          <img src="icon.png" alt="" draggable="false" />
+        </div>
+      </div>
+      <div class="wordmark">Configonaut</div>
+      <div class="tagline">Preparing mission control…</div>
+    </div>
+  </body>
+</html>

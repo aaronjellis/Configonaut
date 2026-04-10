@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Hardened-runtime entitlements for the notarized macOS build.
+
+  Why each entitlement exists:
+
+  • com.apple.security.cs.allow-jit
+  • com.apple.security.cs.allow-unsigned-executable-memory
+      WKWebView's JavaScriptCore needs to allocate executable pages at
+      runtime to JIT-compile JS. Without these two, the app boots to a
+      blank window and crashes the WebContent process as soon as any
+      non-trivial script runs. This is the single most common cause of
+      a "worked unsigned, crashes after notarization" failure.
+
+  • com.apple.security.cs.disable-library-validation
+      Tauri's bundle ships its own dynamic libraries (tao, wry, webkit
+      shims) that aren't signed by Apple's Team ID — they're signed by
+      us at bundle time. Hardened runtime's library validation will
+      refuse to load them unless this is disabled. Non-App-Store apps
+      routinely set this.
+
+  • com.apple.security.network.client
+      The Marketplace tab fetches the server catalog over HTTPS from
+      GitHub. Without this, the request silently fails with NSURLError
+      on a hardened-runtime build.
+
+  What we deliberately do NOT grant:
+
+  • com.apple.security.app-sandbox — we are direct-distributed, not
+    App Store, and the whole point of the app is reading/writing the
+    user's Claude config files scattered across ~/Library, ~/.claude,
+    and %APPDATA%. Sandboxing would break every core feature.
+  • Network server, camera, microphone, contacts, location, etc. — we
+    don't need any of them and granting them unnecessarily weakens the
+    app's trust posture.
+-->
+<plist version="1.0">
+<dict>
+    <key>com.apple.security.cs.allow-jit</key>
+    <true/>
+    <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+    <true/>
+    <key>com.apple.security.cs.disable-library-validation</key>
+    <true/>
+    <key>com.apple.security.network.client</key>
+    <true/>
+</dict>
+</plist>
