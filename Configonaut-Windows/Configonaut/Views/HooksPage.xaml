@@ -1,0 +1,143 @@
+<Page
+    x:Class="Configonaut.Views.HooksPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Background="Transparent">
+
+    <Grid Padding="24">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <StackPanel Grid.Row="0" Margin="0,0,0,16">
+            <TextBlock Text="Hooks" FontSize="22" FontWeight="Bold"
+                       Foreground="{StaticResource PrimaryTextBrush}" />
+            <TextBlock Text="Automation triggers for Claude Code"
+                       FontSize="12" Foreground="{StaticResource TertiaryTextBrush}" />
+        </StackPanel>
+
+        <!-- Hook list or empty state -->
+        <Grid Grid.Row="1">
+            <!-- Empty state -->
+            <StackPanel x:Name="EmptyState" Visibility="Collapsed"
+                        HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="12">
+                <FontIcon Glyph="&#xE8D8;" FontSize="48"
+                          Foreground="{StaticResource TertiaryTextBrush}"
+                          HorizontalAlignment="Center" />
+                <TextBlock Text="No hooks defined" FontSize="16" FontWeight="SemiBold"
+                           HorizontalAlignment="Center"
+                           Foreground="{StaticResource SecondaryTextBrush}" />
+                <TextBlock Text="Hooks are defined in ~/.claude/settings.json"
+                           FontSize="12" HorizontalAlignment="Center"
+                           Foreground="{StaticResource TertiaryTextBrush}" />
+            </StackPanel>
+
+            <!-- Hook list -->
+            <ListView x:Name="HookList" SelectionMode="Single"
+                      SelectionChanged="HookList_SelectionChanged"
+                      Background="Transparent">
+                <ListView.ItemTemplate>
+                    <DataTemplate>
+                        <Border CornerRadius="10" Padding="14,10" Margin="0,2"
+                                Background="{StaticResource CardFillBrush}"
+                                BorderBrush="{StaticResource CardBorderBrush}"
+                                BorderThickness="1">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <Ellipse Grid.Column="0" Width="8" Height="8"
+                                         Fill="{StaticResource NeonBlueBrush}"
+                                         Margin="0,0,10,0" VerticalAlignment="Center" />
+                                <StackPanel Grid.Column="1" Spacing="2">
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <TextBlock Text="{Binding Event}"
+                                                   FontFamily="{StaticResource MonoFont}"
+                                                   FontSize="13" FontWeight="SemiBold"
+                                                   Foreground="{StaticResource PrimaryTextBrush}" />
+                                        <Border CornerRadius="4" Padding="4,1"
+                                                Background="{StaticResource CardFillBrush}">
+                                            <TextBlock Text="{Binding Matcher}"
+                                                       FontFamily="{StaticResource MonoFont}"
+                                                       FontSize="10"
+                                                       Foreground="{StaticResource TertiaryTextBrush}" />
+                                        </Border>
+                                    </StackPanel>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </ListView.ItemTemplate>
+            </ListView>
+        </Grid>
+
+        <!-- Editor panel -->
+        <Border Grid.Row="2" x:Name="EditorPanel" Visibility="Collapsed"
+                CornerRadius="12" Margin="0,16,0,0" Padding="16"
+                Background="{StaticResource CardFillBrush}"
+                BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1"
+                MinHeight="180" MaxHeight="350">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <Grid Grid.Row="0" Margin="0,0,0,8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <TextBlock x:Name="EditorEventName" FontSize="14" FontWeight="Bold"
+                                   FontFamily="{StaticResource MonoFont}"
+                                   Foreground="{StaticResource PrimaryTextBrush}" />
+                        <Border x:Name="EditorStatusBadge" CornerRadius="4" Padding="6,2">
+                            <TextBlock x:Name="EditorStatusText" FontSize="10" FontWeight="Bold"
+                                       Foreground="White" />
+                        </Border>
+                    </StackPanel>
+                    <Button Grid.Column="1" Content="✕" Click="CloseEditor_Click"
+                            Background="Transparent" Foreground="{StaticResource TertiaryTextBrush}"
+                            FontSize="16" Padding="4" />
+                </Grid>
+
+                <TextBox Grid.Row="1" x:Name="HookEditor"
+                         AcceptsReturn="True" TextWrapping="Wrap"
+                         FontFamily="{StaticResource MonoFont}" FontSize="12"
+                         Background="{StaticResource BgPrimaryBrush}"
+                         Foreground="{StaticResource PrimaryTextBrush}"
+                         BorderThickness="1" CornerRadius="8"
+                         BorderBrush="{StaticResource CardBorderBrush}" />
+
+                <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="8"
+                            HorizontalAlignment="Right" Margin="0,8,0,0">
+                    <Button x:Name="BtnSaveHook" Content="Save" Click="SaveHook_Click"
+                            Background="{StaticResource NeonGreenBrush}" Foreground="Black"
+                            FontWeight="SemiBold" CornerRadius="6" Padding="12,6" />
+                    <Button x:Name="BtnToggleHook" Click="ToggleHook_Click"
+                            CornerRadius="6" Padding="12,6" FontWeight="SemiBold" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- Footer -->
+        <Grid Grid.Row="3" Margin="0,12,0,0">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+                <FontIcon Glyph="&#xE946;" FontSize="12"
+                          Foreground="{StaticResource TertiaryTextBrush}" />
+                <TextBlock Text="Defined in ~/.claude/settings.json" FontSize="11"
+                           Foreground="{StaticResource TertiaryTextBrush}" />
+                <TextBlock x:Name="HookCountText" FontSize="11"
+                           Foreground="{StaticResource TertiaryTextBrush}" Margin="16,0,0,0" />
+            </StackPanel>
+        </Grid>
+    </Grid>
+</Page>
