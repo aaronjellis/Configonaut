@@ -2,6 +2,10 @@ import SwiftUI
 
 @main
 struct ConfigonautApp: App {
+    init() {
+        MoveToApplications.promptIfNeeded()
+    }
+
     var body: some Scene {
         WindowGroup {
             ContentView()

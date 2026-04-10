@@ -642,6 +642,7 @@ struct SkillsView: View {
 
             Spacer()
         }
+        .frame(maxWidth: .infinity)
         .padding()
     }
 

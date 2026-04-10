@@ -47,21 +47,33 @@ struct ContentView: View {
     @State private var selection: SidebarSection = .servers
     @StateObject private var config = ConfigManager()
 
-    /// Load the app icon from the bundle resource or fall back to the app's Resources dir
+    /// Load the app icon. Tries the most reliable sources first so the sidebar
+    /// logo renders whether we're running from the signed .app, from `swift run`,
+    /// or from an unbundled build output.
     private var appIconImage: Image {
-        // Try SPM bundle resource first
+        // 1. Bundle.main flat resource (packaged via build.sh)
         if let url = Bundle.main.url(forResource: "AppIcon", withExtension: "png"),
            let nsImage = NSImage(contentsOf: url) {
             return Image(nsImage: nsImage)
         }
-        // Try Configonaut_Configonaut.bundle (SPM resource bundle)
+        // 2. Configonaut_Configonaut.bundle (SPM-generated resource bundle)
         if let bundle = Bundle.main.url(forResource: "Configonaut_Configonaut", withExtension: "bundle")
             .flatMap({ Bundle(url: $0) }),
            let url = bundle.url(forResource: "AppIcon", withExtension: "png"),
            let nsImage = NSImage(contentsOf: url) {
             return Image(nsImage: nsImage)
         }
-        // Fallback to SF Symbol
+        // 3. AppIcon.icns next to the binary (same folder as Contents/Resources)
+        if let url = Bundle.main.url(forResource: "AppIcon", withExtension: "icns"),
+           let nsImage = NSImage(contentsOf: url) {
+            return Image(nsImage: nsImage)
+        }
+        // 4. macOS-resolved application icon (works if Info.plist + CFBundleIconFile are set)
+        if let appIcon = NSApplication.shared.applicationIconImage,
+           appIcon.size.width > 0 {
+            return Image(nsImage: appIcon)
+        }
+        // 5. Last-resort SF Symbol
         return Image(systemName: "curlybraces")
     }
 

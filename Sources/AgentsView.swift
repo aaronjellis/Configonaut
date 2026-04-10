@@ -735,6 +735,7 @@ struct AgentsView: View {
                 .frame(maxWidth: 380)
             Spacer()
         }
+        .frame(maxWidth: .infinity)
     }
 
     private var noResultsState: some View {

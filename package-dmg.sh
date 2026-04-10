@@ -17,99 +17,40 @@ if [ ! -d "${APP_NAME}.app" ]; then
 fi
 
 echo "Packaging ${APP_NAME} v${VERSION} as DMG..."
-rm -f "${DMG_NAME}.dmg" dmg-rw.dmg
-STAGING="dmg-staging"
-rm -rf "$STAGING"
 
-# Step 2: Stage files
-mkdir -p "$STAGING/.background"
-cp -R "${APP_NAME}.app" "$STAGING/"
-ln -s /Applications "$STAGING/Applications"
-cp Resources/InstallerBG-dmg.png "$STAGING/.background/bg.png"
-cp Resources/AppIcon.icns "$STAGING/.VolumeIcon.icns"
+# Clean up any stale mounts or previous artifacts
+for vol in "/Volumes/${VOLUME_NAME}" "/Volumes/${VOLUME_NAME} 1" "/Volumes/${VOLUME_NAME} 2"; do
+    if [ -d "$vol" ]; then
+        hdiutil detach "$vol" -force -quiet 2>/dev/null || true
+    fi
+done
+rm -f "${DMG_NAME}.dmg" "${DMG_NAME}-temp.dmg"
 
-# Step 3: Create read-write DMG
-hdiutil create -volname "$VOLUME_NAME" -srcfolder "$STAGING" \
-    -ov -format UDRW -fs HFS+ -size 40m dmg-rw.dmg -quiet
-rm -rf "$STAGING"
+# Step 2: Create DMG with create-dmg (battle-tested homebrew tool)
+# This handles background image, icon positions, and volume icon properly
+# without the fragile Python DS_Store alias approach.
+create-dmg \
+    --volname "$VOLUME_NAME" \
+    --volicon "Resources/AppIcon.icns" \
+    --background "Resources/InstallerBG-dmg.png" \
+    --window-pos 200 200 \
+    --window-size 600 400 \
+    --icon-size 128 \
+    --icon "${APP_NAME}.app" 170 188 \
+    --hide-extension "${APP_NAME}.app" \
+    --app-drop-link 430 188 \
+    --no-internet-enable \
+    "${DMG_NAME}.dmg" \
+    "${APP_NAME}.app"
 
-# Step 4: Mount, set icon flag, and write DS_Store with portable alias
-hdiutil attach dmg-rw.dmg -readwrite -noverify -quiet
-MOUNT="/Volumes/${VOLUME_NAME}"
-for i in 1 2 3 4 5; do [ -d "$MOUNT" ] && break; sleep 1; done
+# Strip any stale FinderInfo metadata
+xattr -d com.apple.FinderInfo "${DMG_NAME}.dmg" 2>/dev/null || true
 
-SetFile -a C "$MOUNT" 2>/dev/null || true
-
-# Write DS_Store with background alias generated on the mounted volume
-# This ensures the alias is portable across machines
-python3 << PYEOF
-import plistlib
-from ds_store import DSStore
-from mac_alias import Alias
-
-mount = "${MOUNT}"
-d = DSStore.open(mount + "/.DS_Store", "w+")
-
-# Background alias -- created from the mounted volume so it's portable
-bg_alias = Alias.for_file(mount + "/.background/bg.png")
-
-# Window settings (no toolbar, path bar, sidebar, etc.)
-bwsp = {
-    "ShowSidebar": False,
-    "ShowToolbar": False,
-    "ShowTabView": False,
-    "ShowStatusBar": False,
-    "ShowPathbar": False,
-    "ContainerShowSidebar": False,
-    "PreviewPaneVisibility": False,
-    "WindowBounds": "{{200, 200}, {600, 400}}",
-    "SidebarWidth": 0,
-}
-d["."]["bwsp"] = ("blob", plistlib.dumps(bwsp, fmt=plistlib.FMT_BINARY))
-
-# Icon view with background image
-icvp = {
-    "backgroundType": 2,
-    "backgroundImageAlias": bg_alias.to_bytes(),
-    "gridOffsetX": 0.0,
-    "gridOffsetY": 0.0,
-    "gridSpacing": 100.0,
-    "iconSize": 128.0,
-    "labelOnBottom": True,
-    "showIconPreview": True,
-    "showItemInfo": False,
-    "textSize": 14.0,
-    "viewOptionsVersion": 1,
-    "arrangeBy": "none",
-}
-d["."]["icvp"] = ("blob", plistlib.dumps(icvp, fmt=plistlib.FMT_BINARY))
-d["."]["vSrn"] = ("long", 1)
-
-# Icon positions matching the background circles
-# 200px circles, 64px from edges, 72px gap
-d["${APP_NAME}.app"]["Iloc"] = (int(164), int(200))
-d["Applications"]["Iloc"] = (int(436), int(200))
-d[".background"]["Iloc"] = (int(999), int(999))
-d[".VolumeIcon.icns"]["Iloc"] = (int(999), int(999))
-
-d.flush()
-d.close()
-print("DS_Store written with portable background alias")
-PYEOF
-
-sync
-hdiutil detach "$MOUNT" -quiet
-
-# Step 5: Convert to compressed read-only
-hdiutil convert dmg-rw.dmg -format UDZO -imagekey zlib-level=9 \
-    -o "${DMG_NAME}.dmg" -ov -quiet
-rm -f dmg-rw.dmg
-
-# Step 6: Sign the DMG
+# Step 3: Sign the DMG
 echo "Signing DMG..."
 codesign --force --sign "$SIGN_IDENTITY" "${DMG_NAME}.dmg"
 
-# Step 7: Notarize the DMG
+# Step 4: Notarize the DMG
 echo "Notarizing DMG (this may take a few minutes)..."
 xcrun notarytool submit "${DMG_NAME}.dmg" \
     --keychain-profile "$NOTARIZE_PROFILE" \
