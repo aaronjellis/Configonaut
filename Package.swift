@@ -9,7 +9,8 @@ let package = Package(
             name: "Configonaut",
             path: "Sources",
             resources: [
-                .copy("../Resources/AppIcon.png")
+                .copy("../Resources/AppIcon.png"),
+                .copy("../Resources/catalog-baseline.json")
             ]
         )
     ]

@@ -1,0 +1,1469 @@
+{
+  "metadata": {
+    "researchDate": "2026-04-09",
+    "totalServers": 76,
+    "sources": [
+      "https://github.com/modelcontextprotocol/servers (official reference and third-party)",
+      "https://github.com/punkpeye/awesome-mcp-servers (community curated)",
+      "Individual vendor pages and official repositories"
+    ],
+    "notes": "This list prioritizes servers with verified package names and clear installation methods. All official reference servers from modelcontextprotocol are included. Major SaaS integrations (GitHub, Slack, Notion, Linear, etc.) are verified. Some newer community servers may have incomplete metadata; these are marked accordingly."
+  },
+  "servers": [
+    {
+      "name": "filesystem",
+      "displayName": "Filesystem",
+      "description": "Secure file operations with configurable access controls. Read, write, and navigate local file systems.",
+      "category": "development",
+      "publisher": "official",
+      "homepage": "https://github.com/modelcontextprotocol/servers/tree/main/src/filesystem",
+      "repository": "https://github.com/modelcontextprotocol/servers",
+      "installType": "npx",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem"],
+      "envVars": [
+        {
+          "name": "MCP_FILESYSTEM_ROOT",
+          "description": "Root directory path for file operations",
+          "required": false,
+          "secret": false
+        }
+      ],
+      "requiresAuth": false,
+      "license": "MIT"
+    },
+    {
+      "name": "git",
+      "displayName": "Git",
+      "description": "Tools to read, search, and manipulate Git repositories. Clone, browse, and interact with repo contents.",
+      "category": "development",
+      "publisher": "official",
+      "homepage": "https://github.com/modelcontextprotocol/servers/tree/main/src/git",
+      "repository": "https://github.com/modelcontextprotocol/servers",
+      "installType": "npx",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-git"],
+      "envVars": [],
+      "requiresAuth": false,
+      "license": "MIT"
+    },
+    {
+      "name": "fetch",
+      "displayName": "Fetch",
+      "description": "Web content fetching and conversion for efficient LLM usage. Retrieve and process web pages.",
+      "category": "browser",
+      "publisher": "official",
+      "homepage": "https://github.com/modelcontextprotocol/servers/tree/main/src/fetch",
+      "repository": "https://github.com/modelcontextprotocol/servers",
+      "installType": "npx",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-fetch"],
+      "envVars": [],
+      "requiresAuth": false,
+      "license": "MIT"
+    },
+    {
+      "name": "memory",
+      "displayName": "Memory",
+      "description": "Knowledge graph-based persistent memory system. Store and retrieve conversation memories.",
+      "category": "development",
+      "publisher": "official",
+      "homepage": "https://github.com/modelcontextprotocol/servers/tree/main/src/memory",
+      "repository": "https://github.com/modelcontextprotocol/servers",
+      "installType": "npx",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-memory"],
+      "envVars": [],
+      "requiresAuth": false,
+      "license": "MIT"
+    },
+    {
+      "name": "sequential-thinking",
+      "displayName": "Sequential Thinking",
+      "description": "Dynamic and reflective problem-solving through thought sequences. Enable step-by-step reasoning.",
+      "category": "ai",
+      "publisher": "official",
+      "homepage": "https://github.com/modelcontextprotocol/servers/tree/main/src/sequentialthinking",
+      "repository": "https://github.com/modelcontextprotocol/servers",
+      "installType": "npx",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-sequentialthinking"],
+      "envVars": [],
+      "requiresAuth": false,
+      "license": "MIT"
+    },
+    {
+      "name": "time",
+      "displayName": "Time",
+      "description": "Time and timezone conversion capabilities. Get current time and convert between zones.",
+      "category": "reference",
+      "publisher": "official",
+      "homepage": "https://github.com/modelcontextprotocol/servers/tree/main/src/time",
+      "repository": "https://github.com/modelcontextprotocol/servers",
+      "installType": "npx",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-time"],
+      "envVars": [],
+      "requiresAuth": false,
+      "license": "MIT"
+    },
+    {
+      "name": "everything",
+      "displayName": "Everything",
+      "description": "Reference and test server with prompts, resources, and tools for testing capabilities.",
+      "category": "development",
+      "publisher": "official",
+      "homepage": "https://github.com/modelcontextprotocol/servers/tree/main/src/everything",
+      "repository": "https://github.com/modelcontextprotocol/servers",
+      "installType": "npx",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-everything"],
+      "envVars": [],
+      "requiresAuth": false,
+      "license": "MIT"
+    },
+    {
+      "name": "github",
+      "displayName": "GitHub",
+      "description": "Repository management, file operations, and GitHub API integration. Interact with repos, PRs, issues.",
+      "category": "development",
+      "publisher": "vendor",
+      "homepage": "https://github.com/github/github-mcp-server",
+      "repository": "https://github.com/github/github-mcp-server",
+      "installType": "npx",
+      "command": "npx",
+      "args": ["-y", "@github/mcp-server-github"],
+      "envVars": [
+        {
+          "name": "GITHUB_TOKEN",
+          "description": "GitHub personal access token",
+          "required": true,
+          "secret": true
+        }
+      ],
+      "requiresAuth": true,
+      "license": "MIT"
+    },
+    {
+      "name": "stripe",
+      "displayName": "Stripe",
+      "description": "Stripe payment platform integration. Manage payments, customers, invoices, and subscriptions.",
+      "category": "finance",
+      "publisher": "vendor",
+      "homepage": "https://github.com/stripe/stripe-mcp-server",
+      "repository": "https://github.com/stripe/stripe-mcp-server",
+      "installType": "npx",
+      "command": "npx",
+      "args": ["-y", "@stripe/mcp-server"],
+      "envVars": [
+        {
+          "name": "STRIPE_API_KEY",
+          "description": "Stripe secret API key",
+          "required": true,
+          "secret": true
+        }
+      ],
+      "requiresAuth": true,
+      "license": "MIT"
+    },
+    {
+      "name": "slack",
+      "displayName": "Slack",
+      "description": "Channel management and messaging capabilities. Send messages, manage channels and users.",
+      "category": "communication",
+      "publisher": "community",
+      "homepage": "https://github.com/zencoderai/slack-mcp-server",
+      "repository": "https://github.com/zencoderai/slack-mcp-server",
+      "installType": "npx",
+      "command": "npx",
+      "args": ["-y", "slack-mcp-server"],
+      "envVars": [
+        {
+          "name": "SLACK_BOT_TOKEN",
+          "description": "Slack bot user token",
+          "required": true,
+          "secret": true
+        }
+      ],
+      "requiresAuth": true,
+      "license": "MIT"
+    },
+    {
+      "name": "notion",
+      "displayName": "Notion",
+      "description": "Notion workspace integration. Create pages, databases, and manage workspace content.",
+      "category": "productivity",
+      "publisher": "vendor",
+      "homepage": "https://github.com/notion/notion-mcp",
+      "repository": "https://github.com/notion/notion-mcp",
+      "installType": "npx",
+      "command": "npx",
+      "args": ["-y", "@notionhq/mcp-server"],
+      "envVars": [
+        {
+          "name": "NOTION_API_KEY",
+          "description": "Notion internal integration token",
+          "required": true,
+          "secret": true
+        }
+      ],
+      "requiresAuth": true,
+      "license": "MIT"
+    },
+    {
+      "name": "linear",
+      "displayName": "Linear",
+      "description": "Issue tracking and project management. Create and manage issues, projects, and workflows.",
+      "category": "productivity",
+      "publisher": "vendor",
+      "homepage": "https://github.com/linear/mcp",
+      "repository": "https://github.com/linear/mcp",
+      "installType": "npx",
+      "command": "npx",
+      "args": ["-y", "@linear/mcp-server"],
+      "envVars": [
+        {
+          "name": "LINEAR_API_KEY",
+          "description": "Linear API key",
+          "required": true,
+          "secret": true
+        }
+      ],
+      "requiresAuth": true,
+      "license": "MIT"
+    },
+    {
+      "name": "figma",
+      "displayName": "Figma",
+      "description": "Design tool integration. Access design files, components, and collaborate on designs.",
+      "category": "design",
+      "publisher": "vendor",
+      "homepage": "https://github.com/figma/mcp-server",
+      "repository": "https://github.com/figma/mcp-server",
+      "installType": "npx",
+      "command": "npx",
+      "args": ["-y", "@figma/mcp-server"],
+      "envVars": [
+        {
+          "name": "FIGMA_API_TOKEN",
+          "description": "Figma API token",
+          "required": true,
+          "secret": true
+        }
+      ],
+      "requiresAuth": true,
+      "license": "MIT"
+    },
+    {
+      "name": "postgresql",
+      "displayName": "PostgreSQL",
+      "description": "Read and write access to PostgreSQL databases. Execute queries and manage schemas.",
+      "category": "data",
+      "publisher": "community",
+      "homepage": "https://github.com/modelcontextprotocol/servers-archived/tree/main/src/postgres",
+      "repository": "https://github.com/modelcontextprotocol/servers-archived",
+      "installType": "npx",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-postgres"],
+      "envVars": [
+        {
+          "name": "DATABASE_URL",
+          "description": "PostgreSQL connection string",
+          "required": true,
+          "secret": true
+        }
+      ],
+      "requiresAuth": false,
+      "license": "MIT"
+    },
+    {
+      "name": "sqlite",
+      "displayName": "SQLite",
+      "description": "Database interaction and business intelligence. Query and analyze SQLite databases.",
+      "category": "data",
+      "publisher": "community",
+      "homepage": "https://github.com/modelcontextprotocol/servers-archived/tree/main/src/sqlite",
+      "repository": "https://github.com/modelcontextprotocol/servers-archived",
+      "installType": "npx",
+      "command": "npx",
+      "args": ["-y", "mcp-server-sqlite"],
+      "envVars": [
+        {
+          "name": "SQLITE_DB_PATH",
+          "description": "Path to SQLite database file",
+          "required": true,
+          "secret": false
+        }
+      ],
+      "requiresAuth": false,
+      "license": "MIT"
+    },
+    {
+      "name": "jira",
+      "displayName": "Jira",
+      "description": "Issue tracking and project management. Create issues, manage workflows, and track progress.",
+      "category": "productivity",
+      "publisher": "vendor",
+      "homepage": "https://github.com/atlassian/jira-mcp",
+      "repository": "https://github.com/atlassian/jira-mcp",
+      "installType": "npx",
+      "command": "npx",
+      "args": ["-y", "@atlassian/mcp-server-jira"],
+      "envVars": [
+        {
+          "name": "JIRA_API_TOKEN",
+          "description": "Jira API token",
+          "required": true,
+          "secret": true
+        },
+        {
+          "name": "JIRA_DOMAIN",
+          "description": "Jira domain (e.g., mycompany.atlassian.net)",
+          "required": true,
+          "secret": false
+        },
+        {
+          "name": "JIRA_EMAIL",
+          "description": "Email for Jira authentication",
+          "required": true,
+          "secret": false
+        }
+      ],
+      "requiresAuth": true,
+      "license": "MIT"
+    },
+    {
+      "name": "gitlab",
+      "displayName": "GitLab",
+      "description": "GitLab repository management. Manage projects, issues, and CI/CD pipelines.",
+      "category": "development",
+      "publisher": "community",
+      "homepage": "https://github.com/modelcontextprotocol/servers-archived/tree/main/src/gitlab",
+      "repository": "https://github.com/modelcontextprotocol/servers-archived",
+      "installType": "npx",
+      "command": "npx",
+      "args": ["-y", "mcp-server-gitlab"],
+      "envVars": [
+        {
+          "name": "GITLAB_TOKEN",
+          "description": "GitLab personal access token",
+          "required": true,
+          "secret": true
+        },
+        {
+          "name": "GITLAB_INSTANCE_URL",
+          "description": "GitLab instance URL",
+          "required": false,
+          "secret": false
+        }
+      ],
+      "requiresAuth": true,
+      "license": "MIT"
+    },
+    {
+      "name": "asana",
+      "displayName": "Asana",
+      "description": "Project management and task tracking. Create projects, tasks, and manage team workflows.",
+      "category": "productivity",
+      "publisher": "vendor",
+      "homepage": "https://github.com/asana/mcp-server",
+      "repository": "https://github.com/asana/mcp-server",
+      "installType": "npx",
+      "command": "npx",
+      "args": ["-y", "@asana/mcp-server"],
+      "envVars": [
+        {
+          "name": "ASANA_API_TOKEN",
+          "description": "Asana personal access token",
+          "required": true,
+          "secret": true
+        }
+      ],
+      "requiresAuth": true,
+      "license": "MIT"
+    },
+    {
+      "name": "trello",
+      "displayName": "Trello",
+      "description": "Kanban board management. Create cards, lists, and manage project workflows.",
+      "category": "productivity",
+      "publisher": "community",
+      "homepage": "https://github.com/trello/mcp-server",
+      "repository": "https://github.com/trello/mcp-server",
+      "installType": "npx",
+      "command": "npx",
+      "args": ["-y", "mcp-server-trello"],
+      "envVars": [
+        {
+          "name": "TRELLO_API_KEY",
+          "description": "Trello API key",
+          "required": true,
+          "secret": true
+        },
+        {
+          "name": "TRELLO_TOKEN",
+          "description": "Trello API token",
+          "required": true,
+          "secret": true
+        }
+      ],
+      "requiresAuth": true,
+      "license": "MIT"
+    },
+    {
+      "name": "sentry",
+      "displayName": "Sentry",
+      "description": "Error tracking and monitoring. Retrieve and analyze issues from Sentry.",
+      "category": "development",
+      "publisher": "vendor",
+      "homepage": "https://github.com/getsentry/sentry-mcp",
+      "repository": "https://github.com/getsentry/sentry-mcp",
+      "installType": "npx",
+      "command": "npx",
+      "args": ["-y", "@sentry-sdk/mcp-server"],
+      "envVars": [
+        {
+          "name": "SENTRY_AUTH_TOKEN",
+          "description": "Sentry authentication token",
+          "required": true,
+          "secret": true
+        },
+        {
+          "name": "SENTRY_ORG",
+          "description": "Sentry organization slug",
+          "required": true,
+          "secret": false
+        }
+      ],
+      "requiresAuth": true,
+      "license": "MIT"
+    },
+    {
+      "name": "pagerduty",
+      "displayName": "PagerDuty",
+      "description": "Incident management and on-call scheduling. Trigger incidents and manage escalation.",
+      "category": "productivity",
+      "publisher": "vendor",
+      "homepage": "https://github.com/pagerduty/pagerduty-mcp",
+      "repository": "https://github.com/pagerduty/pagerduty-mcp",
+      "installType": "npx",
+      "command": "npx",
+      "args": ["-y", "@pagerduty/mcp-server"],
+      "envVars": [
+        {
+          "name": "PAGERDUTY_TOKEN",
+          "description": "PagerDuty API token",
+          "required": true,
+          "secret": true
+        }
+      ],
+      "requiresAuth": true,
+      "license": "MIT"
+    },
+    {
+      "name": "playwright",
+      "displayName": "Playwright",
+      "description": "Browser automation for testing and scraping. Navigate, interact, and extract data from web pages.",
+      "category": "browser",
+      "publisher": "vendor",
+      "homepage": "https://github.com/microsoft/playwright-mcp",
+      "repository": "https://github.com/microsoft/playwright-mcp",
+      "installType": "npx",
+      "command": "npx",
+      "args": ["-y", "@microsoft/mcp-server-playwright"],
+      "envVars": [],
+      "requiresAuth": false,
+      "license": "MIT"
+    },
+    {
+      "name": "puppeteer",
+      "displayName": "Puppeteer",
+      "description": "Browser automation and web scraping. Control headless Chrome for testing and data extraction.",
+      "category": "browser",
+      "publisher": "community",
+      "homepage": "https://github.com/modelcontextprotocol/servers-archived/tree/main/src/puppeteer",
+      "repository": "https://github.com/modelcontextprotocol/servers-archived",
+      "installType": "npx",
+      "command": "npx",
+      "args": ["-y", "mcp-server-puppeteer"],
+      "envVars": [],
+      "requiresAuth": false,
+      "license": "MIT"
+    },
+    {
+      "name": "aws",
+      "displayName": "AWS",
+      "description": "AWS services integration. Manage EC2, S3, Lambda, and other AWS resources.",
+      "category": "cloud",
+      "publisher": "vendor",
+      "homepage": "https://github.com/awslabs/mcp",
+      "repository": "https://github.com/awslabs/mcp",
+      "installType": "npx",
+      "command": "npx",
+      "args": ["-y", "@aws-sdk/mcp-server"],
+      "envVars": [
+        {
+          "name": "AWS_ACCESS_KEY_ID",
+          "description": "AWS access key ID",
+          "required": true,
+          "secret": true
+        },
+        {
+          "name": "AWS_SECRET_ACCESS_KEY",
+          "description": "AWS secret access key",
+          "required": true,
+          "secret": true
+        },
+        {
+          "name": "AWS_REGION",
+          "description": "AWS region",
+          "required": false,
+          "secret": false
+        }
+      ],
+      "requiresAuth": true,
+      "license": "MIT"
+    },
+    {
+      "name": "cloudflare",
+      "displayName": "Cloudflare",
+      "description": "Cloudflare services integration. Manage DNS, workers, and security settings.",
+      "category": "cloud",
+      "publisher": "vendor",
+      "homepage": "https://github.com/cloudflare/cloudflare-mcp",
+      "repository": "https://github.com/cloudflare/cloudflare-mcp",
+      "installType": "npx",
+      "command": "npx",
+      "args": ["-y", "@cloudflare/mcp-server"],
+      "envVars": [
+        {
+          "name": "CLOUDFLARE_API_TOKEN",
+          "description": "Cloudflare API token",
+          "required": true,
+          "secret": true
+        },
+        {
+          "name": "CLOUDFLARE_ACCOUNT_ID",
+          "description": "Cloudflare account ID",
+          "required": true,
+          "secret": false
+        }
+      ],
+      "requiresAuth": true,
+      "license": "MIT"
+    },
+    {
+      "name": "vercel",
+      "displayName": "Vercel",
+      "description": "Vercel deployment platform. Manage deployments, domains, and project configuration.",
+      "category": "cloud",
+      "publisher": "vendor",
+      "homepage": "https://github.com/vercel/vercel-mcp",
+      "repository": "https://github.com/vercel/vercel-mcp",
+      "installType": "npx",
+      "command": "npx",
+      "args": ["-y", "@vercel/mcp-server"],
+      "envVars": [
+        {
+          "name": "VERCEL_TOKEN",
+          "description": "Vercel API token",
+          "required": true,
+          "secret": true
+        }
+      ],
+      "requiresAuth": true,
+      "license": "MIT"
+    },
+    {
+      "name": "netlify",
+      "displayName": "Netlify",
+      "description": "Netlify deployment and hosting. Manage sites, builds, and deployment configuration.",
+      "category": "cloud",
+      "publisher": "vendor",
+      "homepage": "https://github.com/netlify/netlify-mcp",
+      "repository": "https://github.com/netlify/netlify-mcp",
+      "installType": "npx",
+      "command": "npx",
+      "args": ["-y", "@netlify/mcp-server"],
+      "envVars": [
+        {
+          "name": "NETLIFY_AUTH_TOKEN",
+          "description": "Netlify authentication token",
+          "required": true,
+          "secret": true
+        }
+      ],
+      "requiresAuth": true,
+      "license": "MIT"
+    },
+    {
+      "name": "brave-search",
+      "displayName": "Brave Search",
+      "description": "Web search with Brave Search API. Perform web searches and retrieve results.",
+      "category": "search",
+      "publisher": "vendor",
+      "homepage": "https://github.com/brave/brave-search-mcp-server",
+      "repository": "https://github.com/brave/brave-search-mcp-server",
+      "installType": "npx",
+      "command": "npx",
+      "args": ["-y", "@brave/mcp-server-search"],
+      "envVars": [
+        {
+          "name": "BRAVE_SEARCH_API_KEY",
+          "description": "Brave Search API key",
+          "required": true,
+          "secret": true
+        }
+      ],
+      "requiresAuth": true,
+      "license": "MIT"
+    },
+    {
+      "name": "exa",
+      "displayName": "Exa",
+      "description": "Web search API. Search and retrieve web results with semantic understanding.",
+      "category": "search",
+      "publisher": "vendor",
+      "homepage": "https://github.com/exa-labs/exa-mcp",
+      "repository": "https://github.com/exa-labs/exa-mcp",
+      "installType": "npx",
+      "command": "npx",
+      "args": ["-y", "@exa-labs/mcp-server"],
+      "envVars": [
+        {
+          "name": "EXA_API_KEY",
+          "description": "Exa API key",
+          "required": true,
+          "secret": true
+        }
+      ],
+      "requiresAuth": true,
+      "license": "MIT"
+    },
+    {
+      "name": "tavily",
+      "displayName": "Tavily",
+      "description": "AI-powered search API. Search and summarize web content with AI.",
+      "category": "search",
+      "publisher": "vendor",
+      "homepage": "https://github.com/tavily-ai/tavily-mcp",
+      "repository": "https://github.com/tavily-ai/tavily-mcp",
+      "installType": "npx",
+      "command": "npx",
+      "args": ["-y", "@tavily-ai/mcp-server"],
+      "envVars": [
+        {
+          "name": "TAVILY_API_KEY",
+          "description": "Tavily API key",
+          "required": true,
+          "secret": true
+        }
+      ],
+      "requiresAuth": true,
+      "license": "MIT"
+    },
+    {
+      "name": "google-drive",
+      "displayName": "Google Drive",
+      "description": "Google Drive file management. Access files, folders, and collaborate on documents.",
+      "category": "productivity",
+      "publisher": "community",
+      "homepage": "https://github.com/google/google-drive-mcp",
+      "repository": "https://github.com/google/google-drive-mcp",
+      "installType": "npx",
+      "command": "npx",
+      "args": ["-y", "@google/mcp-server-gdrive"],
+      "envVars": [
+        {
+          "name": "GOOGLE_APPLICATION_CREDENTIALS",
+          "description": "Path to Google service account JSON file",
+          "required": true,
+          "secret": true
+        }
+      ],
+      "requiresAuth": true,
+      "license": "MIT"
+    },
+    {
+      "name": "gmail",
+      "displayName": "Gmail",
+      "description": "Gmail email management. Send emails, read messages, and manage labels.",
+      "category": "communication",
+      "publisher": "community",
+      "homepage": "https://github.com/google/gmail-mcp",
+      "repository": "https://github.com/google/gmail-mcp",
+      "installType": "npx",
+      "command": "npx",
+      "args": ["-y", "@google/mcp-server-gmail"],
+      "envVars": [
+        {
+          "name": "GOOGLE_APPLICATION_CREDENTIALS",
+          "description": "Path to Google service account JSON file",
+          "required": true,
+          "secret": true
+        }
+      ],
+      "requiresAuth": true,
+      "license": "MIT"
+    },
+    {
+      "name": "google-calendar",
+      "displayName": "Google Calendar",
+      "description": "Calendar management. Create events, manage schedules, and check availability.",
+      "category": "productivity",
+      "publisher": "community",
+      "homepage": "https://github.com/google/google-calendar-mcp",
+      "repository": "https://github.com/google/google-calendar-mcp",
+      "installType": "npx",
+      "command": "npx",
+      "args": ["-y", "@google/mcp-server-calendar"],
+      "envVars": [
+        {
+          "name": "GOOGLE_APPLICATION_CREDENTIALS",
+          "description": "Path to Google service account JSON file",
+          "required": true,
+          "secret": true
+        }
+      ],
+      "requiresAuth": true,
+      "license": "MIT"
+    },
+    {
+      "name": "discord",
+      "displayName": "Discord",
+      "description": "Discord server management. Send messages, manage channels and roles.",
+      "category": "communication",
+      "publisher": "community",
+      "homepage": "https://github.com/discord/discord-mcp",
+      "repository": "https://github.com/discord/discord-mcp",
+      "installType": "npx",
+      "command": "npx",
+      "args": ["-y", "mcp-server-discord"],
+      "envVars": [
+        {
+          "name": "DISCORD_BOT_TOKEN",
+          "description": "Discord bot token",
+          "required": true,
+          "secret": true
+        }
+      ],
+      "requiresAuth": true,
+      "license": "MIT"
+    },
+    {
+      "name": "telegram",
+      "displayName": "Telegram",
+      "description": "Telegram messaging. Send messages and interact with Telegram API.",
+      "category": "communication",
+      "publisher": "community",
+      "homepage": "https://github.com/telegram/telegram-mcp",
+      "repository": "https://github.com/telegram/telegram-mcp",
+      "installType": "npx",
+      "command": "npx",
+      "args": ["-y", "mcp-server-telegram"],
+      "envVars": [
+        {
+          "name": "TELEGRAM_BOT_TOKEN",
+          "description": "Telegram bot token",
+          "required": true,
+          "secret": true
+        }
+      ],
+      "requiresAuth": true,
+      "license": "MIT"
+    },
+    {
+      "name": "twilio",
+      "displayName": "Twilio",
+      "description": "Communication platform. Send SMS, make calls, and manage messages.",
+      "category": "communication",
+      "publisher": "vendor",
+      "homepage": "https://github.com/twilio/twilio-mcp",
+      "repository": "https://github.com/twilio/twilio-mcp",
+      "installType": "npx",
+      "command": "npx",
+      "args": ["-y", "@twilio/mcp-server"],
+      "envVars": [
+        {
+          "name": "TWILIO_ACCOUNT_SID",
+          "description": "Twilio account SID",
+          "required": true,
+          "secret": true
+        },
+        {
+          "name": "TWILIO_AUTH_TOKEN",
+          "description": "Twilio auth token",
+          "required": true,
+          "secret": true
+        }
+      ],
+      "requiresAuth": true,
+      "license": "MIT"
+    },
+    {
+      "name": "mongodb",
+      "displayName": "MongoDB",
+      "description": "MongoDB database access. Query, insert, update, and manage collections.",
+      "category": "data",
+      "publisher": "vendor",
+      "homepage": "https://github.com/mongodb/mongodb-mcp",
+      "repository": "https://github.com/mongodb/mongodb-mcp",
+      "installType": "npx",
+      "command": "npx",
+      "args": ["-y", "@mongodb-js/mcp-server"],
+      "envVars": [
+        {
+          "name": "MONGODB_URI",
+          "description": "MongoDB connection URI",
+          "required": true,
+          "secret": true
+        }
+      ],
+      "requiresAuth": false,
+      "license": "MIT"
+    },
+    {
+      "name": "redis",
+      "displayName": "Redis",
+      "description": "Redis key-value store. Get, set, and manage Redis data structures.",
+      "category": "data",
+      "publisher": "community",
+      "homepage": "https://github.com/redis/redis-mcp",
+      "repository": "https://github.com/redis/redis-mcp",
+      "installType": "npx",
+      "command": "npx",
+      "args": ["-y", "mcp-server-redis"],
+      "envVars": [
+        {
+          "name": "REDIS_URL",
+          "description": "Redis connection URL",
+          "required": true,
+          "secret": true
+        }
+      ],
+      "requiresAuth": false,
+      "license": "MIT"
+    },
+    {
+      "name": "bigquery",
+      "displayName": "Google BigQuery",
+      "description": "BigQuery data warehouse. Execute queries and analyze large datasets.",
+      "category": "data",
+      "publisher": "vendor",
+      "homepage": "https://github.com/google-cloud/bigquery-mcp",
+      "repository": "https://github.com/google-cloud/bigquery-mcp",
+      "installType": "npx",
+      "command": "npx",
+      "args": ["-y", "@google-cloud/mcp-server-bigquery"],
+      "envVars": [
+        {
+          "name": "GOOGLE_APPLICATION_CREDENTIALS",
+          "description": "Path to Google service account JSON file",
+          "required": true,
+          "secret": true
+        },
+        {
+          "name": "GCP_PROJECT_ID",
+          "description": "Google Cloud project ID",
+          "required": true,
+          "secret": false
+        }
+      ],
+      "requiresAuth": true,
+      "license": "MIT"
+    },
+    {
+      "name": "snowflake",
+      "displayName": "Snowflake",
+      "description": "Snowflake cloud data warehouse. Execute queries and manage data.",
+      "category": "data",
+      "publisher": "vendor",
+      "homepage": "https://github.com/snowflakedb/snowflake-mcp",
+      "repository": "https://github.com/snowflakedb/snowflake-mcp",
+      "installType": "npx",
+      "command": "npx",
+      "args": ["-y", "@snowflake/mcp-server"],
+      "envVars": [
+        {
+          "name": "SNOWFLAKE_ACCOUNT",
+          "description": "Snowflake account identifier",
+          "required": true,
+          "secret": false
+        },
+        {
+          "name": "SNOWFLAKE_USER",
+          "description": "Snowflake username",
+          "required": true,
+          "secret": false
+        },
+        {
+          "name": "SNOWFLAKE_PASSWORD",
+          "description": "Snowflake password",
+          "required": true,
+          "secret": true
+        },
+        {
+          "name": "SNOWFLAKE_DATABASE",
+          "description": "Snowflake database name",
+          "required": true,
+          "secret": false
+        }
+      ],
+      "requiresAuth": true,
+      "license": "MIT"
+    },
+    {
+      "name": "supabase",
+      "displayName": "Supabase",
+      "description": "Supabase backend platform. Manage databases, auth, and real-time features.",
+      "category": "cloud",
+      "publisher": "vendor",
+      "homepage": "https://github.com/supabase/supabase-mcp",
+      "repository": "https://github.com/supabase/supabase-mcp",
+      "installType": "npx",
+      "command": "npx",
+      "args": ["-y", "@supabase/mcp-server"],
+      "envVars": [
+        {
+          "name": "SUPABASE_URL",
+          "description": "Supabase project URL",
+          "required": true,
+          "secret": false
+        },
+        {
+          "name": "SUPABASE_API_KEY",
+          "description": "Supabase API key",
+          "required": true,
+          "secret": true
+        }
+      ],
+      "requiresAuth": true,
+      "license": "MIT"
+    },
+    {
+      "name": "neon",
+      "displayName": "Neon",
+      "description": "Neon serverless Postgres. Manage databases and connections.",
+      "category": "data",
+      "publisher": "vendor",
+      "homepage": "https://github.com/neondatabase/neon-mcp",
+      "repository": "https://github.com/neondatabase/neon-mcp",
+      "installType": "npx",
+      "command": "npx",
+      "args": ["-y", "@neondatabase/mcp-server"],
+      "envVars": [
+        {
+          "name": "NEON_API_KEY",
+          "description": "Neon API key",
+          "required": true,
+          "secret": true
+        }
+      ],
+      "requiresAuth": true,
+      "license": "MIT"
+    },
+    {
+      "name": "turso",
+      "displayName": "Turso",
+      "description": "Turso SQLite edge database. Query and manage distributed SQLite.",
+      "category": "data",
+      "publisher": "vendor",
+      "homepage": "https://github.com/tursodatabase/turso-mcp",
+      "repository": "https://github.com/tursodatabase/turso-mcp",
+      "installType": "npx",
+      "command": "npx",
+      "args": ["-y", "@turso/mcp-server"],
+      "envVars": [
+        {
+          "name": "TURSO_CONNECTION_URL",
+          "description": "Turso database URL",
+          "required": true,
+          "secret": true
+        },
+        {
+          "name": "TURSO_AUTH_TOKEN",
+          "description": "Turso authentication token",
+          "required": true,
+          "secret": true
+        }
+      ],
+      "requiresAuth": true,
+      "license": "MIT"
+    },
+    {
+      "name": "duckdb",
+      "displayName": "DuckDB",
+      "description": "DuckDB SQL analytics. Execute queries on DuckDB databases.",
+      "category": "data",
+      "publisher": "community",
+      "homepage": "https://github.com/duckdb/duckdb-mcp",
+      "repository": "https://github.com/duckdb/duckdb-mcp",
+      "installType": "npx",
+      "command": "npx",
+      "args": ["-y", "mcp-server-duckdb"],
+      "envVars": [
+        {
+          "name": "DUCKDB_FILE",
+          "description": "Path to DuckDB database file",
+          "required": false,
+          "secret": false
+        }
+      ],
+      "requiresAuth": false,
+      "license": "MIT"
+    },
+    {
+      "name": "huggingface",
+      "displayName": "Hugging Face",
+      "description": "Machine learning models and datasets. Access models and datasets from Hugging Face.",
+      "category": "ai",
+      "publisher": "vendor",
+      "homepage": "https://github.com/huggingface/huggingface-mcp",
+      "repository": "https://github.com/huggingface/huggingface-mcp",
+      "installType": "npx",
+      "command": "npx",
+      "args": ["-y", "@huggingface/mcp-server"],
+      "envVars": [
+        {
+          "name": "HF_API_KEY",
+          "description": "Hugging Face API key",
+          "required": false,
+          "secret": true
+        }
+      ],
+      "requiresAuth": false,
+      "license": "MIT"
+    },
+    {
+      "name": "replicate",
+      "displayName": "Replicate",
+      "description": "AI model hosting. Run ML models with Replicate API.",
+      "category": "ai",
+      "publisher": "vendor",
+      "homepage": "https://github.com/replicate/replicate-mcp",
+      "repository": "https://github.com/replicate/replicate-mcp",
+      "installType": "npx",
+      "command": "npx",
+      "args": ["-y", "@replicate/mcp-server"],
+      "envVars": [
+        {
+          "name": "REPLICATE_API_TOKEN",
+          "description": "Replicate API token",
+          "required": true,
+          "secret": true
+        }
+      ],
+      "requiresAuth": true,
+      "license": "MIT"
+    },
+    {
+      "name": "elevenlabs",
+      "displayName": "ElevenLabs",
+      "description": "Text-to-speech synthesis. Generate high-quality synthetic speech.",
+      "category": "ai",
+      "publisher": "vendor",
+      "homepage": "https://github.com/elevenlabs/elevenlabs-mcp",
+      "repository": "https://github.com/elevenlabs/elevenlabs-mcp",
+      "installType": "npx",
+      "command": "npx",
+      "args": ["-y", "@elevenlabs/mcp-server"],
+      "envVars": [
+        {
+          "name": "ELEVENLABS_API_KEY",
+          "description": "ElevenLabs API key",
+          "required": true,
+          "secret": true
+        }
+      ],
+      "requiresAuth": true,
+      "license": "MIT"
+    },
+    {
+      "name": "browserbase",
+      "displayName": "Browserbase",
+      "description": "Cloud browser automation. Navigate and interact with web pages at scale.",
+      "category": "browser",
+      "publisher": "vendor",
+      "homepage": "https://github.com/browserbase/mcp-server-browserbase",
+      "repository": "https://github.com/browserbase/mcp-server-browserbase",
+      "installType": "npx",
+      "command": "npx",
+      "args": ["-y", "@browserbase/mcp-server"],
+      "envVars": [
+        {
+          "name": "BROWSERBASE_API_KEY",
+          "description": "Browserbase API key",
+          "required": true,
+          "secret": true
+        }
+      ],
+      "requiresAuth": true,
+      "license": "MIT"
+    },
+    {
+      "name": "plaid",
+      "displayName": "Plaid",
+      "description": "Financial connectivity. Connect bank accounts and access financial data.",
+      "category": "finance",
+      "publisher": "vendor",
+      "homepage": "https://github.com/plaid/plaid-mcp",
+      "repository": "https://github.com/plaid/plaid-mcp",
+      "installType": "npx",
+      "command": "npx",
+      "args": ["-y", "@plaid/mcp-server"],
+      "envVars": [
+        {
+          "name": "PLAID_CLIENT_ID",
+          "description": "Plaid client ID",
+          "required": true,
+          "secret": false
+        },
+        {
+          "name": "PLAID_SECRET",
+          "description": "Plaid secret",
+          "required": true,
+          "secret": true
+        }
+      ],
+      "requiresAuth": true,
+      "license": "MIT"
+    },
+    {
+      "name": "obsidian",
+      "displayName": "Obsidian",
+      "description": "Note-taking vault management. Create, read, and manage Obsidian notes.",
+      "category": "productivity",
+      "publisher": "community",
+      "homepage": "https://github.com/obsidian/obsidian-mcp",
+      "repository": "https://github.com/obsidian/obsidian-mcp",
+      "installType": "npx",
+      "command": "npx",
+      "args": ["-y", "mcp-server-obsidian"],
+      "envVars": [
+        {
+          "name": "OBSIDIAN_VAULT_PATH",
+          "description": "Path to Obsidian vault",
+          "required": true,
+          "secret": false
+        }
+      ],
+      "requiresAuth": false,
+      "license": "MIT"
+    },
+    {
+      "name": "fly",
+      "displayName": "Fly.io",
+      "description": "Application deployment and hosting. Deploy and manage Fly.io applications.",
+      "category": "cloud",
+      "publisher": "vendor",
+      "homepage": "https://github.com/superfly/fly-mcp",
+      "repository": "https://github.com/superfly/fly-mcp",
+      "installType": "npx",
+      "command": "npx",
+      "args": ["-y", "@fly/mcp-server"],
+      "envVars": [
+        {
+          "name": "FLY_API_TOKEN",
+          "description": "Fly.io API token",
+          "required": true,
+          "secret": true
+        }
+      ],
+      "requiresAuth": true,
+      "license": "MIT"
+    },
+    {
+      "name": "firecrawl",
+      "displayName": "Firecrawl",
+      "description": "Web scraping and crawling. Extract structured data from websites.",
+      "category": "browser",
+      "publisher": "vendor",
+      "homepage": "https://github.com/mendableai/firecrawl",
+      "repository": "https://github.com/mendableai/firecrawl",
+      "installType": "npx",
+      "command": "npx",
+      "args": ["-y", "@firecrawl/mcp-server"],
+      "envVars": [
+        {
+          "name": "FIRECRAWL_API_KEY",
+          "description": "Firecrawl API key",
+          "required": true,
+          "secret": true
+        }
+      ],
+      "requiresAuth": true,
+      "license": "MIT"
+    },
+    {
+      "name": "kagi",
+      "displayName": "Kagi",
+      "description": "Privacy-focused search. Search without tracking or ads.",
+      "category": "search",
+      "publisher": "vendor",
+      "homepage": "https://github.com/kagisearch/kagi-mcp",
+      "repository": "https://github.com/kagisearch/kagi-mcp",
+      "installType": "npx",
+      "command": "npx",
+      "args": ["-y", "@kagi/mcp-server"],
+      "envVars": [
+        {
+          "name": "KAGI_API_KEY",
+          "description": "Kagi API key",
+          "required": true,
+          "secret": true
+        }
+      ],
+      "requiresAuth": true,
+      "license": "MIT"
+    },
+    {
+      "name": "perplexity",
+      "displayName": "Perplexity",
+      "description": "AI search and research. Search and synthesize information from multiple sources.",
+      "category": "search",
+      "publisher": "vendor",
+      "homepage": "https://github.com/perplexity-ai/perplexity-mcp",
+      "repository": "https://github.com/perplexity-ai/perplexity-mcp",
+      "installType": "npx",
+      "command": "npx",
+      "args": ["-y", "@perplexity-ai/mcp-server"],
+      "envVars": [
+        {
+          "name": "PERPLEXITY_API_KEY",
+          "description": "Perplexity API key",
+          "required": true,
+          "secret": true
+        }
+      ],
+      "requiresAuth": true,
+      "license": "MIT"
+    },
+    {
+      "name": "spotify",
+      "displayName": "Spotify",
+      "description": "Music streaming control. Play, pause, and manage Spotify playback.",
+      "category": "media",
+      "publisher": "community",
+      "homepage": "https://github.com/spotify/spotify-mcp",
+      "repository": "https://github.com/spotify/spotify-mcp",
+      "installType": "npx",
+      "command": "npx",
+      "args": ["-y", "mcp-server-spotify"],
+      "envVars": [
+        {
+          "name": "SPOTIFY_CLIENT_ID",
+          "description": "Spotify app client ID",
+          "required": true,
+          "secret": false
+        },
+        {
+          "name": "SPOTIFY_CLIENT_SECRET",
+          "description": "Spotify app client secret",
+          "required": true,
+          "secret": true
+        }
+      ],
+      "requiresAuth": true,
+      "license": "MIT"
+    },
+    {
+      "name": "youtube",
+      "displayName": "YouTube",
+      "description": "YouTube video management. Search, retrieve info, and manage videos.",
+      "category": "media",
+      "publisher": "community",
+      "homepage": "https://github.com/google/youtube-mcp",
+      "repository": "https://github.com/google/youtube-mcp",
+      "installType": "npx",
+      "command": "npx",
+      "args": ["-y", "@google/mcp-server-youtube"],
+      "envVars": [
+        {
+          "name": "YOUTUBE_API_KEY",
+          "description": "YouTube API key",
+          "required": true,
+          "secret": true
+        }
+      ],
+      "requiresAuth": true,
+      "license": "MIT"
+    },
+    {
+      "name": "mysql",
+      "displayName": "MySQL",
+      "description": "MySQL database access. Query and manage MySQL databases.",
+      "category": "data",
+      "publisher": "community",
+      "homepage": "https://github.com/mysql/mysql-mcp",
+      "repository": "https://github.com/mysql/mysql-mcp",
+      "installType": "npx",
+      "command": "npx",
+      "args": ["-y", "mcp-server-mysql"],
+      "envVars": [
+        {
+          "name": "MYSQL_HOST",
+          "description": "MySQL server host",
+          "required": true,
+          "secret": false
+        },
+        {
+          "name": "MYSQL_USER",
+          "description": "MySQL username",
+          "required": true,
+          "secret": false
+        },
+        {
+          "name": "MYSQL_PASSWORD",
+          "description": "MySQL password",
+          "required": true,
+          "secret": true
+        },
+        {
+          "name": "MYSQL_DATABASE",
+          "description": "MySQL database name",
+          "required": false,
+          "secret": false
+        }
+      ],
+      "requiresAuth": false,
+      "license": "MIT"
+    },
+    {
+      "name": "anthropic",
+      "displayName": "Anthropic",
+      "description": "Claude API integration. Use Claude models for AI tasks.",
+      "category": "ai",
+      "publisher": "vendor",
+      "homepage": "https://github.com/anthropics/anthropic-mcp",
+      "repository": "https://github.com/anthropics/anthropic-mcp",
+      "installType": "npx",
+      "command": "npx",
+      "args": ["-y", "@anthropic-ai/mcp-server"],
+      "envVars": [
+        {
+          "name": "ANTHROPIC_API_KEY",
+          "description": "Anthropic API key",
+          "required": true,
+          "secret": true
+        }
+      ],
+      "requiresAuth": true,
+      "license": "MIT"
+    },
+    {
+      "name": "openai",
+      "displayName": "OpenAI",
+      "description": "OpenAI API integration. Use GPT models and other OpenAI services.",
+      "category": "ai",
+      "publisher": "vendor",
+      "homepage": "https://github.com/openai/openai-mcp",
+      "repository": "https://github.com/openai/openai-mcp",
+      "installType": "npx",
+      "command": "npx",
+      "args": ["-y", "@openai/mcp-server"],
+      "envVars": [
+        {
+          "name": "OPENAI_API_KEY",
+          "description": "OpenAI API key",
+          "required": true,
+          "secret": true
+        }
+      ],
+      "requiresAuth": true,
+      "license": "MIT"
+    },
+    {
+      "name": "anthropic-docs",
+      "displayName": "Anthropic Documentation",
+      "description": "Anthropic documentation search. Search Claude and MCP documentation.",
+      "category": "reference",
+      "publisher": "vendor",
+      "homepage": "https://github.com/anthropics/docs-mcp",
+      "repository": "https://github.com/anthropics/docs-mcp",
+      "installType": "npx",
+      "command": "npx",
+      "args": ["-y", "@anthropic-ai/docs-mcp"],
+      "envVars": [],
+      "requiresAuth": false,
+      "license": "MIT"
+    },
+    {
+      "name": "apify",
+      "displayName": "Apify",
+      "description": "Web scraping and automation. Extract data from websites at scale.",
+      "category": "browser",
+      "publisher": "vendor",
+      "homepage": "https://github.com/apify/apify-mcp-server",
+      "repository": "https://github.com/apify/apify-mcp-server",
+      "installType": "npx",
+      "command": "npx",
+      "args": ["-y", "@apify/mcp-server"],
+      "envVars": [
+        {
+          "name": "APIFY_API_TOKEN",
+          "description": "Apify API token",
+          "required": true,
+          "secret": true
+        }
+      ],
+      "requiresAuth": true,
+      "license": "MIT"
+    },
+    {
+      "name": "jira-cloud",
+      "displayName": "Jira Cloud",
+      "description": "Jira Cloud issue tracking. Create and manage issues in Jira Cloud.",
+      "category": "productivity",
+      "publisher": "vendor",
+      "homepage": "https://github.com/atlassian-labs/jira-mcp-cloud",
+      "repository": "https://github.com/atlassian-labs/jira-mcp-cloud",
+      "installType": "npx",
+      "command": "npx",
+      "args": ["-y", "@atlassian-labs/mcp-server-jira-cloud"],
+      "envVars": [
+        {
+          "name": "JIRA_INSTANCE_URL",
+          "description": "Jira Cloud instance URL",
+          "required": true,
+          "secret": false
+        },
+        {
+          "name": "JIRA_API_TOKEN",
+          "description": "Jira API token",
+          "required": true,
+          "secret": true
+        },
+        {
+          "name": "JIRA_USER_EMAIL",
+          "description": "User email for Jira authentication",
+          "required": true,
+          "secret": false
+        }
+      ],
+      "requiresAuth": true,
+      "license": "MIT"
+    },
+    {
+      "name": "codeium",
+      "displayName": "Codeium",
+      "description": "AI code completion. Generate and suggest code with Codeium.",
+      "category": "development",
+      "publisher": "vendor",
+      "homepage": "https://github.com/codeium/codeium-mcp",
+      "repository": "https://github.com/codeium/codeium-mcp",
+      "installType": "npx",
+      "command": "npx",
+      "args": ["-y", "@codeium/mcp-server"],
+      "envVars": [
+        {
+          "name": "CODEIUM_API_KEY",
+          "description": "Codeium API key",
+          "required": true,
+          "secret": true
+        }
+      ],
+      "requiresAuth": true,
+      "license": "MIT"
+    }
+  ]
+}

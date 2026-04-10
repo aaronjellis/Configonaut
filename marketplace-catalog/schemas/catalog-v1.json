@@ -1,0 +1,132 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://configonaut.app/schemas/catalog-v1.json",
+  "title": "Configonaut MCP Marketplace Catalog",
+  "description": "Schema for the Configonaut marketplace catalog. One top-level document lists categories and servers.",
+  "type": "object",
+  "required": ["version", "generatedAt", "categories", "servers"],
+  "properties": {
+    "$schema": { "type": "string", "format": "uri" },
+    "version": {
+      "type": "string",
+      "description": "Semver of the catalog document format.",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$"
+    },
+    "generatedAt": {
+      "type": "string",
+      "format": "date",
+      "description": "Date the catalog was generated (YYYY-MM-DD)."
+    },
+    "source": {
+      "type": "string",
+      "format": "uri",
+      "description": "Canonical URL of the catalog repository."
+    },
+    "categories": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/category" }
+    },
+    "servers": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/server" }
+    }
+  },
+
+  "$defs": {
+    "category": {
+      "type": "object",
+      "required": ["id", "label"],
+      "properties": {
+        "id":          { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+        "label":       { "type": "string" },
+        "icon":        { "type": "string", "description": "lucide icon name or asset id" },
+        "description": { "type": "string" }
+      }
+    },
+
+    "server": {
+      "type": "object",
+      "required": ["id", "name", "description", "category", "publisher", "homepage", "config"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]*$",
+          "description": "Stable slug; used as the default server key when inserted into claude_desktop_config.json."
+        },
+        "name":        { "type": "string" },
+        "description": { "type": "string" },
+        "category":    { "type": "string", "description": "Must match a category id." },
+        "tags":        { "type": "array", "items": { "type": "string" } },
+        "publisher": {
+          "type": "object",
+          "required": ["name", "type"],
+          "properties": {
+            "name":     { "type": "string" },
+            "type":     { "enum": ["official", "vendor", "community"] },
+            "verified": { "type": "boolean" }
+          }
+        },
+        "homepage":   { "type": "string", "format": "uri" },
+        "repository": { "type": "string", "format": "uri" },
+        "license":    { "type": "string" },
+        "icon":       { "type": "string" },
+        "popularity": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10,
+          "description": "Editorial ranking used for sort, 0-10."
+        },
+        "config": {
+          "oneOf": [
+            { "$ref": "#/$defs/stdioConfig" },
+            { "$ref": "#/$defs/remoteConfig" }
+          ],
+          "description": "The JSON block that will be written to claude_desktop_config.json under mcpServers[<id>]."
+        },
+        "envVars": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/envVar" },
+          "description": "Declarative list of environment variables used by the server."
+        },
+        "setupNotes": {
+          "type": "string",
+          "description": "Human-readable instructions shown under the add form."
+        },
+        "deprecated": { "type": "boolean" }
+      }
+    },
+
+    "stdioConfig": {
+      "type": "object",
+      "required": ["command"],
+      "properties": {
+        "command": { "type": "string", "description": "Executable (npx, uvx, docker, binary name, etc.)" },
+        "args":    { "type": "array", "items": { "type": "string" } },
+        "env":     { "type": "object", "additionalProperties": { "type": "string" } }
+      }
+    },
+
+    "remoteConfig": {
+      "type": "object",
+      "required": ["url"],
+      "properties": {
+        "url":     { "type": "string", "format": "uri", "description": "HTTP or SSE endpoint for a remote MCP server." },
+        "headers": { "type": "object", "additionalProperties": { "type": "string" } }
+      }
+    },
+
+    "envVar": {
+      "type": "object",
+      "required": ["name", "description"],
+      "properties": {
+        "name":        { "type": "string", "pattern": "^[A-Z][A-Z0-9_]*$" },
+        "description": { "type": "string" },
+        "required":    { "type": "boolean", "default": true },
+        "secret":      { "type": "boolean", "default": true, "description": "If true, mask the field in the UI." },
+        "placeholder": { "type": "string", "description": "Example value shown as a hint (never written to config)." },
+        "helpUrl":     { "type": "string", "format": "uri", "description": "Link to docs explaining how to obtain this credential." },
+        "default":     { "type": "string" }
+      }
+    }
+  }
+}

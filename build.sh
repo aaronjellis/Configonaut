@@ -18,8 +18,9 @@ mkdir -p "$APP/Contents/Resources"
 cp .build/release/Configonaut "$APP/Contents/MacOS/Configonaut"
 cp Resources/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 cp Resources/AppIcon.png "$APP/Contents/Resources/AppIcon.png"
+cp Resources/catalog-baseline.json "$APP/Contents/Resources/catalog-baseline.json"
 
-# Copy bundled resources from SPM build
+# Copy bundled resources from SPM build (if SPM generated a resource bundle)
 BUNDLE_PATH=$(find .build/release -name "Configonaut_Configonaut.bundle" -type d 2>/dev/null | head -1)
 if [ -n "$BUNDLE_PATH" ]; then
     cp -R "$BUNDLE_PATH" "$APP/Contents/Resources/"
@@ -69,6 +70,18 @@ codesign --verify --deep --strict "$APP"
 echo "Signature valid."
 
 # --- Notarization ---
+# Skip notarization for fast local dev iterations:
+#   SKIP_NOTARIZE=1 ./build.sh
+if [ -n "$SKIP_NOTARIZE" ]; then
+    echo ""
+    echo "SKIP_NOTARIZE set — skipping notarization."
+    echo ""
+    echo "Build complete: $(pwd)/$APP  (signed, NOT notarized)"
+    echo ""
+    echo "To run now:  open '$APP'"
+    exit 0
+fi
+
 echo ""
 echo "Notarizing $APP (this may take a few minutes)..."
 # Create a zip for notarization submission

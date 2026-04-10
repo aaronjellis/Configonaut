@@ -1,0 +1,2339 @@
+{
+  "$schema": "https://configonaut.app/schemas/catalog-v1.json",
+  "version": "1.0.0",
+  "generatedAt": "2026-04-10",
+  "source": "https://github.com/aaronellis/configonaut-catalog",
+  "categories": [
+    {
+      "id": "reference",
+      "label": "Reference",
+      "icon": "sparkles",
+      "description": "Official reference servers from Anthropic."
+    },
+    {
+      "id": "development",
+      "label": "Developer Tools",
+      "icon": "code",
+      "description": "Source control, CI/CD, and code platforms."
+    },
+    {
+      "id": "database",
+      "label": "Databases",
+      "icon": "database",
+      "description": "SQL, NoSQL, and data warehouses."
+    },
+    {
+      "id": "cloud",
+      "label": "Cloud & Infra",
+      "icon": "cloud",
+      "description": "Hosting, compute, and cloud platforms."
+    },
+    {
+      "id": "browser",
+      "label": "Browser & Web",
+      "icon": "globe",
+      "description": "Web automation, scraping, and fetching."
+    },
+    {
+      "id": "search",
+      "label": "Search & Research",
+      "icon": "search",
+      "description": "Web search and research APIs."
+    },
+    {
+      "id": "productivity",
+      "label": "Productivity",
+      "icon": "briefcase",
+      "description": "Notes, tasks, and knowledge management."
+    },
+    {
+      "id": "communication",
+      "label": "Communication",
+      "icon": "message-circle",
+      "description": "Chat, email, and messaging platforms."
+    },
+    {
+      "id": "design",
+      "label": "Design",
+      "icon": "palette",
+      "description": "Figma, Canva, and design tools."
+    },
+    {
+      "id": "monitoring",
+      "label": "Monitoring",
+      "icon": "activity",
+      "description": "Observability, logs, and incident response."
+    },
+    {
+      "id": "finance",
+      "label": "Finance & Payments",
+      "icon": "dollar-sign",
+      "description": "Stripe, billing, and payment APIs."
+    },
+    {
+      "id": "ai",
+      "label": "AI & ML",
+      "icon": "cpu",
+      "description": "Model providers and inference tools."
+    },
+    {
+      "id": "media",
+      "label": "Media",
+      "icon": "music",
+      "description": "Audio, video, and image generation."
+    },
+    {
+      "id": "crm",
+      "label": "CRM & Sales",
+      "icon": "users",
+      "description": "Customer and sales platforms."
+    },
+    {
+      "id": "filesystem",
+      "label": "Local Files",
+      "icon": "folder",
+      "description": "Local file system and editor integration."
+    }
+  ],
+  "servers": [
+    {
+      "id": "filesystem",
+      "name": "Filesystem",
+      "description": "Read, write, and navigate files on your computer with configurable access controls.",
+      "category": "filesystem",
+      "tags": [
+        "files",
+        "local",
+        "reference"
+      ],
+      "publisher": {
+        "name": "Anthropic",
+        "type": "official",
+        "verified": true
+      },
+      "homepage": "https://github.com/modelcontextprotocol/servers/tree/main/src/filesystem",
+      "repository": "https://github.com/modelcontextprotocol/servers",
+      "license": "MIT",
+      "popularity": 10,
+      "config": {
+        "command": "npx",
+        "args": [
+          "-y",
+          "@modelcontextprotocol/server-filesystem",
+          "<PATH>"
+        ]
+      },
+      "setupNotes": "Replace <PATH> with one or more directories to expose, e.g. /Users/you/projects.",
+      "envVars": []
+    },
+    {
+      "id": "fetch",
+      "name": "Fetch",
+      "description": "Fetch web content and convert HTML to markdown for efficient LLM use.",
+      "category": "browser",
+      "tags": [
+        "web",
+        "http",
+        "reference"
+      ],
+      "publisher": {
+        "name": "Anthropic",
+        "type": "official",
+        "verified": true
+      },
+      "homepage": "https://github.com/modelcontextprotocol/servers/tree/main/src/fetch",
+      "repository": "https://github.com/modelcontextprotocol/servers",
+      "license": "MIT",
+      "popularity": 10,
+      "config": {
+        "command": "uvx",
+        "args": [
+          "mcp-server-fetch"
+        ]
+      },
+      "envVars": []
+    },
+    {
+      "id": "git",
+      "name": "Git",
+      "description": "Read, search, and manipulate local Git repositories.",
+      "category": "development",
+      "tags": [
+        "git",
+        "version-control",
+        "reference"
+      ],
+      "publisher": {
+        "name": "Anthropic",
+        "type": "official",
+        "verified": true
+      },
+      "homepage": "https://github.com/modelcontextprotocol/servers/tree/main/src/git",
+      "repository": "https://github.com/modelcontextprotocol/servers",
+      "license": "MIT",
+      "popularity": 9,
+      "config": {
+        "command": "uvx",
+        "args": [
+          "mcp-server-git",
+          "--repository",
+          "<REPO_PATH>"
+        ]
+      },
+      "setupNotes": "Replace <REPO_PATH> with the absolute path to a git repository.",
+      "envVars": []
+    },
+    {
+      "id": "memory",
+      "name": "Memory",
+      "description": "Knowledge-graph based persistent memory across conversations.",
+      "category": "reference",
+      "tags": [
+        "memory",
+        "knowledge-graph",
+        "reference"
+      ],
+      "publisher": {
+        "name": "Anthropic",
+        "type": "official",
+        "verified": true
+      },
+      "homepage": "https://github.com/modelcontextprotocol/servers/tree/main/src/memory",
+      "repository": "https://github.com/modelcontextprotocol/servers",
+      "license": "MIT",
+      "popularity": 8,
+      "config": {
+        "command": "npx",
+        "args": [
+          "-y",
+          "@modelcontextprotocol/server-memory"
+        ]
+      },
+      "envVars": []
+    },
+    {
+      "id": "sequential-thinking",
+      "name": "Sequential Thinking",
+      "description": "Structured step-by-step reasoning and reflective problem-solving.",
+      "category": "reference",
+      "tags": [
+        "reasoning",
+        "reference"
+      ],
+      "publisher": {
+        "name": "Anthropic",
+        "type": "official",
+        "verified": true
+      },
+      "homepage": "https://github.com/modelcontextprotocol/servers/tree/main/src/sequentialthinking",
+      "repository": "https://github.com/modelcontextprotocol/servers",
+      "license": "MIT",
+      "popularity": 7,
+      "config": {
+        "command": "npx",
+        "args": [
+          "-y",
+          "@modelcontextprotocol/server-sequential-thinking"
+        ]
+      },
+      "envVars": []
+    },
+    {
+      "id": "time",
+      "name": "Time",
+      "description": "Time and timezone conversions.",
+      "category": "reference",
+      "tags": [
+        "time",
+        "timezone",
+        "reference"
+      ],
+      "publisher": {
+        "name": "Anthropic",
+        "type": "official",
+        "verified": true
+      },
+      "homepage": "https://github.com/modelcontextprotocol/servers/tree/main/src/time",
+      "repository": "https://github.com/modelcontextprotocol/servers",
+      "license": "MIT",
+      "popularity": 6,
+      "config": {
+        "command": "uvx",
+        "args": [
+          "mcp-server-time"
+        ]
+      },
+      "envVars": []
+    },
+    {
+      "id": "everything",
+      "name": "Everything",
+      "description": "Test server exercising all MCP protocol features (prompts, resources, tools).",
+      "category": "reference",
+      "tags": [
+        "test",
+        "reference",
+        "dev"
+      ],
+      "publisher": {
+        "name": "Anthropic",
+        "type": "official",
+        "verified": true
+      },
+      "homepage": "https://github.com/modelcontextprotocol/servers/tree/main/src/everything",
+      "repository": "https://github.com/modelcontextprotocol/servers",
+      "license": "MIT",
+      "popularity": 3,
+      "config": {
+        "command": "npx",
+        "args": [
+          "-y",
+          "@modelcontextprotocol/server-everything"
+        ]
+      },
+      "envVars": []
+    },
+    {
+      "id": "github",
+      "name": "GitHub",
+      "description": "Official GitHub MCP server. Create issues, manage PRs, search code, and more.",
+      "category": "development",
+      "tags": [
+        "git",
+        "github",
+        "issues",
+        "pull-requests"
+      ],
+      "publisher": {
+        "name": "GitHub",
+        "type": "vendor",
+        "verified": true
+      },
+      "homepage": "https://github.com/github/github-mcp-server",
+      "repository": "https://github.com/github/github-mcp-server",
+      "license": "MIT",
+      "popularity": 10,
+      "config": {
+        "command": "docker",
+        "args": [
+          "run",
+          "-i",
+          "--rm",
+          "-e",
+          "GITHUB_PERSONAL_ACCESS_TOKEN",
+          "ghcr.io/github/github-mcp-server"
+        ],
+        "env": {
+          "GITHUB_PERSONAL_ACCESS_TOKEN": ""
+        }
+      },
+      "envVars": [
+        {
+          "name": "GITHUB_PERSONAL_ACCESS_TOKEN",
+          "description": "Fine-grained or classic PAT with required repo scopes.",
+          "required": true,
+          "secret": true,
+          "placeholder": "ghp_...",
+          "helpUrl": "https://github.com/settings/tokens"
+        }
+      ],
+      "setupNotes": "Runs locally via Docker with a PAT. A hosted remote MCP is also available at https://api.githubcopilot.com/mcp/ (OAuth, Copilot required)."
+    },
+    {
+      "id": "gitlab",
+      "name": "GitLab",
+      "description": "Official GitLab MCP server. Manage projects, issues, merge requests, and pipelines.",
+      "category": "development",
+      "tags": [
+        "git",
+        "gitlab",
+        "ci"
+      ],
+      "publisher": {
+        "name": "GitLab",
+        "type": "vendor",
+        "verified": true
+      },
+      "homepage": "https://docs.gitlab.com/user/gitlab_duo/model_context_protocol/mcp_server/",
+      "repository": "https://gitlab.com/gitlab-org/gitlab",
+      "license": "MIT",
+      "popularity": 7,
+      "config": {
+        "url": "https://gitlab.com/api/v4/mcp",
+        "headers": {
+          "Authorization": "Bearer <GITLAB_TOKEN>"
+        }
+      },
+      "envVars": [
+        {
+          "name": "GITLAB_TOKEN",
+          "description": "GitLab personal access token with api scope.",
+          "required": true,
+          "secret": true,
+          "placeholder": "glpat-...",
+          "helpUrl": "https://gitlab.com/-/user_settings/personal_access_tokens"
+        }
+      ]
+    },
+    {
+      "id": "sentry",
+      "name": "Sentry",
+      "description": "Official Sentry MCP server. Query issues, releases, and error details.",
+      "category": "monitoring",
+      "tags": [
+        "errors",
+        "observability",
+        "sentry"
+      ],
+      "publisher": {
+        "name": "Sentry",
+        "type": "vendor",
+        "verified": true
+      },
+      "homepage": "https://docs.sentry.io/product/sentry-mcp/",
+      "repository": "https://github.com/getsentry/sentry-mcp",
+      "license": "Apache-2.0",
+      "popularity": 8,
+      "config": {
+        "url": "https://mcp.sentry.dev/mcp"
+      },
+      "envVars": [],
+      "setupNotes": "Remote server uses OAuth in-app; no static env var required."
+    },
+    {
+      "id": "atlassian",
+      "name": "Atlassian (Jira + Confluence)",
+      "description": "Official remote Atlassian MCP server covering Jira, Confluence, and Compass.",
+      "category": "productivity",
+      "tags": [
+        "jira",
+        "confluence",
+        "atlassian"
+      ],
+      "publisher": {
+        "name": "Atlassian",
+        "type": "vendor",
+        "verified": true
+      },
+      "homepage": "https://www.atlassian.com/platform/remote-mcp-server",
+      "repository": "https://www.atlassian.com/platform/remote-mcp-server",
+      "license": "Proprietary",
+      "popularity": 9,
+      "config": {
+        "url": "https://mcp.atlassian.com/v1/sse"
+      },
+      "envVars": [],
+      "setupNotes": "Uses OAuth flow in Claude on first use; no token required here."
+    },
+    {
+      "id": "linear",
+      "name": "Linear",
+      "description": "Official Linear MCP server. Query issues, projects, and cycles via OAuth.",
+      "category": "productivity",
+      "tags": [
+        "tasks",
+        "issues",
+        "linear"
+      ],
+      "publisher": {
+        "name": "Linear",
+        "type": "vendor",
+        "verified": true
+      },
+      "homepage": "https://linear.app/docs/mcp",
+      "repository": "https://linear.app/docs/mcp",
+      "license": "Proprietary",
+      "popularity": 9,
+      "config": {
+        "url": "https://mcp.linear.app/sse"
+      },
+      "envVars": [],
+      "setupNotes": "Uses OAuth. No static env var required."
+    },
+    {
+      "id": "notion",
+      "name": "Notion",
+      "description": "Official Notion MCP server. Search and edit pages, databases, and blocks.",
+      "category": "productivity",
+      "tags": [
+        "notes",
+        "wiki",
+        "notion"
+      ],
+      "publisher": {
+        "name": "Notion",
+        "type": "vendor",
+        "verified": true
+      },
+      "homepage": "https://github.com/makenotion/notion-mcp-server",
+      "repository": "https://github.com/makenotion/notion-mcp-server",
+      "license": "MIT",
+      "popularity": 10,
+      "config": {
+        "command": "npx",
+        "args": [
+          "-y",
+          "@notionhq/notion-mcp-server"
+        ],
+        "env": {
+          "OPENAPI_MCP_HEADERS": "{\"Authorization\": \"Bearer ntn_<YOUR_TOKEN>\", \"Notion-Version\": \"2025-09-03\"}"
+        }
+      },
+      "envVars": [
+        {
+          "name": "OPENAPI_MCP_HEADERS",
+          "description": "JSON object with Authorization and Notion-Version headers.",
+          "required": true,
+          "secret": true,
+          "placeholder": "{\"Authorization\": \"Bearer ntn_...\", \"Notion-Version\": \"2025-09-03\"}",
+          "helpUrl": "https://www.notion.so/profile/integrations"
+        }
+      ]
+    },
+    {
+      "id": "stripe",
+      "name": "Stripe",
+      "description": "Official Stripe MCP server. Query customers, charges, subscriptions, and products.",
+      "category": "finance",
+      "tags": [
+        "payments",
+        "stripe",
+        "billing"
+      ],
+      "publisher": {
+        "name": "Stripe",
+        "type": "vendor",
+        "verified": true
+      },
+      "homepage": "https://github.com/stripe/agent-toolkit",
+      "repository": "https://github.com/stripe/agent-toolkit",
+      "license": "MIT",
+      "popularity": 9,
+      "config": {
+        "command": "npx",
+        "args": [
+          "-y",
+          "@stripe/mcp",
+          "--api-key=<STRIPE_API_KEY>"
+        ]
+      },
+      "envVars": [
+        {
+          "name": "STRIPE_API_KEY",
+          "description": "Stripe secret key (use a restricted key when possible).",
+          "required": true,
+          "secret": true,
+          "placeholder": "sk_test_... or sk_live_...",
+          "helpUrl": "https://dashboard.stripe.com/apikeys"
+        }
+      ]
+    },
+    {
+      "id": "cloudflare",
+      "name": "Cloudflare",
+      "description": "Official Cloudflare MCP. Manage Workers, Pages, KV, R2, DNS, and observability.",
+      "category": "cloud",
+      "tags": [
+        "workers",
+        "dns",
+        "cloudflare"
+      ],
+      "publisher": {
+        "name": "Cloudflare",
+        "type": "vendor",
+        "verified": true
+      },
+      "homepage": "https://github.com/cloudflare/mcp-server-cloudflare",
+      "repository": "https://github.com/cloudflare/mcp-server-cloudflare",
+      "license": "Apache-2.0",
+      "popularity": 8,
+      "config": {
+        "url": "https://bindings.mcp.cloudflare.com/mcp"
+      },
+      "envVars": [],
+      "setupNotes": "Uses OAuth via Cloudflare. Cloudflare publishes multiple tool-specific MCP endpoints — see repo for the full list."
+    },
+    {
+      "id": "vercel",
+      "name": "Vercel",
+      "description": "Official Vercel MCP server. Deploy, query projects, and manage environments.",
+      "category": "cloud",
+      "tags": [
+        "deploy",
+        "hosting",
+        "vercel"
+      ],
+      "publisher": {
+        "name": "Vercel",
+        "type": "vendor",
+        "verified": true
+      },
+      "homepage": "https://vercel.com/docs/mcp/vercel-mcp",
+      "repository": "https://github.com/vercel/mcp",
+      "license": "Proprietary",
+      "popularity": 7,
+      "config": {
+        "url": "https://mcp.vercel.com/"
+      },
+      "envVars": [],
+      "setupNotes": "Uses OAuth. Authenticate via Claude on first use."
+    },
+    {
+      "id": "netlify",
+      "name": "Netlify",
+      "description": "Official Netlify MCP server. Manage sites, deploys, and environment variables.",
+      "category": "cloud",
+      "tags": [
+        "deploy",
+        "hosting",
+        "netlify"
+      ],
+      "publisher": {
+        "name": "Netlify",
+        "type": "vendor",
+        "verified": true
+      },
+      "homepage": "https://docs.netlify.com/welcome/build-with-ai/netlify-mcp-server/",
+      "repository": "https://github.com/netlify/netlify-mcp",
+      "license": "Proprietary",
+      "popularity": 7,
+      "config": {
+        "command": "npx",
+        "args": [
+          "-y",
+          "@netlify/mcp"
+        ]
+      },
+      "envVars": [],
+      "setupNotes": "Authenticates via Netlify CLI login."
+    },
+    {
+      "id": "aws",
+      "name": "AWS (AWS Labs)",
+      "description": "Official AWS MCP servers from AWS Labs. Query S3, DynamoDB, CloudWatch and more.",
+      "category": "cloud",
+      "tags": [
+        "aws",
+        "s3",
+        "cloudwatch"
+      ],
+      "publisher": {
+        "name": "Amazon Web Services",
+        "type": "vendor",
+        "verified": true
+      },
+      "homepage": "https://github.com/awslabs/mcp",
+      "repository": "https://github.com/awslabs/mcp",
+      "license": "Apache-2.0",
+      "popularity": 8,
+      "config": {
+        "command": "uvx",
+        "args": [
+          "awslabs.core-mcp-server"
+        ]
+      },
+      "envVars": [
+        {
+          "name": "AWS_PROFILE",
+          "description": "AWS CLI profile name to use.",
+          "required": false,
+          "secret": false,
+          "placeholder": "default"
+        },
+        {
+          "name": "AWS_REGION",
+          "description": "AWS region.",
+          "required": false,
+          "secret": false,
+          "placeholder": "us-east-1"
+        }
+      ],
+      "setupNotes": "Uses your local AWS credentials. Pick a specific awslabs.* server for targeted features."
+    },
+    {
+      "id": "azure",
+      "name": "Azure",
+      "description": "Official Microsoft Azure MCP server. Query resources, subscriptions, and services.",
+      "category": "cloud",
+      "tags": [
+        "azure",
+        "microsoft",
+        "cloud"
+      ],
+      "publisher": {
+        "name": "Microsoft",
+        "type": "vendor",
+        "verified": true
+      },
+      "homepage": "https://github.com/microsoft/mcp",
+      "repository": "https://github.com/microsoft/mcp",
+      "license": "MIT",
+      "popularity": 7,
+      "config": {
+        "command": "npx",
+        "args": [
+          "-y",
+          "@azure/mcp"
+        ]
+      },
+      "envVars": [],
+      "setupNotes": "Uses Azure CLI login (`az login`)."
+    },
+    {
+      "id": "azure-devops",
+      "name": "Azure DevOps",
+      "description": "Official Microsoft Azure DevOps MCP server. Manage repos, work items, and pipelines.",
+      "category": "development",
+      "tags": [
+        "azure",
+        "devops",
+        "ci"
+      ],
+      "publisher": {
+        "name": "Microsoft",
+        "type": "vendor",
+        "verified": true
+      },
+      "homepage": "https://github.com/microsoft/azure-devops-mcp",
+      "repository": "https://github.com/microsoft/azure-devops-mcp",
+      "license": "MIT",
+      "popularity": 6,
+      "config": {
+        "command": "npx",
+        "args": [
+          "-y",
+          "@azure-devops/mcp"
+        ],
+        "env": {
+          "ADO_ORGANIZATION": ""
+        }
+      },
+      "envVars": [
+        {
+          "name": "ADO_ORGANIZATION",
+          "description": "Azure DevOps organization name.",
+          "required": true,
+          "secret": false,
+          "placeholder": "myorg"
+        }
+      ]
+    },
+    {
+      "id": "postgres",
+      "name": "PostgreSQL",
+      "description": "Read-only SQL access to a Postgres database via the official reference server.",
+      "category": "database",
+      "tags": [
+        "postgres",
+        "sql",
+        "database"
+      ],
+      "publisher": {
+        "name": "Community (archived reference)",
+        "type": "community",
+        "verified": false
+      },
+      "homepage": "https://github.com/modelcontextprotocol/servers-archived/tree/main/src/postgres",
+      "repository": "https://github.com/modelcontextprotocol/servers-archived",
+      "license": "MIT",
+      "popularity": 8,
+      "config": {
+        "command": "npx",
+        "args": [
+          "-y",
+          "@modelcontextprotocol/server-postgres",
+          "postgresql://<USER>:<PASS>@<HOST>/<DB>"
+        ]
+      },
+      "envVars": [],
+      "setupNotes": "Replace the connection string in the args. Archived reference but still widely used."
+    },
+    {
+      "id": "sqlite",
+      "name": "SQLite",
+      "description": "Query and explore a local SQLite database.",
+      "category": "database",
+      "tags": [
+        "sqlite",
+        "sql",
+        "database"
+      ],
+      "publisher": {
+        "name": "Community (archived reference)",
+        "type": "community",
+        "verified": false
+      },
+      "homepage": "https://github.com/modelcontextprotocol/servers-archived/tree/main/src/sqlite",
+      "repository": "https://github.com/modelcontextprotocol/servers-archived",
+      "license": "MIT",
+      "popularity": 7,
+      "config": {
+        "command": "uvx",
+        "args": [
+          "mcp-server-sqlite",
+          "--db-path",
+          "<PATH_TO_DB>"
+        ]
+      },
+      "envVars": [],
+      "setupNotes": "Replace <PATH_TO_DB> with the path to your .sqlite file."
+    },
+    {
+      "id": "mongodb",
+      "name": "MongoDB",
+      "description": "Official MongoDB MCP server. Query collections and run aggregations.",
+      "category": "database",
+      "tags": [
+        "mongo",
+        "nosql",
+        "database"
+      ],
+      "publisher": {
+        "name": "MongoDB",
+        "type": "vendor",
+        "verified": true
+      },
+      "homepage": "https://github.com/mongodb-js/mongodb-mcp-server",
+      "repository": "https://github.com/mongodb-js/mongodb-mcp-server",
+      "license": "Apache-2.0",
+      "popularity": 7,
+      "config": {
+        "command": "npx",
+        "args": [
+          "-y",
+          "mongodb-mcp-server"
+        ],
+        "env": {
+          "MDB_MCP_CONNECTION_STRING": ""
+        }
+      },
+      "envVars": [
+        {
+          "name": "MDB_MCP_CONNECTION_STRING",
+          "description": "MongoDB connection URI.",
+          "required": true,
+          "secret": true,
+          "placeholder": "mongodb+srv://user:pass@cluster.mongodb.net/",
+          "helpUrl": "https://www.mongodb.com/docs/manual/reference/connection-string/"
+        }
+      ]
+    },
+    {
+      "id": "redis",
+      "name": "Redis",
+      "description": "Official Redis MCP server. Inspect keys, run commands, and query data.",
+      "category": "database",
+      "tags": [
+        "redis",
+        "cache",
+        "database"
+      ],
+      "publisher": {
+        "name": "Redis",
+        "type": "vendor",
+        "verified": true
+      },
+      "homepage": "https://github.com/redis/mcp-redis",
+      "repository": "https://github.com/redis/mcp-redis",
+      "license": "MIT",
+      "popularity": 7,
+      "config": {
+        "command": "uvx",
+        "args": [
+          "--from",
+          "redis-mcp-server@latest",
+          "redis-mcp-server",
+          "--url",
+          "<REDIS_URL>"
+        ]
+      },
+      "envVars": [],
+      "setupNotes": "Replace <REDIS_URL> with your Redis connection URL (redis://...). REDIS_HOST/REDIS_PORT/REDIS_PASSWORD env vars are also supported as an alternative."
+    },
+    {
+      "id": "neon",
+      "name": "Neon",
+      "description": "Official Neon MCP server. Manage serverless Postgres branches and queries.",
+      "category": "database",
+      "tags": [
+        "postgres",
+        "neon",
+        "serverless"
+      ],
+      "publisher": {
+        "name": "Neon",
+        "type": "vendor",
+        "verified": true
+      },
+      "homepage": "https://github.com/neondatabase/mcp-server-neon",
+      "repository": "https://github.com/neondatabase/mcp-server-neon",
+      "license": "MIT",
+      "popularity": 7,
+      "config": {
+        "url": "https://mcp.neon.tech/mcp"
+      },
+      "envVars": [],
+      "setupNotes": "Remote MCP uses OAuth (recommended). For local stdio, run `npx -y @neondatabase/mcp-server-neon start <NEON_API_KEY>` instead."
+    },
+    {
+      "id": "supabase",
+      "name": "Supabase",
+      "description": "Official Supabase MCP server. Query Postgres, manage auth, and edge functions.",
+      "category": "database",
+      "tags": [
+        "postgres",
+        "supabase",
+        "backend"
+      ],
+      "publisher": {
+        "name": "Supabase",
+        "type": "vendor",
+        "verified": true
+      },
+      "homepage": "https://github.com/supabase-community/supabase-mcp",
+      "repository": "https://github.com/supabase-community/supabase-mcp",
+      "license": "Apache-2.0",
+      "popularity": 8,
+      "config": {
+        "url": "https://mcp.supabase.com/mcp"
+      },
+      "envVars": [],
+      "setupNotes": "Remote MCP uses OAuth (recommended). Append `?read_only=true&project_ref=<ref>` to scope. For local stdio, use `@supabase/mcp-server-supabase` with SUPABASE_ACCESS_TOKEN instead."
+    },
+    {
+      "id": "bigquery",
+      "name": "BigQuery",
+      "description": "Query Google BigQuery datasets from Claude.",
+      "category": "database",
+      "tags": [
+        "bigquery",
+        "gcp",
+        "sql",
+        "warehouse"
+      ],
+      "publisher": {
+        "name": "Community (LucasHild)",
+        "type": "community",
+        "verified": false
+      },
+      "homepage": "https://github.com/LucasHild/mcp-server-bigquery",
+      "repository": "https://github.com/LucasHild/mcp-server-bigquery",
+      "license": "MIT",
+      "popularity": 6,
+      "config": {
+        "command": "uvx",
+        "args": [
+          "mcp-server-bigquery",
+          "--project",
+          "<GCP_PROJECT_ID>"
+        ]
+      },
+      "envVars": [],
+      "setupNotes": "Replace <GCP_PROJECT_ID>. Uses Application Default Credentials (gcloud auth)."
+    },
+    {
+      "id": "snowflake",
+      "name": "Snowflake",
+      "description": "Official Snowflake Labs MCP server. Query warehouses and Cortex AI.",
+      "category": "database",
+      "tags": [
+        "snowflake",
+        "warehouse",
+        "sql"
+      ],
+      "publisher": {
+        "name": "Snowflake",
+        "type": "vendor",
+        "verified": true
+      },
+      "homepage": "https://github.com/Snowflake-Labs/mcp",
+      "repository": "https://github.com/Snowflake-Labs/mcp",
+      "license": "Apache-2.0",
+      "popularity": 7,
+      "config": {
+        "command": "uvx",
+        "args": [
+          "snowflake-labs-mcp"
+        ]
+      },
+      "envVars": [
+        {
+          "name": "SNOWFLAKE_ACCOUNT",
+          "description": "Account identifier.",
+          "required": true,
+          "secret": false,
+          "placeholder": "xy12345.us-east-1"
+        },
+        {
+          "name": "SNOWFLAKE_USER",
+          "description": "Username.",
+          "required": true,
+          "secret": false,
+          "placeholder": ""
+        },
+        {
+          "name": "SNOWFLAKE_PASSWORD",
+          "description": "Password or PAT.",
+          "required": true,
+          "secret": true,
+          "placeholder": "",
+          "helpUrl": "https://docs.snowflake.com/en/user-guide/admin-user-management"
+        },
+        {
+          "name": "SNOWFLAKE_WAREHOUSE",
+          "description": "Warehouse name.",
+          "required": false,
+          "secret": false,
+          "placeholder": ""
+        },
+        {
+          "name": "SNOWFLAKE_ROLE",
+          "description": "Role name.",
+          "required": false,
+          "secret": false,
+          "placeholder": ""
+        }
+      ],
+      "setupNotes": "Env vars are the simple path; a connections.toml config file is also supported."
+    },
+    {
+      "id": "duckdb",
+      "name": "DuckDB",
+      "description": "Query DuckDB / Parquet / CSV datasets in place.",
+      "category": "database",
+      "tags": [
+        "duckdb",
+        "sql",
+        "analytics"
+      ],
+      "publisher": {
+        "name": "MotherDuck",
+        "type": "vendor",
+        "verified": true
+      },
+      "homepage": "https://github.com/motherduckdb/mcp-server-motherduck",
+      "repository": "https://github.com/motherduckdb/mcp-server-motherduck",
+      "license": "MIT",
+      "popularity": 6,
+      "config": {
+        "command": "uvx",
+        "args": [
+          "mcp-server-motherduck"
+        ]
+      },
+      "envVars": [
+        {
+          "name": "MOTHERDUCK_TOKEN",
+          "description": "MotherDuck token (leave empty to run fully local DuckDB).",
+          "required": false,
+          "secret": true,
+          "placeholder": "",
+          "helpUrl": "https://app.motherduck.com/settings"
+        }
+      ]
+    },
+    {
+      "id": "turso",
+      "name": "Turso",
+      "description": "Query Turso / libSQL databases at the edge.",
+      "category": "database",
+      "tags": [
+        "turso",
+        "libsql",
+        "sqlite"
+      ],
+      "publisher": {
+        "name": "Community (spences10)",
+        "type": "community",
+        "verified": false
+      },
+      "homepage": "https://github.com/spences10/mcp-turso-cloud",
+      "repository": "https://github.com/spences10/mcp-turso-cloud",
+      "license": "MIT",
+      "popularity": 5,
+      "config": {
+        "command": "npx",
+        "args": [
+          "-y",
+          "mcp-turso-cloud"
+        ],
+        "env": {
+          "TURSO_API_TOKEN": "",
+          "TURSO_ORGANIZATION": ""
+        }
+      },
+      "envVars": [
+        {
+          "name": "TURSO_API_TOKEN",
+          "description": "Turso API token.",
+          "required": true,
+          "secret": true,
+          "placeholder": "eyJ...",
+          "helpUrl": "https://app.turso.tech/account/settings"
+        },
+        {
+          "name": "TURSO_ORGANIZATION",
+          "description": "Organization slug.",
+          "required": true,
+          "secret": false,
+          "placeholder": ""
+        },
+        {
+          "name": "TURSO_DEFAULT_DATABASE",
+          "description": "Default database name (optional).",
+          "required": false,
+          "secret": false,
+          "placeholder": ""
+        }
+      ]
+    },
+    {
+      "id": "playwright",
+      "name": "Playwright",
+      "description": "Official Microsoft Playwright MCP. Control a headless browser with accessibility tree.",
+      "category": "browser",
+      "tags": [
+        "browser",
+        "automation",
+        "playwright"
+      ],
+      "publisher": {
+        "name": "Microsoft",
+        "type": "vendor",
+        "verified": true
+      },
+      "homepage": "https://github.com/microsoft/playwright-mcp",
+      "repository": "https://github.com/microsoft/playwright-mcp",
+      "license": "Apache-2.0",
+      "popularity": 10,
+      "config": {
+        "command": "npx",
+        "args": [
+          "-y",
+          "@playwright/mcp"
+        ]
+      },
+      "envVars": []
+    },
+    {
+      "id": "chrome-devtools",
+      "name": "Chrome DevTools",
+      "description": "Official Chrome DevTools MCP. Inspect pages, profile performance, debug network.",
+      "category": "browser",
+      "tags": [
+        "chrome",
+        "devtools",
+        "debug"
+      ],
+      "publisher": {
+        "name": "Google / Chrome DevTools",
+        "type": "vendor",
+        "verified": true
+      },
+      "homepage": "https://github.com/ChromeDevTools/chrome-devtools-mcp",
+      "repository": "https://github.com/ChromeDevTools/chrome-devtools-mcp",
+      "license": "Apache-2.0",
+      "popularity": 8,
+      "config": {
+        "command": "npx",
+        "args": [
+          "-y",
+          "chrome-devtools-mcp"
+        ]
+      },
+      "envVars": []
+    },
+    {
+      "id": "puppeteer",
+      "name": "Puppeteer",
+      "description": "Control a headless Chromium via Puppeteer for scraping and automation.",
+      "category": "browser",
+      "tags": [
+        "puppeteer",
+        "chromium",
+        "scraping"
+      ],
+      "publisher": {
+        "name": "Community (archived reference)",
+        "type": "community",
+        "verified": false
+      },
+      "homepage": "https://github.com/modelcontextprotocol/servers-archived/tree/main/src/puppeteer",
+      "repository": "https://github.com/modelcontextprotocol/servers-archived",
+      "license": "MIT",
+      "popularity": 6,
+      "config": {
+        "command": "npx",
+        "args": [
+          "-y",
+          "@modelcontextprotocol/server-puppeteer"
+        ]
+      },
+      "envVars": []
+    },
+    {
+      "id": "browserbase",
+      "name": "Browserbase",
+      "description": "Run headless browsers in the cloud via Browserbase with session replay.",
+      "category": "browser",
+      "tags": [
+        "browser",
+        "cloud",
+        "automation"
+      ],
+      "publisher": {
+        "name": "Browserbase",
+        "type": "vendor",
+        "verified": true
+      },
+      "homepage": "https://github.com/browserbase/mcp-server-browserbase",
+      "repository": "https://github.com/browserbase/mcp-server-browserbase",
+      "license": "MIT",
+      "popularity": 7,
+      "config": {
+        "command": "npx",
+        "args": [
+          "-y",
+          "@browserbasehq/mcp"
+        ],
+        "env": {
+          "BROWSERBASE_API_KEY": "",
+          "BROWSERBASE_PROJECT_ID": ""
+        }
+      },
+      "envVars": [
+        {
+          "name": "BROWSERBASE_API_KEY",
+          "description": "Browserbase API key.",
+          "required": true,
+          "secret": true,
+          "placeholder": "bb_...",
+          "helpUrl": "https://www.browserbase.com/settings"
+        },
+        {
+          "name": "BROWSERBASE_PROJECT_ID",
+          "description": "Browserbase project ID.",
+          "required": true,
+          "secret": false,
+          "placeholder": ""
+        }
+      ]
+    },
+    {
+      "id": "firecrawl",
+      "name": "Firecrawl",
+      "description": "Official Firecrawl MCP. Scrape, crawl, and extract structured data from any site.",
+      "category": "browser",
+      "tags": [
+        "scraping",
+        "crawl",
+        "web"
+      ],
+      "publisher": {
+        "name": "Firecrawl",
+        "type": "vendor",
+        "verified": true
+      },
+      "homepage": "https://github.com/firecrawl/firecrawl-mcp-server",
+      "repository": "https://github.com/firecrawl/firecrawl-mcp-server",
+      "license": "MIT",
+      "popularity": 8,
+      "config": {
+        "command": "npx",
+        "args": [
+          "-y",
+          "firecrawl-mcp"
+        ],
+        "env": {
+          "FIRECRAWL_API_KEY": ""
+        }
+      },
+      "envVars": [
+        {
+          "name": "FIRECRAWL_API_KEY",
+          "description": "Firecrawl API key.",
+          "required": true,
+          "secret": true,
+          "placeholder": "fc-...",
+          "helpUrl": "https://www.firecrawl.dev/app/api-keys"
+        }
+      ]
+    },
+    {
+      "id": "apify",
+      "name": "Apify",
+      "description": "Run thousands of Apify actors for web scraping and automation.",
+      "category": "browser",
+      "tags": [
+        "scraping",
+        "actors",
+        "apify"
+      ],
+      "publisher": {
+        "name": "Apify",
+        "type": "vendor",
+        "verified": true
+      },
+      "homepage": "https://github.com/apify/actors-mcp-server",
+      "repository": "https://github.com/apify/actors-mcp-server",
+      "license": "Apache-2.0",
+      "popularity": 6,
+      "config": {
+        "command": "npx",
+        "args": [
+          "-y",
+          "@apify/actors-mcp-server"
+        ],
+        "env": {
+          "APIFY_TOKEN": ""
+        }
+      },
+      "envVars": [
+        {
+          "name": "APIFY_TOKEN",
+          "description": "Apify API token.",
+          "required": true,
+          "secret": true,
+          "placeholder": "apify_api_...",
+          "helpUrl": "https://console.apify.com/account/integrations"
+        }
+      ]
+    },
+    {
+      "id": "brave-search",
+      "name": "Brave Search",
+      "description": "Official Brave Search MCP. Private web search with image and news.",
+      "category": "search",
+      "tags": [
+        "search",
+        "web",
+        "brave"
+      ],
+      "publisher": {
+        "name": "Brave",
+        "type": "vendor",
+        "verified": true
+      },
+      "homepage": "https://github.com/brave/brave-search-mcp-server",
+      "repository": "https://github.com/brave/brave-search-mcp-server",
+      "license": "MIT",
+      "popularity": 9,
+      "config": {
+        "command": "npx",
+        "args": [
+          "-y",
+          "@brave/brave-search-mcp-server"
+        ],
+        "env": {
+          "BRAVE_API_KEY": ""
+        }
+      },
+      "envVars": [
+        {
+          "name": "BRAVE_API_KEY",
+          "description": "Brave Search API key.",
+          "required": true,
+          "secret": true,
+          "placeholder": "BSA...",
+          "helpUrl": "https://brave.com/search/api/"
+        }
+      ]
+    },
+    {
+      "id": "tavily",
+      "name": "Tavily",
+      "description": "Official Tavily MCP server. AI-native search with extraction.",
+      "category": "search",
+      "tags": [
+        "search",
+        "research",
+        "tavily"
+      ],
+      "publisher": {
+        "name": "Tavily",
+        "type": "vendor",
+        "verified": true
+      },
+      "homepage": "https://github.com/tavily-ai/tavily-mcp",
+      "repository": "https://github.com/tavily-ai/tavily-mcp",
+      "license": "MIT",
+      "popularity": 8,
+      "config": {
+        "command": "npx",
+        "args": [
+          "-y",
+          "tavily-mcp"
+        ],
+        "env": {
+          "TAVILY_API_KEY": ""
+        }
+      },
+      "envVars": [
+        {
+          "name": "TAVILY_API_KEY",
+          "description": "Tavily API key.",
+          "required": true,
+          "secret": true,
+          "placeholder": "tvly-...",
+          "helpUrl": "https://app.tavily.com/home"
+        }
+      ]
+    },
+    {
+      "id": "exa",
+      "name": "Exa",
+      "description": "Neural web search for LLMs by Exa Labs.",
+      "category": "search",
+      "tags": [
+        "search",
+        "neural",
+        "exa"
+      ],
+      "publisher": {
+        "name": "Exa Labs",
+        "type": "vendor",
+        "verified": true
+      },
+      "homepage": "https://github.com/exa-labs/exa-mcp-server",
+      "repository": "https://github.com/exa-labs/exa-mcp-server",
+      "license": "MIT",
+      "popularity": 7,
+      "config": {
+        "command": "npx",
+        "args": [
+          "-y",
+          "exa-mcp-server"
+        ],
+        "env": {
+          "EXA_API_KEY": ""
+        }
+      },
+      "envVars": [
+        {
+          "name": "EXA_API_KEY",
+          "description": "Exa API key.",
+          "required": true,
+          "secret": true,
+          "placeholder": "",
+          "helpUrl": "https://dashboard.exa.ai/api-keys"
+        }
+      ]
+    },
+    {
+      "id": "kagi",
+      "name": "Kagi Search",
+      "description": "Official Kagi Search MCP. Premium ad-free web search.",
+      "category": "search",
+      "tags": [
+        "search",
+        "kagi"
+      ],
+      "publisher": {
+        "name": "Kagi",
+        "type": "vendor",
+        "verified": true
+      },
+      "homepage": "https://github.com/kagisearch/kagimcp",
+      "repository": "https://github.com/kagisearch/kagimcp",
+      "license": "MIT",
+      "popularity": 6,
+      "config": {
+        "command": "uvx",
+        "args": [
+          "kagimcp"
+        ],
+        "env": {
+          "KAGI_API_KEY": ""
+        }
+      },
+      "envVars": [
+        {
+          "name": "KAGI_API_KEY",
+          "description": "Kagi API key.",
+          "required": true,
+          "secret": true,
+          "placeholder": "",
+          "helpUrl": "https://kagi.com/settings?p=api"
+        }
+      ]
+    },
+    {
+      "id": "perplexity",
+      "name": "Perplexity",
+      "description": "Official Perplexity MCP. Ask Sonar for sourced, up-to-date answers.",
+      "category": "search",
+      "tags": [
+        "search",
+        "ai",
+        "perplexity"
+      ],
+      "publisher": {
+        "name": "Perplexity",
+        "type": "vendor",
+        "verified": true
+      },
+      "homepage": "https://github.com/ppl-ai/modelcontextprotocol",
+      "repository": "https://github.com/ppl-ai/modelcontextprotocol",
+      "license": "MIT",
+      "popularity": 7,
+      "config": {
+        "command": "npx",
+        "args": [
+          "-y",
+          "@perplexity-ai/mcp-server"
+        ],
+        "env": {
+          "PERPLEXITY_API_KEY": ""
+        }
+      },
+      "envVars": [
+        {
+          "name": "PERPLEXITY_API_KEY",
+          "description": "Perplexity API key.",
+          "required": true,
+          "secret": true,
+          "placeholder": "pplx-...",
+          "helpUrl": "https://www.perplexity.ai/settings/api"
+        }
+      ]
+    },
+    {
+      "id": "slack",
+      "name": "Slack",
+      "description": "Community-maintained Slack MCP server (formerly official). Read and post to channels.",
+      "category": "communication",
+      "tags": [
+        "slack",
+        "chat",
+        "team"
+      ],
+      "publisher": {
+        "name": "Zencoder",
+        "type": "community",
+        "verified": true
+      },
+      "homepage": "https://github.com/zencoderai/slack-mcp-server",
+      "repository": "https://github.com/zencoderai/slack-mcp-server",
+      "license": "MIT",
+      "popularity": 9,
+      "config": {
+        "command": "npx",
+        "args": [
+          "-y",
+          "@zencoderai/slack-mcp-server"
+        ],
+        "env": {
+          "SLACK_BOT_TOKEN": "",
+          "SLACK_TEAM_ID": ""
+        }
+      },
+      "envVars": [
+        {
+          "name": "SLACK_BOT_TOKEN",
+          "description": "Slack Bot User OAuth token.",
+          "required": true,
+          "secret": true,
+          "placeholder": "xoxb-...",
+          "helpUrl": "https://api.slack.com/apps"
+        },
+        {
+          "name": "SLACK_TEAM_ID",
+          "description": "Workspace team ID.",
+          "required": true,
+          "secret": false,
+          "placeholder": "T01234567"
+        }
+      ]
+    },
+    {
+      "id": "discord",
+      "name": "Discord",
+      "description": "Community Discord MCP. Read and post messages via a bot token.",
+      "category": "communication",
+      "tags": [
+        "discord",
+        "chat"
+      ],
+      "publisher": {
+        "name": "Community",
+        "type": "community",
+        "verified": false
+      },
+      "homepage": "https://www.npmjs.com/package/discord-mcp-server",
+      "repository": "https://www.npmjs.com/package/discord-mcp-server",
+      "license": "MIT",
+      "popularity": 6,
+      "config": {
+        "command": "npx",
+        "args": [
+          "-y",
+          "discord-mcp-server"
+        ],
+        "env": {
+          "DISCORD_TOKEN": ""
+        }
+      },
+      "envVars": [
+        {
+          "name": "DISCORD_TOKEN",
+          "description": "Discord bot token.",
+          "required": true,
+          "secret": true,
+          "placeholder": "",
+          "helpUrl": "https://discord.com/developers/applications"
+        }
+      ]
+    },
+    {
+      "id": "gmail",
+      "name": "Gmail",
+      "description": "Send, search, and read Gmail messages.",
+      "category": "communication",
+      "tags": [
+        "gmail",
+        "email",
+        "google"
+      ],
+      "publisher": {
+        "name": "Community (GongRzhe)",
+        "type": "community",
+        "verified": false
+      },
+      "homepage": "https://github.com/GongRzhe/Gmail-MCP-Server",
+      "repository": "https://github.com/GongRzhe/Gmail-MCP-Server",
+      "license": "MIT",
+      "popularity": 7,
+      "config": {
+        "command": "npx",
+        "args": [
+          "-y",
+          "@gongrzhe/server-gmail-autoauth-mcp"
+        ]
+      },
+      "envVars": [],
+      "setupNotes": "Follow the repo README to create a Google OAuth client; stores credentials locally."
+    },
+    {
+      "id": "twilio",
+      "name": "Twilio",
+      "description": "Official Twilio Labs MCP. Send SMS, make calls, manage numbers.",
+      "category": "communication",
+      "tags": [
+        "sms",
+        "twilio",
+        "voice"
+      ],
+      "publisher": {
+        "name": "Twilio",
+        "type": "vendor",
+        "verified": true
+      },
+      "homepage": "https://github.com/twilio-labs/mcp",
+      "repository": "https://github.com/twilio-labs/mcp",
+      "license": "MIT",
+      "popularity": 6,
+      "config": {
+        "command": "npx",
+        "args": [
+          "-y",
+          "@twilio-alpha/mcp"
+        ],
+        "env": {
+          "TWILIO_ACCOUNT_SID": "",
+          "TWILIO_API_KEY": "",
+          "TWILIO_API_SECRET": ""
+        }
+      },
+      "envVars": [
+        {
+          "name": "TWILIO_ACCOUNT_SID",
+          "description": "Twilio Account SID.",
+          "required": true,
+          "secret": true,
+          "placeholder": "AC...",
+          "helpUrl": "https://www.twilio.com/docs/iam/api-keys"
+        },
+        {
+          "name": "TWILIO_API_KEY",
+          "description": "Twilio API key SID.",
+          "required": true,
+          "secret": true,
+          "placeholder": "SK...",
+          "helpUrl": "https://www.twilio.com/console/project/api-keys"
+        },
+        {
+          "name": "TWILIO_API_SECRET",
+          "description": "Twilio API key secret.",
+          "required": true,
+          "secret": true,
+          "placeholder": "",
+          "helpUrl": "https://www.twilio.com/console/project/api-keys"
+        }
+      ]
+    },
+    {
+      "id": "intercom",
+      "name": "Intercom",
+      "description": "Query and respond to Intercom conversations and contacts.",
+      "category": "communication",
+      "tags": [
+        "support",
+        "intercom",
+        "customer"
+      ],
+      "publisher": {
+        "name": "Community (vineethnkrishnan)",
+        "type": "community",
+        "verified": false
+      },
+      "homepage": "https://www.npmjs.com/package/@vineethnkrishnan/intercom-mcp",
+      "repository": "https://www.npmjs.com/package/@vineethnkrishnan/intercom-mcp",
+      "license": "MIT",
+      "popularity": 5,
+      "config": {
+        "command": "npx",
+        "args": [
+          "-y",
+          "@vineethnkrishnan/intercom-mcp"
+        ],
+        "env": {
+          "INTERCOM_ACCESS_TOKEN": ""
+        }
+      },
+      "envVars": [
+        {
+          "name": "INTERCOM_ACCESS_TOKEN",
+          "description": "Intercom access token.",
+          "required": true,
+          "secret": true,
+          "placeholder": "",
+          "helpUrl": "https://developers.intercom.com/building-apps/docs/authentication-types"
+        }
+      ]
+    },
+    {
+      "id": "asana",
+      "name": "Asana",
+      "description": "Query and update Asana tasks, projects, and workspaces.",
+      "category": "productivity",
+      "tags": [
+        "tasks",
+        "asana",
+        "pm"
+      ],
+      "publisher": {
+        "name": "Community (roychri)",
+        "type": "community",
+        "verified": false
+      },
+      "homepage": "https://github.com/roychri/mcp-server-asana",
+      "repository": "https://github.com/roychri/mcp-server-asana",
+      "license": "MIT",
+      "popularity": 6,
+      "config": {
+        "command": "npx",
+        "args": [
+          "-y",
+          "@roychri/mcp-server-asana"
+        ],
+        "env": {
+          "ASANA_ACCESS_TOKEN": ""
+        }
+      },
+      "envVars": [
+        {
+          "name": "ASANA_ACCESS_TOKEN",
+          "description": "Asana personal access token.",
+          "required": true,
+          "secret": true,
+          "placeholder": "",
+          "helpUrl": "https://app.asana.com/0/my-apps"
+        }
+      ]
+    },
+    {
+      "id": "clickup",
+      "name": "ClickUp",
+      "description": "Manage ClickUp tasks, lists, and spaces.",
+      "category": "productivity",
+      "tags": [
+        "clickup",
+        "tasks",
+        "pm"
+      ],
+      "publisher": {
+        "name": "Community (TaazKareem)",
+        "type": "community",
+        "verified": false
+      },
+      "homepage": "https://github.com/TaazKareem/clickup-mcp-server",
+      "repository": "https://github.com/TaazKareem/clickup-mcp-server",
+      "license": "MIT",
+      "popularity": 5,
+      "config": {
+        "command": "npx",
+        "args": [
+          "-y",
+          "@taazkareem/clickup-mcp-server"
+        ],
+        "env": {
+          "CLICKUP_API_KEY": "",
+          "CLICKUP_TEAM_ID": ""
+        }
+      },
+      "envVars": [
+        {
+          "name": "CLICKUP_API_KEY",
+          "description": "ClickUp personal API token.",
+          "required": true,
+          "secret": true,
+          "placeholder": "pk_...",
+          "helpUrl": "https://app.clickup.com/settings/apps"
+        },
+        {
+          "name": "CLICKUP_TEAM_ID",
+          "description": "ClickUp team (workspace) ID.",
+          "required": true,
+          "secret": false,
+          "placeholder": ""
+        }
+      ]
+    },
+    {
+      "id": "trello",
+      "name": "Trello",
+      "description": "Manage Trello boards, lists, and cards.",
+      "category": "productivity",
+      "tags": [
+        "trello",
+        "kanban",
+        "pm"
+      ],
+      "publisher": {
+        "name": "Community (lioarce01)",
+        "type": "community",
+        "verified": false
+      },
+      "homepage": "https://github.com/lioarce01/trello-mcp-server",
+      "repository": "https://github.com/lioarce01/trello-mcp-server",
+      "license": "MIT",
+      "popularity": 5,
+      "config": {
+        "command": "npx",
+        "args": [
+          "-y",
+          "trello-mcp-server"
+        ],
+        "env": {
+          "TRELLO_API_KEY": "",
+          "TRELLO_TOKEN": ""
+        }
+      },
+      "envVars": [
+        {
+          "name": "TRELLO_API_KEY",
+          "description": "Trello API key.",
+          "required": true,
+          "secret": true,
+          "placeholder": "",
+          "helpUrl": "https://trello.com/app-key"
+        },
+        {
+          "name": "TRELLO_TOKEN",
+          "description": "Trello token (generated by clicking the 'Token' link on the app-key page).",
+          "required": true,
+          "secret": true,
+          "placeholder": "",
+          "helpUrl": "https://trello.com/app-key"
+        }
+      ],
+      "setupNotes": "Visit the Power-Up admin page to get an API key, then click the Token link on that page to authorize and generate a token."
+    },
+    {
+      "id": "obsidian",
+      "name": "Obsidian",
+      "description": "Read and search an Obsidian markdown vault.",
+      "category": "productivity",
+      "tags": [
+        "obsidian",
+        "notes",
+        "markdown"
+      ],
+      "publisher": {
+        "name": "Community (StevenStavrakis)",
+        "type": "community",
+        "verified": false
+      },
+      "homepage": "https://github.com/StevenStavrakis/obsidian-mcp",
+      "repository": "https://github.com/StevenStavrakis/obsidian-mcp",
+      "license": "MIT",
+      "popularity": 7,
+      "config": {
+        "command": "npx",
+        "args": [
+          "-y",
+          "obsidian-mcp",
+          "<PATH_TO_VAULT>"
+        ]
+      },
+      "envVars": [],
+      "setupNotes": "Replace <PATH_TO_VAULT> with the absolute path to your Obsidian vault directory."
+    },
+    {
+      "id": "google-drive",
+      "name": "Google Drive",
+      "description": "Browse and read Google Drive files (archived reference).",
+      "category": "productivity",
+      "tags": [
+        "google",
+        "drive",
+        "docs"
+      ],
+      "publisher": {
+        "name": "Community (archived reference)",
+        "type": "community",
+        "verified": false
+      },
+      "homepage": "https://github.com/modelcontextprotocol/servers-archived/tree/main/src/gdrive",
+      "repository": "https://github.com/modelcontextprotocol/servers-archived",
+      "license": "MIT",
+      "popularity": 7,
+      "config": {
+        "command": "npx",
+        "args": [
+          "-y",
+          "@modelcontextprotocol/server-gdrive"
+        ]
+      },
+      "envVars": [],
+      "setupNotes": "Requires OAuth client setup via Google Cloud — see repo README."
+    },
+    {
+      "id": "google-maps",
+      "name": "Google Maps",
+      "description": "Places, geocoding, and directions via Google Maps (archived reference).",
+      "category": "productivity",
+      "tags": [
+        "maps",
+        "google",
+        "geocoding"
+      ],
+      "publisher": {
+        "name": "Community (archived reference)",
+        "type": "community",
+        "verified": false
+      },
+      "homepage": "https://github.com/modelcontextprotocol/servers-archived/tree/main/src/google-maps",
+      "repository": "https://github.com/modelcontextprotocol/servers-archived",
+      "license": "MIT",
+      "popularity": 6,
+      "config": {
+        "command": "npx",
+        "args": [
+          "-y",
+          "@modelcontextprotocol/server-google-maps"
+        ],
+        "env": {
+          "GOOGLE_MAPS_API_KEY": ""
+        }
+      },
+      "envVars": [
+        {
+          "name": "GOOGLE_MAPS_API_KEY",
+          "description": "Google Maps Platform API key.",
+          "required": true,
+          "secret": true,
+          "placeholder": "",
+          "helpUrl": "https://console.cloud.google.com/google/maps-apis/credentials"
+        }
+      ]
+    },
+    {
+      "id": "hubspot",
+      "name": "HubSpot",
+      "description": "Official HubSpot MCP server. Query contacts, companies, and deals.",
+      "category": "crm",
+      "tags": [
+        "hubspot",
+        "crm",
+        "sales"
+      ],
+      "publisher": {
+        "name": "HubSpot",
+        "type": "vendor",
+        "verified": true
+      },
+      "homepage": "https://developer.hubspot.com/mcp",
+      "repository": "https://developer.hubspot.com/mcp",
+      "license": "Proprietary",
+      "popularity": 7,
+      "config": {
+        "url": "https://mcp.hubspot.com/anthropic"
+      },
+      "envVars": [],
+      "setupNotes": "Uses OAuth via HubSpot."
+    },
+    {
+      "id": "salesforce",
+      "name": "Salesforce",
+      "description": "Query and modify Salesforce records with SOQL and metadata APIs.",
+      "category": "crm",
+      "tags": [
+        "salesforce",
+        "crm",
+        "soql"
+      ],
+      "publisher": {
+        "name": "Community (tsmztech)",
+        "type": "community",
+        "verified": false
+      },
+      "homepage": "https://github.com/tsmztech/mcp-server-salesforce",
+      "repository": "https://github.com/tsmztech/mcp-server-salesforce",
+      "license": "MIT",
+      "popularity": 6,
+      "config": {
+        "command": "npx",
+        "args": [
+          "-y",
+          "@tsmztech/mcp-server-salesforce"
+        ],
+        "env": {
+          "SALESFORCE_CONNECTION_TYPE": "User_Password",
+          "SALESFORCE_USERNAME": "",
+          "SALESFORCE_PASSWORD": "",
+          "SALESFORCE_TOKEN": "",
+          "SALESFORCE_INSTANCE_URL": ""
+        }
+      },
+      "envVars": [
+        {
+          "name": "SALESFORCE_CONNECTION_TYPE",
+          "description": "Auth method: 'User_Password', 'OAuth_2.0_Client_Credentials', or 'Salesforce_CLI'.",
+          "required": true,
+          "secret": false,
+          "placeholder": "User_Password"
+        },
+        {
+          "name": "SALESFORCE_USERNAME",
+          "description": "Salesforce username (User_Password mode).",
+          "required": false,
+          "secret": false,
+          "placeholder": ""
+        },
+        {
+          "name": "SALESFORCE_PASSWORD",
+          "description": "Salesforce password (User_Password mode).",
+          "required": false,
+          "secret": true,
+          "placeholder": ""
+        },
+        {
+          "name": "SALESFORCE_TOKEN",
+          "description": "Salesforce security token (User_Password mode).",
+          "required": false,
+          "secret": true,
+          "placeholder": "",
+          "helpUrl": "https://help.salesforce.com/s/articleView?id=sf.user_security_token.htm"
+        },
+        {
+          "name": "SALESFORCE_INSTANCE_URL",
+          "description": "Your org URL (optional for User_Password, REQUIRED for OAuth_2.0_Client_Credentials).",
+          "required": false,
+          "secret": false,
+          "placeholder": "https://your-domain.my.salesforce.com"
+        }
+      ],
+      "setupNotes": "Three auth modes: User_Password (default, needs username/password/token), OAuth_2.0_Client_Credentials (needs SALESFORCE_CLIENT_ID/SECRET/INSTANCE_URL), or Salesforce_CLI (requires `sf` CLI)."
+    },
+    {
+      "id": "figma",
+      "name": "Figma",
+      "description": "Official Figma MCP server. Fetch design context, variables, and frames.",
+      "category": "design",
+      "tags": [
+        "figma",
+        "design",
+        "components"
+      ],
+      "publisher": {
+        "name": "Figma",
+        "type": "vendor",
+        "verified": true
+      },
+      "homepage": "https://www.figma.com/developers/mcp",
+      "repository": "https://www.figma.com/developers/mcp",
+      "license": "Proprietary",
+      "popularity": 9,
+      "config": {
+        "url": "https://mcp.figma.com/mcp"
+      },
+      "envVars": [],
+      "setupNotes": "Remote MCP. Authenticates via Figma OAuth on first use. Local desktop-app MCP (http://127.0.0.1:3845/mcp) is also available if you enable it in Figma Preferences."
+    },
+    {
+      "id": "figma-context",
+      "name": "Figma (Framelink)",
+      "description": "Community Figma context MCP. Lightweight frame-to-markdown extractor.",
+      "category": "design",
+      "tags": [
+        "figma",
+        "design"
+      ],
+      "publisher": {
+        "name": "Community (GLips)",
+        "type": "community",
+        "verified": false
+      },
+      "homepage": "https://github.com/GLips/Figma-Context-MCP",
+      "repository": "https://github.com/GLips/Figma-Context-MCP",
+      "license": "MIT",
+      "popularity": 6,
+      "config": {
+        "command": "npx",
+        "args": [
+          "-y",
+          "figma-developer-mcp"
+        ],
+        "env": {
+          "FIGMA_API_KEY": ""
+        }
+      },
+      "envVars": [
+        {
+          "name": "FIGMA_API_KEY",
+          "description": "Figma personal access token.",
+          "required": true,
+          "secret": true,
+          "placeholder": "figd_...",
+          "helpUrl": "https://www.figma.com/developers/api#access-tokens"
+        }
+      ]
+    },
+    {
+      "id": "pagerduty",
+      "name": "PagerDuty",
+      "description": "Official PagerDuty MCP. Query incidents, services, and on-call.",
+      "category": "monitoring",
+      "tags": [
+        "pagerduty",
+        "incident",
+        "oncall"
+      ],
+      "publisher": {
+        "name": "PagerDuty",
+        "type": "vendor",
+        "verified": true
+      },
+      "homepage": "https://github.com/PagerDuty/pagerduty-mcp-server",
+      "repository": "https://github.com/PagerDuty/pagerduty-mcp-server",
+      "license": "Apache-2.0",
+      "popularity": 7,
+      "config": {
+        "command": "uvx",
+        "args": [
+          "pagerduty-mcp-server"
+        ],
+        "env": {
+          "PAGERDUTY_USER_API_KEY": "",
+          "PAGERDUTY_API_HOST": "https://api.pagerduty.com"
+        }
+      },
+      "envVars": [
+        {
+          "name": "PAGERDUTY_USER_API_KEY",
+          "description": "PagerDuty user-level API token.",
+          "required": true,
+          "secret": true,
+          "placeholder": "",
+          "helpUrl": "https://support.pagerduty.com/docs/api-access-keys"
+        },
+        {
+          "name": "PAGERDUTY_API_HOST",
+          "description": "PagerDuty API host (use https://api.eu.pagerduty.com for EU accounts).",
+          "required": false,
+          "secret": false,
+          "placeholder": "https://api.pagerduty.com"
+        }
+      ]
+    },
+    {
+      "id": "grafana",
+      "name": "Grafana",
+      "description": "Official Grafana MCP. Query dashboards, datasources, and alerts.",
+      "category": "monitoring",
+      "tags": [
+        "grafana",
+        "metrics",
+        "observability"
+      ],
+      "publisher": {
+        "name": "Grafana Labs",
+        "type": "vendor",
+        "verified": true
+      },
+      "homepage": "https://github.com/grafana/mcp-grafana",
+      "repository": "https://github.com/grafana/mcp-grafana",
+      "license": "Apache-2.0",
+      "popularity": 7,
+      "config": {
+        "command": "mcp-grafana",
+        "args": [],
+        "env": {
+          "GRAFANA_URL": "",
+          "GRAFANA_SERVICE_ACCOUNT_TOKEN": ""
+        }
+      },
+      "envVars": [
+        {
+          "name": "GRAFANA_URL",
+          "description": "Grafana base URL.",
+          "required": true,
+          "secret": false,
+          "placeholder": "https://grafana.example.com"
+        },
+        {
+          "name": "GRAFANA_SERVICE_ACCOUNT_TOKEN",
+          "description": "Grafana service account token.",
+          "required": true,
+          "secret": true,
+          "placeholder": "",
+          "helpUrl": "https://grafana.com/docs/grafana/latest/administration/service-accounts/"
+        }
+      ],
+      "setupNotes": "Install `mcp-grafana` binary separately (`go install github.com/grafana/mcp-grafana/cmd/mcp-grafana@latest`)."
+    },
+    {
+      "id": "datadog",
+      "name": "Datadog",
+      "description": "Query Datadog metrics, logs, and monitors.",
+      "category": "monitoring",
+      "tags": [
+        "datadog",
+        "metrics",
+        "observability"
+      ],
+      "publisher": {
+        "name": "Community (GeLi2001)",
+        "type": "community",
+        "verified": false
+      },
+      "homepage": "https://github.com/GeLi2001/datadog-mcp-server",
+      "repository": "https://github.com/GeLi2001/datadog-mcp-server",
+      "license": "MIT",
+      "popularity": 6,
+      "config": {
+        "command": "npx",
+        "args": [
+          "-y",
+          "datadog-mcp-server"
+        ],
+        "env": {
+          "DD_API_KEY": "",
+          "DD_APP_KEY": "",
+          "DD_SITE": "datadoghq.com"
+        }
+      },
+      "envVars": [
+        {
+          "name": "DD_API_KEY",
+          "description": "Datadog API key.",
+          "required": true,
+          "secret": true,
+          "placeholder": "",
+          "helpUrl": "https://app.datadoghq.com/organization-settings/api-keys"
+        },
+        {
+          "name": "DD_APP_KEY",
+          "description": "Datadog application key.",
+          "required": true,
+          "secret": true,
+          "placeholder": "",
+          "helpUrl": "https://app.datadoghq.com/organization-settings/application-keys"
+        },
+        {
+          "name": "DD_SITE",
+          "description": "Datadog site (e.g., datadoghq.com, datadoghq.eu).",
+          "required": false,
+          "secret": false,
+          "placeholder": "datadoghq.com"
+        }
+      ]
+    },
+    {
+      "id": "huggingface",
+      "name": "Hugging Face",
+      "description": "Official Hugging Face MCP. Search models, datasets, and run inference.",
+      "category": "ai",
+      "tags": [
+        "huggingface",
+        "models",
+        "ai"
+      ],
+      "publisher": {
+        "name": "Hugging Face",
+        "type": "vendor",
+        "verified": true
+      },
+      "homepage": "https://huggingface.co/settings/mcp",
+      "repository": "https://huggingface.co/docs/hub/mcp",
+      "license": "Apache-2.0",
+      "popularity": 8,
+      "config": {
+        "url": "https://hf.co/mcp",
+        "headers": {
+          "Authorization": "Bearer <HF_TOKEN>"
+        }
+      },
+      "envVars": [
+        {
+          "name": "HF_TOKEN",
+          "description": "Hugging Face access token.",
+          "required": true,
+          "secret": true,
+          "placeholder": "hf_...",
+          "helpUrl": "https://huggingface.co/settings/tokens"
+        }
+      ]
+    },
+    {
+      "id": "elevenlabs",
+      "name": "ElevenLabs",
+      "description": "Official ElevenLabs MCP. Text-to-speech, voice cloning, and audio tools.",
+      "category": "media",
+      "tags": [
+        "tts",
+        "audio",
+        "elevenlabs"
+      ],
+      "publisher": {
+        "name": "ElevenLabs",
+        "type": "vendor",
+        "verified": true
+      },
+      "homepage": "https://github.com/elevenlabs/elevenlabs-mcp",
+      "repository": "https://github.com/elevenlabs/elevenlabs-mcp",
+      "license": "MIT",
+      "popularity": 7,
+      "config": {
+        "command": "uvx",
+        "args": [
+          "elevenlabs-mcp"
+        ],
+        "env": {
+          "ELEVENLABS_API_KEY": ""
+        }
+      },
+      "envVars": [
+        {
+          "name": "ELEVENLABS_API_KEY",
+          "description": "ElevenLabs API key.",
+          "required": true,
+          "secret": true,
+          "placeholder": "",
+          "helpUrl": "https://elevenlabs.io/app/settings/api-keys"
+        }
+      ]
+    }
+  ]
+}

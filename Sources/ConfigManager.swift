@@ -306,6 +306,14 @@ class ConfigManager: ObservableObject {
                 setStatus("Deleted stored server \"\(name)\".", isError: false)
             }
         }
+
+        // Only drop the catalog link if the server is fully gone (not in the
+        // other source either). This keeps links intact during turn-on/off.
+        let stillExists = activeServers.contains { $0.name == name }
+            || storedServers.contains { $0.name == name }
+        if !stillExists {
+            removeCatalogLink(forServer: name)
+        }
     }
 
     /// Update a server's JSON config in-place. Returns true on success.

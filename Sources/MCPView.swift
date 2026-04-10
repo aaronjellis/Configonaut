@@ -75,10 +75,17 @@ struct VDivider: View {
 
 // MARK: - MCP Servers View
 
+enum AddServerTab: String, CaseIterable {
+    case marketplace = "Marketplace"
+    case pasteJSON = "Add manually"
+}
+
 struct MCPView: View {
     @ObservedObject var config: ConfigManager
+    @StateObject private var catalogStore = CatalogStore()
     @State private var selectedServer: (name: String, source: ServerSource)?
     @State private var showAddPanel = false
+    @State private var addTab: AddServerTab = .marketplace
     @State private var inputText = ""
     @State private var serverName = ""
     @State private var needsName = false
@@ -92,8 +99,10 @@ struct MCPView: View {
     // Editing (always active when a server is selected)
     @State private var editingJSON = ""
 
-    // Resizable bottom panel
-    @State private var bottomPanelHeight: CGFloat = 260
+    // Resizable bottom panel — tall enough to comfortably show an expanded
+    // marketplace row with its full JSON editor without forcing the user to
+    // drag the divider up on first open.
+    @State private var bottomPanelHeight: CGFloat = 520
 
     private var canAdd: Bool {
         !pendingEntries.isEmpty && (!needsName || !serverName.trimmingCharacters(in: .whitespaces).isEmpty)
@@ -406,8 +415,19 @@ struct MCPView: View {
 
     // MARK: - Detail Panel (editable)
 
+    /// Look up the catalog entry this server was installed from (if any).
+    private func linkedCatalogServer(_ name: String) -> CatalogServer? {
+        guard let catalogId = config.catalogId(forServer: name) else { return nil }
+        return catalogStore.server(withId: catalogId)
+    }
+
     private func detailPanel(_ server: ServerEntry, isActive: Bool) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
+        // Missing required secrets (only populated for catalog-linked servers).
+        let missing = config.missingSecrets(forServer: server.name, catalog: catalogStore.catalog)
+        let isReady = missing.isEmpty
+        let catalogEntry = linkedCatalogServer(server.name)
+
+        return VStack(alignment: .leading, spacing: 8) {
             // Header
             HStack(spacing: 10) {
                 GlowDot(color: isActive ? Theme.green : Theme.red, size: 10)
@@ -423,6 +443,16 @@ struct MCPView: View {
                         in: Capsule()
                     )
 
+                if !isReady {
+                    Label("Needs \(missing.joined(separator: ", "))", systemImage: "key.fill")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(Theme.amber)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 2)
+                        .background(Theme.amber.opacity(0.12), in: Capsule())
+                        .help("This server is still using placeholder values for required credentials.")
+                }
+
                 Spacer()
 
                 Button {
@@ -435,6 +465,11 @@ struct MCPView: View {
                         .foregroundStyle(.tertiary)
                 }
                 .buttonStyle(.plain)
+            }
+
+            // Catalog help strip — only for servers installed via Marketplace.
+            if let entry = catalogEntry {
+                catalogHelpStrip(entry: entry)
             }
 
             // Always-editable config
@@ -472,33 +507,45 @@ struct MCPView: View {
                     withAnimation(.easeInOut(duration: 0.2)) {
                         if isActive {
                             config.moveToStored(server.name)
+                            selectedServer = nil
                         } else {
-                            config.moveToActive(server.name)
+                            // Gated promotion — refuses if required envVars are placeholders.
+                            if config.moveToActiveIfReady(server.name, catalog: catalogStore.catalog) {
+                                selectedServer = nil
+                            }
                         }
-                        selectedServer = nil
                     }
                 } label: {
+                    let canFlip = isActive || isReady
                     Label(
                         isActive ? "Turn Off" : "Turn On",
                         systemImage: isActive ? "moon.fill" : "bolt.fill"
                     )
                     .font(.caption.weight(.medium))
-                    .foregroundStyle(isActive ? Theme.red : Theme.green)
+                    .foregroundStyle(
+                        canFlip
+                            ? (isActive ? Theme.red : Theme.green)
+                            : .gray.opacity(0.5)
+                    )
                     .padding(.horizontal, 12)
                     .padding(.vertical, 6)
                     .background(
-                        (isActive ? Theme.red : Theme.green).opacity(0.1),
+                        (canFlip ? (isActive ? Theme.red : Theme.green) : .gray).opacity(0.1),
                         in: RoundedRectangle(cornerRadius: 6)
                     )
                     .overlay(
                         RoundedRectangle(cornerRadius: 6)
                             .strokeBorder(
-                                (isActive ? Theme.red : Theme.green).opacity(0.2),
+                                (canFlip ? (isActive ? Theme.red : Theme.green) : .gray).opacity(0.2),
                                 lineWidth: 0.5
                             )
                     )
                 }
                 .buttonStyle(.plain)
+                .disabled(!isActive && !isReady)
+                .help(!isActive && !isReady
+                      ? "Fill in: \(missing.joined(separator: ", "))"
+                      : "")
 
                 Button { copyToClipboard(server) } label: {
                     Label("Copy JSON", systemImage: "doc.on.doc")
@@ -537,6 +584,114 @@ struct MCPView: View {
         .glassCard(radius: 12)
     }
 
+    /// A compact horizontal strip that surfaces everything the user needs to
+    /// finish setting up a marketplace-installed server: repo/homepage links,
+    /// setup notes, and a per-env-var button that opens its token docs page.
+    @ViewBuilder
+    private func catalogHelpStrip(entry: CatalogServer) -> some View {
+        let requiredWithHelp = entry.requiredEnvVars.filter { $0.helpUrl != nil }
+
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 8) {
+                Image(systemName: "info.circle.fill")
+                    .font(.system(size: 10))
+                    .foregroundStyle(Theme.blue.opacity(0.8))
+                Text("From Marketplace · \(entry.publisher.name)")
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(.secondary)
+
+                Spacer(minLength: 6)
+
+                // Repo / homepage chips
+                if let repo = entry.repository, let url = URL(string: repo) {
+                    helpChip(
+                        label: "Repo",
+                        icon: "chevron.left.forwardslash.chevron.right",
+                        url: url,
+                        tooltip: "Open the server's GitHub repository"
+                    )
+                }
+                if let home = entry.homepage,
+                   home != entry.repository, // dedupe when both point to the same place
+                   let url = URL(string: home) {
+                    helpChip(
+                        label: "Docs",
+                        icon: "book",
+                        url: url,
+                        tooltip: "Open the server's homepage / docs"
+                    )
+                }
+            }
+
+            // Setup notes (if provided in the catalog)
+            if let notes = entry.setupNotes, !notes.isEmpty {
+                Text(notes)
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            // Per-envVar "Get token" chips — one button per required secret
+            // that has an associated helpUrl.
+            if !requiredWithHelp.isEmpty {
+                HStack(spacing: 6) {
+                    Image(systemName: "key.fill")
+                        .font(.system(size: 9))
+                        .foregroundStyle(Theme.amber.opacity(0.8))
+                    Text("Get credentials:")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(.tertiary)
+
+                    ForEach(requiredWithHelp) { env in
+                        if let helpURL = env.helpUrl.flatMap(URL.init(string:)) {
+                            Button {
+                                NSWorkspace.shared.open(helpURL)
+                            } label: {
+                                Text(env.name)
+                                    .font(.system(size: 9.5, design: .monospaced))
+                                    .foregroundStyle(Theme.amber)
+                                    .padding(.horizontal, 7)
+                                    .padding(.vertical, 2)
+                                    .background(Theme.amber.opacity(0.10), in: Capsule())
+                                    .overlay(
+                                        Capsule().strokeBorder(Theme.amber.opacity(0.25), lineWidth: 0.5)
+                                    )
+                            }
+                            .buttonStyle(.plain)
+                            .help("Open instructions for getting \(env.name)")
+                        }
+                    }
+
+                    Spacer(minLength: 0)
+                }
+            }
+        }
+        .padding(10)
+        .background(Theme.blue.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .strokeBorder(Theme.blue.opacity(0.15), lineWidth: 0.5)
+        )
+    }
+
+    private func helpChip(label: String, icon: String, url: URL, tooltip: String) -> some View {
+        Button {
+            NSWorkspace.shared.open(url)
+        } label: {
+            Label(label, systemImage: icon)
+                .font(.system(size: 9.5, weight: .medium))
+                .foregroundStyle(Theme.blue.opacity(0.9))
+                .padding(.horizontal, 8)
+                .padding(.vertical, 3)
+                .background(Theme.blue.opacity(0.10), in: Capsule())
+                .overlay(
+                    Capsule().strokeBorder(Theme.blue.opacity(0.25), lineWidth: 0.5)
+                )
+        }
+        .buttonStyle(.plain)
+        .help(tooltip)
+    }
+
     // MARK: - Add Panel
 
     private var addPanel: some View {
@@ -547,6 +702,35 @@ struct MCPView: View {
                     .foregroundStyle(Theme.green)
                 Text("Add a New Server")
                     .font(.headline)
+
+                // Tab picker — Marketplace vs Paste JSON
+                HStack(spacing: 4) {
+                    ForEach(AddServerTab.allCases, id: \.self) { tab in
+                        Button {
+                            withAnimation(.easeInOut(duration: 0.12)) { addTab = tab }
+                        } label: {
+                            Text(tab.rawValue)
+                                .font(.caption.weight(addTab == tab ? .semibold : .medium))
+                                .foregroundStyle(addTab == tab ? .primary : .secondary)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 4)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 6)
+                                        .fill(addTab == tab ? Theme.blue.opacity(0.15) : .clear)
+                                )
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 6)
+                                        .strokeBorder(
+                                            addTab == tab ? Theme.blue.opacity(0.3) : .clear,
+                                            lineWidth: 0.5
+                                        )
+                                )
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.leading, 8)
+
                 Spacer()
                 Button {
                     withAnimation(.easeInOut(duration: 0.2)) { showHelp.toggle() }
@@ -574,6 +758,30 @@ struct MCPView: View {
                 helpCard
             }
 
+            // Tab content
+            Group {
+                switch addTab {
+                case .marketplace:
+                    MarketplaceView(
+                        config: config,
+                        catalogStore: catalogStore,
+                        onDidAdd: { _ in
+                            // Leave panel open so the user can install multiple.
+                        }
+                    )
+                case .pasteJSON:
+                    pasteJsonPanel
+                }
+            }
+        }
+        .padding(14)
+        .glassCard(radius: 12, border: Theme.green.opacity(0.15))
+    }
+
+    // MARK: - Paste JSON sub-panel
+
+    private var pasteJsonPanel: some View {
+        VStack(alignment: .leading, spacing: 10) {
             ZStack(alignment: .topLeading) {
                 TextEditor(text: $inputText)
                     .font(.system(size: 12, design: .monospaced))
@@ -680,8 +888,6 @@ struct MCPView: View {
                 .keyboardShortcut(.return, modifiers: .command)
             }
         }
-        .padding(14)
-        .glassCard(radius: 12, border: Theme.green.opacity(0.15))
     }
 
     // MARK: - Help Card
