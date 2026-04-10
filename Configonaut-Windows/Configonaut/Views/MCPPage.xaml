@@ -1,0 +1,270 @@
+<Page
+    x:Class="Configonaut.Views.MCPPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:Configonaut.Views"
+    Background="Transparent">
+
+    <Grid Padding="24">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- Restart banner -->
+        <Border x:Name="RestartBanner" Grid.Row="0" Visibility="Collapsed"
+                CornerRadius="10" Padding="16,12" Margin="0,0,0,16">
+            <Border.Background>
+                <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                    <GradientStop Color="{StaticResource NeonBlue}" Offset="0" />
+                    <GradientStop Color="{StaticResource NeonPurple}" Offset="1" />
+                </LinearGradientBrush>
+            </Border.Background>
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBlock x:Name="RestartText" Grid.Column="0"
+                           VerticalAlignment="Center" FontWeight="SemiBold"
+                           Foreground="White" />
+                <Button Grid.Column="1" Content="Got it" Click="DismissRestart_Click"
+                        Background="Transparent" Foreground="White" BorderBrush="White"
+                        BorderThickness="1" CornerRadius="6" Padding="12,4" />
+            </Grid>
+        </Border>
+
+        <!-- Header -->
+        <Grid Grid.Row="1" Margin="0,0,0,16">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <StackPanel Grid.Column="0">
+                <TextBlock Text="MCP Servers" FontSize="22" FontWeight="Bold"
+                           Foreground="{StaticResource PrimaryTextBrush}" />
+                <TextBlock x:Name="ConfigPathText" FontSize="11"
+                           FontFamily="{StaticResource MonoFont}"
+                           Foreground="{StaticResource TertiaryTextBrush}" />
+            </StackPanel>
+            <Button Grid.Column="1" Content="＋ Add Server" Click="AddServer_Click"
+                    VerticalAlignment="Top"
+                    Background="{StaticResource NeonGreenBrush}" Foreground="Black"
+                    FontWeight="SemiBold" CornerRadius="8" Padding="16,8" />
+        </Grid>
+
+        <!-- Two-column server lists -->
+        <Grid Grid.Row="2">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="16" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <!-- Active servers column -->
+            <Border Grid.Column="0" CornerRadius="12" Padding="1"
+                    Background="{StaticResource CardFillBrush}"
+                    BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1"
+                    AllowDrop="True" DragOver="ActiveColumn_DragOver" Drop="ActiveColumn_Drop">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+                    <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="8"
+                                Padding="16,12">
+                        <Ellipse Width="8" Height="8" Fill="{StaticResource NeonGreenBrush}" />
+                        <TextBlock Text="Active" FontSize="13" FontWeight="SemiBold"
+                                   Foreground="{StaticResource PrimaryTextBrush}" />
+                        <TextBlock x:Name="ActiveCount" FontSize="11"
+                                   Foreground="{StaticResource TertiaryTextBrush}" />
+                    </StackPanel>
+                    <ListView Grid.Row="1" x:Name="ActiveList"
+                              SelectionMode="Single" SelectionChanged="ActiveList_SelectionChanged"
+                              CanDragItems="True" DragItemsStarting="ActiveList_DragStarting"
+                              Background="Transparent">
+                        <ListView.ItemTemplate>
+                            <DataTemplate>
+                                <Grid Padding="12,8">
+                                    <TextBlock Text="{Binding Name}"
+                                               FontFamily="{StaticResource MonoFont}"
+                                               FontSize="13"
+                                               Foreground="{StaticResource PrimaryTextBrush}" />
+                                </Grid>
+                            </DataTemplate>
+                        </ListView.ItemTemplate>
+                    </ListView>
+                </Grid>
+            </Border>
+
+            <!-- Stored servers column -->
+            <Border Grid.Column="2" CornerRadius="12" Padding="1"
+                    Background="{StaticResource CardFillBrush}"
+                    BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1"
+                    AllowDrop="True" DragOver="StoredColumn_DragOver" Drop="StoredColumn_Drop">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+                    <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="8"
+                                Padding="16,12">
+                        <Ellipse Width="8" Height="8" Fill="{StaticResource NeonRedBrush}" />
+                        <TextBlock Text="Inactive" FontSize="13" FontWeight="SemiBold"
+                                   Foreground="{StaticResource PrimaryTextBrush}" />
+                        <TextBlock x:Name="StoredCount" FontSize="11"
+                                   Foreground="{StaticResource TertiaryTextBrush}" />
+                    </StackPanel>
+                    <ListView Grid.Row="1" x:Name="StoredList"
+                              SelectionMode="Single" SelectionChanged="StoredList_SelectionChanged"
+                              CanDragItems="True" DragItemsStarting="StoredList_DragStarting"
+                              Background="Transparent">
+                        <ListView.ItemTemplate>
+                            <DataTemplate>
+                                <Grid Padding="12,8">
+                                    <TextBlock Text="{Binding Name}"
+                                               FontFamily="{StaticResource MonoFont}"
+                                               FontSize="13"
+                                               Foreground="{StaticResource PrimaryTextBrush}" />
+                                </Grid>
+                            </DataTemplate>
+                        </ListView.ItemTemplate>
+                    </ListView>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- Detail / Add panel -->
+        <Border Grid.Row="3" x:Name="DetailPanel" Visibility="Collapsed"
+                CornerRadius="12" Margin="0,16,0,0" Padding="16"
+                Background="{StaticResource CardFillBrush}"
+                BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1"
+                MinHeight="200" MaxHeight="400">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <!-- Detail header -->
+                <Grid Grid.Row="0" x:Name="DetailHeader" Visibility="Collapsed" Margin="0,0,0,8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <TextBlock x:Name="DetailServerName" FontSize="15" FontWeight="Bold"
+                                   FontFamily="{StaticResource MonoFont}"
+                                   Foreground="{StaticResource PrimaryTextBrush}" />
+                        <Border x:Name="DetailSourceBadge" CornerRadius="4" Padding="6,2">
+                            <TextBlock x:Name="DetailSourceText" FontSize="10" FontWeight="Bold"
+                                       Foreground="White" />
+                        </Border>
+                    </StackPanel>
+                    <Button Grid.Column="1" Content="✕" Click="CloseDetail_Click"
+                            Background="Transparent" Foreground="{StaticResource TertiaryTextBrush}"
+                            FontSize="16" Padding="4" />
+                </Grid>
+
+                <!-- Add header -->
+                <Grid Grid.Row="0" x:Name="AddHeader" Visibility="Collapsed" Margin="0,0,0,8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="Add Server" FontSize="15" FontWeight="Bold"
+                               Foreground="{StaticResource PrimaryTextBrush}" />
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                        <Border x:Name="ValidationBadge" CornerRadius="6" Padding="8,4">
+                            <TextBlock x:Name="ValidationText" FontSize="11" FontWeight="SemiBold"
+                                       Foreground="White" />
+                        </Border>
+                        <Button Content="✕" Click="CloseAdd_Click"
+                                Background="Transparent"
+                                Foreground="{StaticResource TertiaryTextBrush}"
+                                FontSize="16" Padding="4" />
+                    </StackPanel>
+                </Grid>
+
+                <!-- JSON editor -->
+                <TextBox Grid.Row="1" x:Name="JsonEditor"
+                         AcceptsReturn="True" TextWrapping="Wrap"
+                         FontFamily="{StaticResource MonoFont}" FontSize="12"
+                         Background="{StaticResource BgPrimaryBrush}"
+                         Foreground="{StaticResource PrimaryTextBrush}"
+                         BorderThickness="1" CornerRadius="8"
+                         BorderBrush="{StaticResource CardBorderBrush}"
+                         PlaceholderText="Paste JSON server configuration..."
+                         TextChanged="JsonEditor_TextChanged" />
+
+                <!-- Name field (for bare configs) -->
+                <StackPanel Grid.Row="1" x:Name="NameFieldPanel" Visibility="Collapsed"
+                            Margin="0,0,0,8" Orientation="Horizontal" Spacing="8">
+                    <TextBlock Text="Server name:" FontSize="13" VerticalAlignment="Center"
+                               Foreground="{StaticResource SecondaryTextBrush}" />
+                    <TextBox x:Name="ServerNameField" Width="200"
+                             FontFamily="{StaticResource MonoFont}"
+                             PlaceholderText="my-server" />
+                </StackPanel>
+
+                <!-- Action buttons -->
+                <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="8"
+                            HorizontalAlignment="Right" Margin="0,8,0,0">
+                    <!-- Detail mode buttons -->
+                    <Button x:Name="BtnSave" Content="Save" Click="SaveServer_Click"
+                            Visibility="Collapsed"
+                            Background="{StaticResource NeonGreenBrush}" Foreground="Black"
+                            FontWeight="SemiBold" CornerRadius="6" Padding="12,6" />
+                    <Button x:Name="BtnToggle" Click="ToggleServer_Click"
+                            Visibility="Collapsed"
+                            CornerRadius="6" Padding="12,6" FontWeight="SemiBold" />
+                    <Button x:Name="BtnCopy" Content="Copy JSON" Click="CopyJson_Click"
+                            Visibility="Collapsed"
+                            Background="{StaticResource CardFillBrush}"
+                            Foreground="{StaticResource PrimaryTextBrush}"
+                            CornerRadius="6" Padding="12,6" />
+                    <Button x:Name="BtnDelete" Content="Delete" Click="DeleteServer_Click"
+                            Visibility="Collapsed"
+                            Background="{StaticResource NeonRedBrush}" Foreground="White"
+                            FontWeight="SemiBold" CornerRadius="6" Padding="12,6" />
+
+                    <!-- Add mode buttons -->
+                    <Button x:Name="BtnCancel" Content="Cancel" Click="CloseAdd_Click"
+                            Visibility="Collapsed"
+                            Background="{StaticResource CardFillBrush}"
+                            Foreground="{StaticResource PrimaryTextBrush}"
+                            CornerRadius="6" Padding="12,6" />
+                    <Button x:Name="BtnSaveOnly" Content="Save Only" Click="SaveOnly_Click"
+                            Visibility="Collapsed"
+                            Background="{StaticResource CardFillBrush}"
+                            Foreground="{StaticResource PrimaryTextBrush}"
+                            FontWeight="SemiBold" CornerRadius="6" Padding="12,6" />
+                    <Button x:Name="BtnTurnOn" Content="Turn On" Click="TurnOn_Click"
+                            Visibility="Collapsed"
+                            Background="{StaticResource NeonGreenBrush}" Foreground="Black"
+                            FontWeight="SemiBold" CornerRadius="6" Padding="12,6" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- Footer -->
+        <Grid Grid.Row="4" Margin="0,12,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="6">
+                <Ellipse x:Name="StatusDot" Width="6" Height="6"
+                         Fill="{StaticResource NeonGreenBrush}" />
+                <TextBlock x:Name="StatusText" FontSize="11"
+                           Foreground="{StaticResource TertiaryTextBrush}" />
+            </StackPanel>
+            <TextBlock Grid.Column="1" x:Name="CountSummary" FontSize="11"
+                       Foreground="{StaticResource TertiaryTextBrush}" />
+        </Grid>
+    </Grid>
+</Page>
