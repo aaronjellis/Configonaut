@@ -463,14 +463,25 @@ pub fn get_skills_dir() -> AppResult<String> {
 ///      /F is deliberate — Windows has no AppleScript equivalent and
 ///      asking for a graceful quit is more hassle than it's worth here;
 ///      Claude Desktop saves its config through our IPC, so there's
-///      nothing in-flight to lose.
+///      nothing in-flight to lose. This works for both the MSI and MSIX
+///      builds — they both surface as `Claude.exe` in the process list.
 ///   2. Poll `tasklist` until Claude.exe is actually gone so we don't
 ///      race the new launch against a still-exiting instance (mirrors
 ///      the macOS `pgrep` loop for the same reason).
-///   3. Launch `%LOCALAPPDATA%\AnthropicClaude\Claude.exe` — that's the
-///      per-user install path Anthropic's MSI ships to. If it's not
-///      there, we surface a helpful error pointing the user at their
-///      install.
+///   3. Relaunch. There are two install shapes in the wild:
+///      - **Legacy MSI** at `%LOCALAPPDATA%\AnthropicClaude\Claude.exe`.
+///        We try this first because it's cheap (a single file-exists
+///        check) and can be spawned directly.
+///      - **MSIX / Store** under `C:\Program Files\WindowsApps\...`. That
+///        directory is ACL-locked to TrustedInstaller, so we can't spawn
+///        the exe by path even if we could find it. The canonical way to
+///        launch an MSIX app is via `explorer.exe shell:AppsFolder\<AUMID>`
+///        — the same mechanism the Start menu uses. The App User Model ID
+///        looks like `Claude_<publisherHash>!Claude`, and the publisher
+///        hash varies per install, so we discover it at runtime with
+///        PowerShell's `Get-StartApps`.
+///      If neither lookup finds anything, we return an error pointing at
+///      both paths so the user knows what was checked.
 ///
 /// Both platforms park the command-handler thread while polling, which
 /// is fine — Tauri runs each command on its own task so the UI thread
@@ -526,15 +537,27 @@ pub fn restart_claude_desktop() -> AppResult<()> {
     }
     #[cfg(target_os = "windows")]
     {
+        use std::os::windows::process::CommandExt;
         use std::path::PathBuf;
         use std::process::Command;
         use std::thread;
         use std::time::Duration;
 
+        // CREATE_NO_WINDOW (0x08000000) suppresses the transient console
+        // window that would otherwise flash on screen every time we spawn
+        // a console subprocess from this GUI binary. Without it, taskkill,
+        // tasklist, and powershell each briefly pop a black cmd window,
+        // which is disruptive and makes "Restart Claude Desktop" feel
+        // broken even when it's working. The flag has no effect on GUI
+        // apps (Claude.exe, explorer.exe), so we only apply it to the
+        // console helpers below.
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+
         // Step 1 — terminate any running instance. We don't care about
         // the exit code: a "process not found" error means Claude wasn't
         // running, which is fine.
         let _ = Command::new("taskkill")
+            .creation_flags(CREATE_NO_WINDOW)
             .args(["/IM", "Claude.exe", "/F"])
             .status();
 
@@ -553,6 +576,7 @@ pub fn restart_claude_desktop() -> AppResult<()> {
         thread::sleep(Duration::from_millis(200));
         for _ in 0..38 {
             let output = Command::new("tasklist")
+                .creation_flags(CREATE_NO_WINDOW)
                 .args(["/FI", "IMAGENAME eq Claude.exe", "/NH"])
                 .output();
             let still_running = match output {
@@ -574,29 +598,68 @@ pub fn restart_claude_desktop() -> AppResult<()> {
         // on the installed executable before we spawn it again.
         thread::sleep(Duration::from_millis(250));
 
-        // Step 3 — launch the per-user install. %LOCALAPPDATA% is the
-        // canonical location for Anthropic's MSI-deployed desktop app.
-        // We could fall back to looking in PATH, but being explicit
-        // here gives us a clear error message if Claude isn't actually
-        // installed on this machine.
+        // Step 3a — try the legacy MSI install first. `%LOCALAPPDATA%`
+        // is where Anthropic's classic MSI-deployed desktop app lives,
+        // and we can spawn that exe directly. Failing this check is not
+        // an error — it just means we fall through to the MSIX lookup.
         let local_app_data = std::env::var_os("LOCALAPPDATA").ok_or_else(|| {
             anyhow::anyhow!("LOCALAPPDATA is not set — cannot locate Claude.exe")
         })?;
-        let exe = PathBuf::from(local_app_data)
+        let msi_exe = PathBuf::from(&local_app_data)
             .join("AnthropicClaude")
             .join("Claude.exe");
 
-        if !exe.exists() {
+        if msi_exe.exists() {
+            Command::new(&msi_exe)
+                .spawn()
+                .map_err(|e| anyhow::anyhow!("launch Claude (MSI): {}", e))?;
+            return Ok(());
+        }
+
+        // Step 3b — fall back to the MSIX / Store install. The exe lives
+        // under `C:\Program Files\WindowsApps\Claude_<version>_x64__<hash>\`
+        // which is ACL-locked to TrustedInstaller, so direct spawning is
+        // off the table. Instead we ask PowerShell for the App User Model
+        // ID via `Get-StartApps` (it's the same query the Start menu uses)
+        // and hand that off to explorer.exe.
+        //
+        // Get-StartApps rows look like:
+        //     Name  AppID
+        //     ----  -----
+        //     Claude Claude_pzs8sxrjxfjjc!Claude
+        //
+        // We print only the AppID column to avoid parsing the table, and
+        // filter by `Name -eq 'Claude'` so we don't accidentally pick up
+        // some other app whose name happens to contain "Claude".
+        let ps_output = Command::new("powershell.exe")
+            .creation_flags(CREATE_NO_WINDOW)
+            .args([
+                "-NoProfile",
+                "-NonInteractive",
+                "-Command",
+                "(Get-StartApps | Where-Object { $_.Name -eq 'Claude' } | Select-Object -First 1).AppID",
+            ])
+            .output()
+            .map_err(|e| anyhow::anyhow!("query AppsFolder for Claude: {}", e))?;
+
+        let aumid = String::from_utf8_lossy(&ps_output.stdout).trim().to_string();
+
+        if aumid.is_empty() {
             return Err(anyhow::anyhow!(
-                "Couldn't find Claude.exe at {}. Is Claude Desktop installed?",
-                exe.display()
+                "Couldn't find Claude Desktop. Checked:\n  {}\n  Windows Start menu (Get-StartApps)\nIs Claude Desktop installed?",
+                msi_exe.display()
             )
             .into());
         }
 
-        Command::new(&exe)
+        // `explorer.exe shell:AppsFolder\<AUMID>` is the documented way to
+        // launch a packaged app from outside the shell. explorer.exe exits
+        // immediately after dispatching to the Store activation broker, so
+        // there's no long-lived child process to manage.
+        Command::new("explorer.exe")
+            .arg(format!("shell:AppsFolder\\{}", aumid))
             .spawn()
-            .map_err(|e| anyhow::anyhow!("launch Claude: {}", e))?;
+            .map_err(|e| anyhow::anyhow!("launch Claude (MSIX): {}", e))?;
         Ok(())
     }
     #[cfg(not(any(target_os = "macos", target_os = "windows")))]
