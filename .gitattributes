@@ -1,0 +1,31 @@
+# Normalize all text files to LF in the git index.
+#
+# With this in place, commits store LF regardless of the clone's
+# `core.autocrlf` setting. Windows developers can still check out with
+# CRLF in the working tree (default Git for Windows behavior), but the
+# bytes stored on the remote are always LF — so diffs, merges, and
+# cross-OS patches stay deterministic. Without this, a Windows clone
+# with `core.autocrlf=input` or `=false` would commit CRLF files and
+# every diff against a Mac working copy would look like the entire
+# file changed.
+* text=auto eol=lf
+
+# Binary asset extensions — mark explicitly so git never tries to
+# normalize or diff them as text. `text=auto` detection is usually
+# right, but being explicit about known-binary formats prevents
+# false positives on unusual content.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.icns binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.otf binary
+*.pdf binary
+*.zip binary
+*.dmg binary
+*.msi binary
+*.exe binary
