@@ -21,6 +21,8 @@ import type {
   Catalog,
   CatalogCategory,
   CatalogServer,
+  FeedEntry,
+  FeedStatus,
   RuntimeStatus,
 } from "../types";
 
@@ -31,12 +33,17 @@ interface Props {
   /// Map of installed-server-name → catalog-id for "Installed" badges.
   links: Record<string, string>;
   runtimeStatus: RuntimeStatus | null;
+  feeds: FeedEntry[];
+  feedStatuses: FeedStatus[];
   onRefresh: () => void | Promise<void>;
   onInstall: (
     server: CatalogServer,
     customConfig: Record<string, unknown>,
     customName: string
   ) => Promise<void>;
+  onAddFeed: (label: string, url: string) => Promise<void>;
+  onRemoveFeed: (feedId: string) => Promise<void>;
+  onToggleFeed: (feedId: string, enabled: boolean) => Promise<void>;
 }
 
 export function MarketplaceTab({
@@ -45,8 +52,13 @@ export function MarketplaceTab({
   isRefreshing,
   links,
   runtimeStatus,
+  feeds,
+  feedStatuses,
   onRefresh,
   onInstall,
+  onAddFeed,
+  onRemoveFeed,
+  onToggleFeed,
 }: Props) {
   const [searchText, setSearchText] = useState("");
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(
@@ -56,6 +68,34 @@ export function MarketplaceTab({
   const [editedJson, setEditedJson] = useState("");
   const [editError, setEditError] = useState<string | null>(null);
   const [busyInstalling, setBusyInstalling] = useState(false);
+
+  // Feed manager state
+  const [showFeedForm, setShowFeedForm] = useState(false);
+  const [newFeedLabel, setNewFeedLabel] = useState("");
+  const [newFeedUrl, setNewFeedUrl] = useState("");
+  const [addingFeed, setAddingFeed] = useState(false);
+
+  // Feed status lookup by id.
+  const feedStatusMap = useMemo(() => {
+    const m = new Map<string, FeedStatus>();
+    for (const s of feedStatuses) m.set(s.id, s);
+    return m;
+  }, [feedStatuses]);
+
+  async function handleAddFeed() {
+    const url = newFeedUrl.trim();
+    const label = newFeedLabel.trim();
+    if (!url || !label) return;
+    setAddingFeed(true);
+    try {
+      await onAddFeed(label, url);
+      setNewFeedLabel("");
+      setNewFeedUrl("");
+      setShowFeedForm(false);
+    } finally {
+      setAddingFeed(false);
+    }
+  }
 
   // Set of installed catalog ids, for the "Installed" pill. Values of `links`
   // are catalog ids, keys are server names — either match marks a row as
@@ -238,6 +278,99 @@ export function MarketplaceTab({
               onClick={() => setSelectedCategoryId(category.id)}
             />
           ))}
+
+          {/* Feed manager */}
+          <div className="feed-manager">
+            <div className="feed-manager-header">
+              <span className="feed-manager-title">Feeds</span>
+              <button
+                className="ghost small"
+                onClick={() => setShowFeedForm((v) => !v)}
+                title="Add a custom feed"
+              >
+                {showFeedForm ? "✕" : "+"}
+              </button>
+            </div>
+
+            {showFeedForm && (
+              <div className="feed-add-form">
+                <input
+                  placeholder="Label"
+                  value={newFeedLabel}
+                  onChange={(e) => setNewFeedLabel(e.currentTarget.value)}
+                  disabled={addingFeed}
+                />
+                <input
+                  placeholder="https://example.com/catalog.json"
+                  value={newFeedUrl}
+                  onChange={(e) => setNewFeedUrl(e.currentTarget.value)}
+                  disabled={addingFeed}
+                />
+                <button
+                  className="primary small"
+                  disabled={
+                    addingFeed ||
+                    !newFeedLabel.trim() ||
+                    !newFeedUrl.trim()
+                  }
+                  onClick={handleAddFeed}
+                >
+                  {addingFeed ? "Adding…" : "Add"}
+                </button>
+              </div>
+            )}
+
+            {feeds.map((feed) => {
+              const status = feedStatusMap.get(feed.id);
+              const hasError = status?.error && !status.usingCache;
+              const degraded = status?.error && status.usingCache;
+              return (
+                <div key={feed.id} className="feed-row">
+                  <span
+                    className="feed-status-dot"
+                    title={
+                      hasError
+                        ? "Unreachable"
+                        : degraded
+                          ? "Using cache"
+                          : feed.enabled
+                            ? "Active"
+                            : "Disabled"
+                    }
+                    style={{
+                      background: hasError
+                        ? "var(--red)"
+                        : degraded
+                          ? "var(--amber)"
+                          : feed.enabled
+                            ? "var(--green)"
+                            : "var(--text-quaternary)",
+                    }}
+                  />
+                  <span className="feed-label" title={feed.url}>
+                    {feed.label}
+                  </span>
+                  {status && status.serverCount > 0 && (
+                    <span className="feed-count">{status.serverCount}</span>
+                  )}
+                  <button
+                    className="ghost small feed-toggle"
+                    onClick={() => onToggleFeed(feed.id, !feed.enabled)}
+                    title={feed.enabled ? "Disable" : "Enable"}
+                  >
+                    {feed.enabled ? "on" : "off"}
+                  </button>
+                  <button
+                    className="ghost small feed-remove"
+                    onClick={() => onRemoveFeed(feed.id)}
+                    title="Remove feed"
+                  >
+                    ✕
+                  </button>
+                </div>
+              );
+            })}
+          </div>
         </div>
 
         {/* Server list */}
@@ -541,6 +674,11 @@ function ServerRow({
             {requiredCount > 0 && (
               <span className="keys-pill" title="Required env vars">
                 🔑 {requiredCount} key{requiredCount === 1 ? "" : "s"}
+              </span>
+            )}
+            {server.feedOrigin && server.feedOrigin !== "built-in" && (
+              <span className="feed-origin-pill" title={`From feed: ${server.feedOrigin}`}>
+                {server.feedOrigin}
               </span>
             )}
           </div>

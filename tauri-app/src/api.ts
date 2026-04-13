@@ -9,6 +9,8 @@ import type {
   AppMode,
   BackupFile,
   Catalog,
+  FeedEntry,
+  FeedStatus,
   HookRule,
   RuntimeStatus,
   ServerListing,
@@ -148,6 +150,32 @@ export function missingSecretsForServer(
     catalogId,
     configJson,
   });
+}
+
+// ---------- Custom catalog feeds ----------
+
+export function listFeeds(): Promise<FeedEntry[]> {
+  return invoke<FeedEntry[]>("list_feeds");
+}
+
+export function addFeed(label: string, url: string): Promise<FeedEntry> {
+  return invoke<FeedEntry>("add_feed", { label, url });
+}
+
+export function removeFeed(feedId: string): Promise<void> {
+  return invoke("remove_feed", { feedId });
+}
+
+export function toggleFeed(feedId: string, enabled: boolean): Promise<void> {
+  return invoke("toggle_feed", { feedId, enabled });
+}
+
+export function getCatalogWithFeeds(): Promise<[Catalog, FeedStatus[]]> {
+  return invoke<[Catalog, FeedStatus[]]>("get_catalog_with_feeds");
+}
+
+export function refreshAllFeeds(): Promise<[Catalog, FeedStatus[]]> {
+  return invoke<[Catalog, FeedStatus[]]>("refresh_all_feeds");
 }
 
 // ---------- Paths ----------

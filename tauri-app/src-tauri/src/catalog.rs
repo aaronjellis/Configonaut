@@ -15,6 +15,7 @@
 
 use std::collections::HashSet;
 use std::fs;
+use std::hash::{Hash, Hasher};
 use std::sync::OnceLock;
 use std::time::Duration;
 
@@ -113,6 +114,10 @@ pub struct CatalogServer {
     /// shipped with the app always includes at least an empty array.
     #[serde(default)]
     pub env_vars: Option<Vec<CatalogEnvVar>>,
+    /// Which feed this server was loaded from. Not present in the raw catalog
+    /// JSON — injected during the merge step so the UI can group by source.
+    #[serde(default)]
+    pub feed_origin: Option<String>,
 }
 
 impl CatalogServer {
@@ -298,6 +303,303 @@ fn write_cache_atomic(raw: &str) -> AppResult<()> {
 }
 
 // ---------------------------------------------------------------------------
+// Custom catalog feeds
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FeedEntry {
+    pub id: String,
+    pub label: String,
+    pub url: String,
+    #[serde(default = "default_enabled")]
+    pub enabled: bool,
+}
+
+fn default_enabled() -> bool {
+    true
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FeedConfig {
+    pub feeds: Vec<FeedEntry>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FeedStatus {
+    pub id: String,
+    pub label: String,
+    pub url: String,
+    pub enabled: bool,
+    pub server_count: usize,
+    pub error: Option<String>,
+    pub using_cache: bool,
+}
+
+fn generate_feed_id(url: &str) -> String {
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    url.hash(&mut hasher);
+    format!("{:016x}", hasher.finish())
+}
+
+// ── Feed config persistence ─────────────────────────────────────────────
+
+pub fn load_feed_config() -> FeedConfig {
+    let path = paths::feeds_config_file();
+    if !path.exists() {
+        return FeedConfig { feeds: vec![] };
+    }
+    fs::read_to_string(&path)
+        .ok()
+        .and_then(|raw| serde_json::from_str(&raw).ok())
+        .unwrap_or(FeedConfig { feeds: vec![] })
+}
+
+fn save_feed_config(config: &FeedConfig) -> AppResult<()> {
+    let path = paths::feeds_config_file();
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    let json = serde_json::to_string_pretty(config)?;
+    fs::write(&path, json)?;
+    Ok(())
+}
+
+// ── Feed CRUD ───────────────────────────────────────────────────────────
+
+pub fn add_feed(label: String, url: String) -> AppResult<FeedEntry> {
+    let mut config = load_feed_config();
+    if config.feeds.iter().any(|f| f.url == url) {
+        return Err(anyhow!("A feed with this URL already exists.").into());
+    }
+    let entry = FeedEntry {
+        id: generate_feed_id(&url),
+        label,
+        url,
+        enabled: true,
+    };
+    config.feeds.push(entry.clone());
+    save_feed_config(&config)?;
+    Ok(entry)
+}
+
+pub fn remove_feed(feed_id: &str) -> AppResult<()> {
+    let mut config = load_feed_config();
+    config.feeds.retain(|f| f.id != feed_id);
+    save_feed_config(&config)?;
+    let _ = fs::remove_file(paths::feed_cache_file(feed_id));
+    Ok(())
+}
+
+pub fn toggle_feed(feed_id: &str, enabled: bool) -> AppResult<()> {
+    let mut config = load_feed_config();
+    if let Some(entry) = config.feeds.iter_mut().find(|f| f.id == feed_id) {
+        entry.enabled = enabled;
+    }
+    save_feed_config(&config)?;
+    Ok(())
+}
+
+// ── Per-feed cache ──────────────────────────────────────────────────────
+
+fn load_feed_cache(feed_id: &str) -> Option<Catalog> {
+    let path = paths::feed_cache_file(feed_id);
+    if !path.exists() {
+        return None;
+    }
+    fs::read_to_string(&path)
+        .ok()
+        .and_then(|raw| serde_json::from_str(&raw).ok())
+}
+
+fn write_feed_cache(feed_id: &str, raw: &str) -> AppResult<()> {
+    let path = paths::feed_cache_file(feed_id);
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    let tmp = path.with_extension("tmp");
+    fs::write(&tmp, raw)?;
+    fs::rename(&tmp, &path)?;
+    Ok(())
+}
+
+// ── Fetch a single feed ─────────────────────────────────────────────────
+
+/// Returns (catalog, error, used_cache).
+async fn fetch_single_feed(entry: &FeedEntry) -> (Option<Catalog>, Option<String>, bool) {
+    let client = match reqwest::Client::builder()
+        .timeout(Duration::from_secs(10))
+        .build()
+    {
+        Ok(c) => c,
+        Err(e) => return (load_feed_cache(&entry.id), Some(e.to_string()), true),
+    };
+
+    match client.get(&entry.url).send().await {
+        Ok(resp) if resp.status().is_success() => match resp.text().await {
+            Ok(text) => match serde_json::from_str::<Catalog>(&text) {
+                Ok(catalog) => {
+                    let _ = write_feed_cache(&entry.id, &text);
+                    (Some(catalog), None, false)
+                }
+                Err(e) => (
+                    load_feed_cache(&entry.id),
+                    Some(format!("parse error: {e}")),
+                    true,
+                ),
+            },
+            Err(e) => (load_feed_cache(&entry.id), Some(e.to_string()), true),
+        },
+        Ok(resp) => {
+            let status = resp.status();
+            (
+                load_feed_cache(&entry.id),
+                Some(format!("HTTP {status}")),
+                true,
+            )
+        }
+        Err(e) => (load_feed_cache(&entry.id), Some(e.to_string()), true),
+    }
+}
+
+// ── Merge multiple catalogs ─────────────────────────────────────────────
+
+/// Custom feed servers come first; built-in last. First occurrence of a
+/// server ID wins (dedup).
+fn merge_catalogs(
+    feed_catalogs: Vec<(String, Catalog)>,
+    builtin: Catalog,
+) -> Catalog {
+    let mut seen_ids = HashSet::new();
+    let mut merged_servers = Vec::new();
+    let mut all_categories = Vec::new();
+    let mut seen_cat_ids = HashSet::new();
+
+    let mut all: Vec<(String, Catalog)> = feed_catalogs;
+    all.push(("Built-in".into(), builtin));
+
+    for (feed_label, catalog) in all {
+        for cat in catalog.categories {
+            if seen_cat_ids.insert(cat.id.clone()) {
+                all_categories.push(cat);
+            }
+        }
+        for mut server in catalog.servers {
+            if seen_ids.insert(server.id.clone()) {
+                server.feed_origin = Some(feed_label.clone());
+                merged_servers.push(server);
+            }
+        }
+    }
+
+    Catalog {
+        version: String::new(),
+        generated_at: String::new(),
+        source: None,
+        categories: all_categories,
+        servers: merged_servers,
+    }
+}
+
+// ── Top-level feed-aware bootstrap + refresh ────────────────────────────
+
+/// Synchronous startup load: cached custom feeds + cached/baseline built-in.
+pub fn bootstrap_catalog_with_feeds() -> AppResult<(Catalog, Vec<FeedStatus>)> {
+    let config = load_feed_config();
+    let mut feed_catalogs = Vec::new();
+    let mut statuses = Vec::new();
+
+    for entry in &config.feeds {
+        if !entry.enabled {
+            statuses.push(FeedStatus {
+                id: entry.id.clone(),
+                label: entry.label.clone(),
+                url: entry.url.clone(),
+                enabled: false,
+                server_count: 0,
+                error: None,
+                using_cache: false,
+            });
+            continue;
+        }
+        if let Some(cached) = load_feed_cache(&entry.id) {
+            let count = cached.servers.len();
+            feed_catalogs.push((entry.label.clone(), cached));
+            statuses.push(FeedStatus {
+                id: entry.id.clone(),
+                label: entry.label.clone(),
+                url: entry.url.clone(),
+                enabled: true,
+                server_count: count,
+                error: None,
+                using_cache: true,
+            });
+        }
+    }
+
+    let builtin = bootstrap_catalog()?;
+    let merged = merge_catalogs(feed_catalogs, builtin);
+    Ok((merged, statuses))
+}
+
+/// Async: fetch all enabled feeds + built-in, merge, return unified catalog
+/// plus per-feed status reports.
+pub async fn refresh_all_feeds() -> AppResult<(Catalog, Vec<FeedStatus>)> {
+    let config = load_feed_config();
+    let mut statuses = Vec::new();
+    let mut feed_catalogs = Vec::new();
+
+    for entry in &config.feeds {
+        if !entry.enabled {
+            statuses.push(FeedStatus {
+                id: entry.id.clone(),
+                label: entry.label.clone(),
+                url: entry.url.clone(),
+                enabled: false,
+                server_count: 0,
+                error: None,
+                using_cache: false,
+            });
+            continue;
+        }
+        let (catalog_opt, error, used_cache) = fetch_single_feed(entry).await;
+        if let Some(catalog) = catalog_opt {
+            let count = catalog.servers.len();
+            feed_catalogs.push((entry.label.clone(), catalog));
+            statuses.push(FeedStatus {
+                id: entry.id.clone(),
+                label: entry.label.clone(),
+                url: entry.url.clone(),
+                enabled: true,
+                server_count: count,
+                error,
+                using_cache: used_cache,
+            });
+        } else {
+            statuses.push(FeedStatus {
+                id: entry.id.clone(),
+                label: entry.label.clone(),
+                url: entry.url.clone(),
+                enabled: true,
+                server_count: 0,
+                error: error.or_else(|| Some("Feed unavailable".into())),
+                using_cache: false,
+            });
+        }
+    }
+
+    let builtin = match refresh_catalog_remote().await {
+        Ok(c) => c,
+        Err(_) => bootstrap_catalog()?,
+    };
+
+    let merged = merge_catalogs(feed_catalogs, builtin);
+    Ok((merged, statuses))
+}
+
+// ---------------------------------------------------------------------------
 // Catalog links — per-mode map of server-name → catalog-id
 // ---------------------------------------------------------------------------
 
@@ -383,7 +685,7 @@ pub fn install_from_catalog(
     custom_config: Option<Map<String, Value>>,
     custom_name: Option<String>,
 ) -> AppResult<String> {
-    let catalog = bootstrap_catalog()?;
+    let (catalog, _) = bootstrap_catalog_with_feeds()?;
     let server = catalog
         .servers
         .iter()

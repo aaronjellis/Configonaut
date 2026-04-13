@@ -105,6 +105,7 @@ export interface CatalogServer {
   requirements: string[];
   setupNotes?: string | null;
   envVars?: CatalogEnvVar[] | null;
+  feedOrigin?: string | null;
 }
 
 export interface RuntimeStatus {
@@ -129,6 +130,27 @@ export interface CatalogConfig {
   env?: Record<string, unknown> | null;
   url?: string | null;
   headers?: Record<string, unknown> | null;
+}
+
+// ---------------------------------------------------------------------------
+// Custom catalog feeds
+// ---------------------------------------------------------------------------
+
+export interface FeedEntry {
+  id: string;
+  label: string;
+  url: string;
+  enabled: boolean;
+}
+
+export interface FeedStatus {
+  id: string;
+  label: string;
+  url: string;
+  enabled: boolean;
+  serverCount: number;
+  error: string | null;
+  usingCache: boolean;
 }
 
 // Top-level sidebar sections. Marketplace is intentionally NOT here — in the

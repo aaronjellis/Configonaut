@@ -1665,6 +1665,110 @@ body.is-dragging * {
   flex-shrink: 0;
 }
 
+/* ---------- Feed manager (inside category sidebar) ---------- */
+
+.feed-manager {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--card-border);
+}
+
+.feed-manager-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 9px;
+}
+
+.feed-manager-title {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-tertiary);
+}
+
+.feed-add-form {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 4px 6px 6px;
+}
+
+.feed-add-form input {
+  font-size: 11px;
+  padding: 4px 7px;
+  border-radius: 5px;
+  border: 1px solid var(--card-border);
+  background: rgba(0, 0, 0, 0.2);
+  color: var(--text);
+}
+
+.feed-add-form input::placeholder {
+  color: var(--text-quaternary);
+}
+
+.feed-add-form button {
+  align-self: flex-end;
+}
+
+.feed-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 9px;
+  font-size: 11px;
+}
+
+.feed-status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.feed-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-secondary);
+}
+
+.feed-count {
+  color: var(--text-quaternary);
+  font-size: 9px;
+  flex-shrink: 0;
+}
+
+.feed-toggle {
+  font-size: 9px !important;
+  padding: 1px 4px !important;
+  color: var(--text-tertiary);
+}
+
+.feed-remove {
+  font-size: 9px !important;
+  padding: 1px 3px !important;
+  color: var(--text-quaternary);
+}
+
+.feed-remove:hover {
+  color: var(--red);
+}
+
+/* ---------- Feed origin pill on server rows ---------- */
+
+.feed-origin-pill {
+  font-size: 9px;
+  color: var(--purple);
+  background: rgba(178, 102, 255, 0.1);
+  padding: 1px 6px;
+  border-radius: 10px;
+  white-space: nowrap;
+}
+
 .marketplace-servers {
   flex: 1;
   overflow-y: auto;
@@ -2872,13 +2976,67 @@ body.is-dragging * {
   color: var(--green);
 }
 
-.update-notes {
-  margin: 8px 0 4px;
-  font-size: 12px;
-  line-height: 1.5;
+/* Accordion for release notes */
+
+.update-accordion {
+  width: 100%;
+  margin: 4px 0;
+}
+
+.update-accordion-trigger {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.03);
   color: var(--text-secondary);
-  max-height: 120px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 150ms, color 150ms;
+}
+
+.update-accordion-trigger:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-primary);
+  border-color: rgba(255, 255, 255, 0.06);
+}
+
+.update-accordion-chevron {
+  font-size: 10px;
+  transition: transform 200ms ease;
+  display: inline-block;
+}
+
+.update-accordion-chevron.open {
+  transform: rotate(90deg);
+}
+
+.update-accordion-body {
+  margin-top: 6px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--text-secondary);
+  text-align: left;
+  max-height: 140px;
   overflow-y: auto;
+}
+
+.update-accordion-body a {
+  color: var(--green);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.update-accordion-body a:hover {
+  color: #6cffd1;
 }
 
 .update-error {
@@ -2895,24 +3053,30 @@ body.is-dragging * {
   margin-top: 12px;
 }
 
-.update-btn-primary {
+/* Use `button.class` selectors so these beat the global `button:hover`
+   rule (specificity 0,1,1 vs 0,0,2). */
+
+button.update-btn-primary {
   width: 100%;
   padding: 10px 16px;
   border: none;
   border-radius: 8px;
-  background: var(--green);
+  background: linear-gradient(90deg, #22c55e, var(--green));
   color: #0a0f1a;
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
-  transition: opacity 150ms;
+  box-shadow: 0 4px 14px rgba(0, 245, 160, 0.18);
+  transition: background 150ms, box-shadow 150ms;
 }
 
-.update-btn-primary:hover {
-  opacity: 0.88;
+button.update-btn-primary:hover:not(:disabled) {
+  background: linear-gradient(90deg, #2fd66c, #4ffbb7);
+  border-color: rgba(255, 255, 255, 0.18);
+  box-shadow: 0 6px 18px rgba(0, 245, 160, 0.28);
 }
 
-.update-btn-secondary {
+button.update-btn-secondary {
   width: 100%;
   padding: 10px 16px;
   border: 1px solid rgba(255, 255, 255, 0.1);
@@ -2922,11 +3086,12 @@ body.is-dragging * {
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
-  transition: background 150ms;
+  transition: background 150ms, border-color 150ms;
 }
 
-.update-btn-secondary:hover {
+button.update-btn-secondary:hover:not(:disabled) {
   background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.15);
 }
 
 .update-done-text {

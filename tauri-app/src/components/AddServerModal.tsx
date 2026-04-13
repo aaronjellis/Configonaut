@@ -15,18 +15,24 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
+  addFeed,
   checkRuntime,
-  getCatalog,
   getCatalogLinks,
+  getCatalogWithFeeds,
   installFromCatalog,
+  listFeeds,
   parseServerInput,
-  refreshCatalog,
+  refreshAllFeeds,
+  removeFeed,
+  toggleFeed,
 } from "../api";
 import { validatePasteInput } from "../lib/validateServerJson";
 import type {
   AppMode,
   Catalog,
   CatalogServer,
+  FeedEntry,
+  FeedStatus,
   RuntimeStatus,
   ServerTuple,
 } from "../types";
@@ -64,28 +70,30 @@ export function AddServerModal({
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [links, setLinks] = useState<Record<string, string>>({});
   const [runtimeStatus, setRuntimeStatus] = useState<RuntimeStatus | null>(null);
+  const [feeds, setFeeds] = useState<FeedEntry[]>([]);
+  const [feedStatuses, setFeedStatuses] = useState<FeedStatus[]>([]);
 
-  // Bootstrap on mount. `getCatalog` is instant (cache or embedded baseline)
-  // so we show the UI immediately, then hit `refreshCatalog` in the background.
-  // Runtime detection runs in parallel — it's cheap (~100ms) and we want the
-  // result ready before the user expands a server row.
+  // Bootstrap on mount. getCatalogWithFeeds is instant (caches + baseline)
+  // so we show the UI immediately, then refreshAllFeeds in the background.
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const [cat, lnk] = await Promise.all([
-          getCatalog(),
+        const [[cat, statuses], lnk, feedList] = await Promise.all([
+          getCatalogWithFeeds(),
           getCatalogLinks(mode),
+          listFeeds(),
         ]);
         if (cancelled) return;
         setCatalog(cat);
+        setFeedStatuses(statuses);
+        setFeeds(feedList);
         setLinks(lnk);
       } catch (e) {
         if (!cancelled) setCatalogError(String(e));
       }
 
-      // Fire runtime detection and background catalog refresh in parallel.
-      // Neither blocks the UI — if either fails, we degrade gracefully.
+      // Runtime detection + feed refresh in parallel.
       const runtimePromise = checkRuntime()
         .then((rt) => { if (!cancelled) setRuntimeStatus(rt); })
         .catch(() => {});
@@ -93,10 +101,13 @@ export function AddServerModal({
       const refreshPromise = (async () => {
         try {
           setIsRefreshing(true);
-          const fresh = await refreshCatalog();
-          if (!cancelled) setCatalog(fresh);
+          const [fresh, statuses] = await refreshAllFeeds();
+          if (!cancelled) {
+            setCatalog(fresh);
+            setFeedStatuses(statuses);
+          }
         } catch {
-          // Swallow — offline or rate-limited is fine, we have a baseline.
+          // Offline is fine, we have cached feeds + baseline.
         } finally {
           if (!cancelled) setIsRefreshing(false);
         }
@@ -108,6 +119,17 @@ export function AddServerModal({
       cancelled = true;
     };
   }, [mode]);
+
+  // Show toast for feeds that fell back to cache.
+  useEffect(() => {
+    const degraded = feedStatuses.filter((s) => s.error && s.usingCache);
+    if (degraded.length > 0) {
+      toast.show(
+        `${degraded.length} feed(s) unreachable \u2014 using cached versions.`,
+        "warning"
+      );
+    }
+  }, [feedStatuses, toast]);
 
   async function handleMarketplaceInstall(
     server: CatalogServer,
@@ -168,11 +190,14 @@ export function AddServerModal({
             isRefreshing={isRefreshing}
             links={links}
             runtimeStatus={runtimeStatus}
+            feeds={feeds}
+            feedStatuses={feedStatuses}
             onRefresh={async () => {
               setIsRefreshing(true);
               try {
-                const fresh = await refreshCatalog();
+                const [fresh, statuses] = await refreshAllFeeds();
                 setCatalog(fresh);
+                setFeedStatuses(statuses);
                 setCatalogError(null);
                 toast.show("Catalog refreshed.", "success");
               } catch (e) {
@@ -183,6 +208,33 @@ export function AddServerModal({
               }
             }}
             onInstall={handleMarketplaceInstall}
+            onAddFeed={async (label, url) => {
+              await addFeed(label, url);
+              setFeeds(await listFeeds());
+              // Refresh to fetch the new feed's catalog.
+              setIsRefreshing(true);
+              try {
+                const [fresh, statuses] = await refreshAllFeeds();
+                setCatalog(fresh);
+                setFeedStatuses(statuses);
+              } finally {
+                setIsRefreshing(false);
+              }
+            }}
+            onRemoveFeed={async (feedId) => {
+              await removeFeed(feedId);
+              setFeeds(await listFeeds());
+              const [fresh, statuses] = await refreshAllFeeds();
+              setCatalog(fresh);
+              setFeedStatuses(statuses);
+            }}
+            onToggleFeed={async (feedId, enabled) => {
+              await toggleFeed(feedId, enabled);
+              setFeeds(await listFeeds());
+              const [fresh, statuses] = await refreshAllFeeds();
+              setCatalog(fresh);
+              setFeedStatuses(statuses);
+            }}
           />
         ) : (
           <PasteTab onClose={onClose} onCommit={onCommit} />

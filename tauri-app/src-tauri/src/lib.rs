@@ -166,6 +166,13 @@ pub fn run() {
             commands::install_from_catalog,
             commands::get_catalog_links,
             commands::missing_secrets_for_server,
+            // Custom feeds
+            commands::list_feeds,
+            commands::add_feed,
+            commands::remove_feed,
+            commands::toggle_feed,
+            commands::get_catalog_with_feeds,
+            commands::refresh_all_feeds,
             // Runtime detection
             commands::check_runtime,
             // Paths

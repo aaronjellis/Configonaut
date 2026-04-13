@@ -392,7 +392,7 @@ pub fn missing_secrets_for_server(
         Value::Object(Map::new())
     };
 
-    let catalog = catalog::bootstrap_catalog()?;
+    let (catalog, _) = catalog::bootstrap_catalog_with_feeds()?;
     let server = catalog
         .servers
         .iter()
@@ -400,6 +400,40 @@ pub fn missing_secrets_for_server(
         .ok_or_else(|| anyhow::anyhow!("catalog id not found: {catalog_id}"))?;
 
     Ok(catalog::missing_secrets(&block, server))
+}
+
+// ---------------------------------------------------------------------------
+// Custom catalog feeds
+// ---------------------------------------------------------------------------
+
+#[tauri::command]
+pub fn list_feeds() -> AppResult<Vec<catalog::FeedEntry>> {
+    Ok(catalog::load_feed_config().feeds)
+}
+
+#[tauri::command]
+pub fn add_feed(label: String, url: String) -> AppResult<catalog::FeedEntry> {
+    catalog::add_feed(label, url)
+}
+
+#[tauri::command]
+pub fn remove_feed(feed_id: String) -> AppResult<()> {
+    catalog::remove_feed(&feed_id)
+}
+
+#[tauri::command]
+pub fn toggle_feed(feed_id: String, enabled: bool) -> AppResult<()> {
+    catalog::toggle_feed(&feed_id, enabled)
+}
+
+#[tauri::command]
+pub fn get_catalog_with_feeds() -> AppResult<(catalog::Catalog, Vec<catalog::FeedStatus>)> {
+    catalog::bootstrap_catalog_with_feeds()
+}
+
+#[tauri::command]
+pub async fn refresh_all_feeds() -> AppResult<(catalog::Catalog, Vec<catalog::FeedStatus>)> {
+    catalog::refresh_all_feeds().await
 }
 
 // ---------------------------------------------------------------------------
