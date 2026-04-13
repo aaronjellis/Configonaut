@@ -12,7 +12,7 @@
 //     stored  → ~/Library/Application Support/Configonaut/stored_servers_desktop.json
 //
 //   Claude Code mode:
-//     active  → ~/.claude/settings.json               (mcpServers key)
+//     active  → ~/.claude.json                        (mcpServers key — `claude mcp add`)
 //     stored  → ~/Library/Application Support/Configonaut/stored_servers_cli.json
 //
 // "Active" means the entry is present in Claude's actual config. "Stored" is

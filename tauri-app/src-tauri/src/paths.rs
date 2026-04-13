@@ -6,16 +6,19 @@
 //
 //   macOS
 //     Claude Desktop config : ~/Library/Application Support/Claude/claude_desktop_config.json
-//     Claude Code settings  : ~/.claude/settings.json
+//     Claude Code MCP config: ~/.claude.json               (mcpServers — `claude mcp add`)
+//     Claude Code settings  : ~/.claude/settings.json      (hooks, permissions, plugins)
 //     Configonaut storage   : ~/Library/Application Support/Configonaut/
 //
 //   Windows
 //     Claude Desktop config : %APPDATA%\Claude\claude_desktop_config.json
+//     Claude Code MCP config: %USERPROFILE%\.claude.json
 //     Claude Code settings  : %USERPROFILE%\.claude\settings.json
 //     Configonaut storage   : %APPDATA%\Configonaut\
 //
 //   Linux
 //     Claude Desktop config : ~/.config/Claude/claude_desktop_config.json
+//     Claude Code MCP config: ~/.claude.json
 //     Claude Code settings  : ~/.claude/settings.json
 //     Configonaut storage   : ~/.config/Configonaut/
 
@@ -56,17 +59,25 @@ pub fn claude_desktop_config() -> PathBuf {
 }
 
 /// Claude Code's global settings file. Same on every OS (~/.claude/settings.json).
+/// Contains hooks, permissions, plugin toggles — NOT mcpServers.
 pub fn claude_code_settings() -> PathBuf {
     home().join(".claude").join("settings.json")
 }
 
-/// The mcp-config file for a given mode (Desktop reads/writes Claude Desktop's
-/// dedicated file, CLI reads/writes ~/.claude/settings.json which holds both
-/// mcpServers and hooks).
+/// Claude Code's user MCP config (~/.claude.json). This is the file that
+/// `claude mcp add` writes to, and is where Claude Code reads user-level
+/// mcpServers from. Distinct from settings.json which holds hooks/permissions.
+pub fn claude_code_config() -> PathBuf {
+    home().join(".claude.json")
+}
+
+/// The mcp-config file for a given mode. Desktop reads/writes Claude Desktop's
+/// dedicated file, CLI reads/writes ~/.claude.json which holds the user's
+/// mcpServers managed by `claude mcp add`.
 pub fn config_file(mode: AppMode) -> PathBuf {
     match mode {
         AppMode::Desktop => claude_desktop_config(),
-        AppMode::Cli => claude_code_settings(),
+        AppMode::Cli => claude_code_config(),
     }
 }
 
@@ -113,6 +124,16 @@ pub fn catalog_links_file(mode: AppMode) -> PathBuf {
 /// Cached copy of the remote marketplace catalog, refreshed on launch.
 pub fn catalog_cache_file() -> PathBuf {
     storage_dir().join("catalog-cache.json")
+}
+
+/// Config file storing the user's custom feed list.
+pub fn feeds_config_file() -> PathBuf {
+    storage_dir().join("feeds.json")
+}
+
+/// Per-feed cache file, keyed by the feed's opaque ID.
+pub fn feed_cache_file(feed_id: &str) -> PathBuf {
+    storage_dir().join(format!("feed-cache-{feed_id}.json"))
 }
 
 // Claude Code content directories (used for agents, skills, and plugin scanning).
