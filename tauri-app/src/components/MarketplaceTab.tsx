@@ -459,19 +459,35 @@ interface ServerRowProps {
   onInstall: () => void;
 }
 
+interface MissingRuntime {
+  label: string;
+  downloadUrl: string | null;
+}
+
+const RUNTIME_DOWNLOADS: Record<string, string> = {
+  "Node.js": "https://nodejs.org/",
+  Python: "https://www.python.org/downloads/",
+  uv: "https://docs.astral.sh/uv/getting-started/installation/",
+  Docker: "https://www.docker.com/products/docker-desktop/",
+};
+
 /// Check which of a server's requirements are missing from the user's machine.
 function missingRequirements(
   requirements: string[],
   rt: RuntimeStatus | null
-): string[] {
+): MissingRuntime[] {
   if (!rt || requirements.length === 0) return [];
-  const missing: string[] = [];
+  const missing: MissingRuntime[] = [];
   for (const req of requirements) {
     const key = req.toLowerCase();
-    if (key === "node" && !rt.node) missing.push("Node.js");
-    else if (key === "python" && !rt.python) missing.push("Python");
-    else if (key === "uv" && !rt.uv) missing.push("uv");
-    else if (key === "docker" && !rt.docker) missing.push("Docker");
+    if (key === "node" && !rt.node)
+      missing.push({ label: "Node.js", downloadUrl: RUNTIME_DOWNLOADS["Node.js"] });
+    else if (key === "python" && !rt.python)
+      missing.push({ label: "Python", downloadUrl: RUNTIME_DOWNLOADS["Python"] });
+    else if (key === "uv" && !rt.uv)
+      missing.push({ label: "uv", downloadUrl: RUNTIME_DOWNLOADS["uv"] });
+    else if (key === "docker" && !rt.docker)
+      missing.push({ label: "Docker", downloadUrl: RUNTIME_DOWNLOADS["Docker"] });
   }
   return missing;
 }
@@ -548,8 +564,21 @@ function ServerRow({
             if (missing.length === 0) return null;
             return (
               <div className="banner warning">
-                <strong>Missing:</strong> {missing.join(", ")} — this server
-                requires {missing.length === 1 ? "it" : "them"} to run.
+                <strong>Missing:</strong>{" "}
+                {missing.map((m, i) => (
+                  <span key={m.label}>
+                    {i > 0 && ", "}
+                    {m.downloadUrl ? (
+                      <a href={m.downloadUrl} target="_blank" rel="noreferrer noopener">
+                        {m.label}
+                      </a>
+                    ) : (
+                      m.label
+                    )}
+                  </span>
+                ))}
+                {" "}— this server requires{" "}
+                {missing.length === 1 ? "it" : "them"} to run.
                 You can still install it, but it won't start until{" "}
                 {missing.length === 1 ? "it's" : "they're"} available on
                 your PATH.

@@ -123,7 +123,7 @@ function App() {
         mode={mode}
         onModeChange={setMode}
         badges={badges}
-        version="0.2.0"
+        version="0.2.1"
       />
       <main className="main">{body}</main>
     </div>

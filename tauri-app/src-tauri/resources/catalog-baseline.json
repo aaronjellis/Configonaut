@@ -513,29 +513,19 @@
       "repository": "https://linear.app/docs/mcp",
       "license": "Proprietary",
       "popularity": 7,
-      "transport": "stdio",
+      "transport": "remote",
       "config": {
         "command": "npx",
         "args": [
           "-y",
-          "linear-mcp-server"
-        ],
-        "env": {
-          "LINEAR_API_KEY": ""
-        }
+          "mcp-remote",
+          "https://mcp.linear.app/mcp"
+        ]
       },
       "requirements": [
         "node"
       ],
       "envVars": [
-        {
-          "name": "LINEAR_API_KEY",
-          "description": "Linear personal API key.",
-          "required": true,
-          "secret": true,
-          "placeholder": "lin_api_...",
-          "helpUrl": "https://linear.app/settings/api"
-        }
       ]
     },
     {
@@ -2230,7 +2220,7 @@
       "config": {
         "command": "uvx",
         "args": [
-          "huggingface-mcp"
+          "huggingface-mcp-server"
         ],
         "env": {
           "HF_TOKEN": ""
