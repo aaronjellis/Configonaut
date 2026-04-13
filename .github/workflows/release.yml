@@ -25,6 +25,9 @@ on:
     tags:
       - "v*"
 
+permissions:
+  contents: write
+
 # Only one release at a time.
 concurrency:
   group: release
