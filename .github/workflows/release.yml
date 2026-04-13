@@ -16,7 +16,8 @@
 #   APPLE_CERTIFICATE_PASSWORD  — password for the .p12
 #   APPLE_ID                    — your Apple ID email
 #   APPLE_PASSWORD              — app-specific password for notarytool
-#   APPLE_TEAM_ID               — 10-char team ID (e.g. ABCD123456)
+#   APPLE_TEAM_ID               — 10-char team ID
+#   APPLE_SIGNING_IDENTITY      — full codesign identity string
 
 name: Release
 
