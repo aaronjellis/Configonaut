@@ -6,7 +6,9 @@ A desktop app for managing Claude Desktop and Claude Code configuration files. B
 
 - **MCP Server Management** -- Add, remove, and toggle MCP servers between Active and Inactive. Drag-and-drop to reorder. Inline JSON editor with validation.
 - **Marketplace** -- Browse and install MCP servers from a curated catalog. Runtime prerequisite detection warns when Node.js, Python, or Docker are missing.
-- **Desktop/CLI Mode Toggle** -- Switch between managing Claude Desktop (`claude_desktop_config.json`) and Claude Code (`~/.claude/settings.json`) configurations.
+- **Custom Catalog Feeds** -- Add custom feed URLs (forks, private/VPN-only catalogs) that merge with the built-in catalog. Per-feed caching for offline resilience.
+- **Desktop/CLI Mode Toggle** -- Switch between managing Claude Desktop (`claude_desktop_config.json`) and Claude Code (`~/.claude.json`) configurations.
+- **In-App Updates** -- Automatic update checks on launch, manual check from the menu bar, and a one-click install-and-restart flow.
 - **Hooks** -- View and edit Claude Code automation hooks with a toggle and JSON editor.
 - **Agents** -- Manage personal and plugin agents with a full markdown editor.
 - **Skills** -- Manage slash commands and skills, enable/disable plugin skills.
