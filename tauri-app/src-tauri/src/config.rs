@@ -26,7 +26,7 @@ use anyhow::{anyhow, Context};
 use chrono::Local;
 use serde_json::{Map, Value};
 
-use crate::models::{AppMode, AppResult, ServerEntry, ServerListing, ServerSource};
+use crate::models::{AppMode, AppResult, ProjectMcpGroup, ServerEntry, ServerListing, ServerSource};
 use crate::paths;
 
 // ---------------------------------------------------------------------------
@@ -62,12 +62,54 @@ pub fn list_servers(mode: AppMode) -> AppResult<ServerListing> {
         .collect();
     stored_servers.sort_by(|a, b| a.name.cmp(&b.name));
 
+    // CLI mode: also extract project-scoped MCPs from the `projects` key.
+    let project_groups = if mode == AppMode::Cli {
+        load_project_mcp_groups(&config_path)?
+    } else {
+        Vec::new()
+    };
+
     Ok(ServerListing {
         active_servers,
         stored_servers,
         config_path: config_path.to_string_lossy().into_owned(),
         needs_restart: false, // The frontend tracks this locally after mutations.
+        project_groups,
     })
+}
+
+/// Extract project-scoped MCP servers from `~/.claude.json`.
+/// Structure: `{ "projects": { "/path/to/project": { "mcpServers": { ... } } } }`
+fn load_project_mcp_groups(config_path: &Path) -> AppResult<Vec<ProjectMcpGroup>> {
+    let root = load_config_root(config_path)?;
+    let Some(Value::Object(projects)) = root.get("projects") else {
+        return Ok(Vec::new());
+    };
+
+    let mut groups = Vec::new();
+    for (project_path, project_data) in projects {
+        let Value::Object(proj_obj) = project_data else { continue };
+        let Some(Value::Object(mcp_servers)) = proj_obj.get("mcpServers") else { continue };
+        if mcp_servers.is_empty() {
+            continue;
+        }
+
+        let mut servers: Vec<ServerEntry> = mcp_servers
+            .iter()
+            .map(|(name, config)| ServerEntry {
+                name: name.clone(),
+                config_json: pretty_json(config),
+            })
+            .collect();
+        servers.sort_by(|a, b| a.name.cmp(&b.name));
+
+        groups.push(ProjectMcpGroup {
+            project_path: project_path.clone(),
+            servers,
+        });
+    }
+    groups.sort_by(|a, b| a.project_path.cmp(&b.project_path));
+    Ok(groups)
 }
 
 // ---------------------------------------------------------------------------

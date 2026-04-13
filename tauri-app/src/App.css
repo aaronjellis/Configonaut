@@ -751,6 +751,87 @@ a {
   height: 100%;
   gap: 6px;
   min-height: 0;
+  overflow: hidden;
+}
+
+/* Tab bar for User / Project MCPs (CLI mode only) */
+
+.mcp-tab-bar {
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--card-border);
+  border-radius: 10px;
+  flex-shrink: 0;
+}
+
+.mcp-tab {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 120ms ease;
+}
+
+.mcp-tab:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.mcp-tab.active {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.08);
+  border-color: var(--card-border-hover);
+}
+
+.mcp-tab-count {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-tertiary);
+}
+
+.mcp-tab.active .mcp-tab-count {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text-secondary);
+}
+
+/* Project MCP list (shown when Project tab is active) */
+
+.project-mcp-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 2px 0;
+}
+
+/* Selected state for project MCP cards */
+
+.agent-card.selected {
+  background: rgba(179, 108, 255, 0.1);
+  border-color: rgba(179, 108, 255, 0.3);
+}
+
+/* Project source tag in detail panel */
+
+.source-tag.project {
+  background: rgba(179, 108, 255, 0.15);
+  color: var(--purple);
 }
 
 .mcp-columns {
@@ -758,7 +839,7 @@ a {
   grid-template-columns: 1fr 1fr;
   gap: 14px;
   flex: 1;
-  min-height: 0;
+  min-height: 180px;
 }
 
 .column {
@@ -1013,10 +1094,9 @@ a {
 .detail-panel {
   display: flex;
   flex-direction: column;
-  /* Height is driven by the user's drag handle (inline style). We keep a
-     sensible floor so the panel never collapses completely if the stored
-     value is corrupt. */
-  min-height: 180px;
+  overflow: hidden;
+  /* Height is driven by the user's drag handle (inline style). */
+  min-height: 120px;
   background:
     linear-gradient(rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0.02)),
     rgba(17, 24, 39, 0.5);
@@ -1109,7 +1189,7 @@ body.is-dragging * {
 
 .detail-body textarea {
   flex: 1;
-  min-height: 140px;
+  min-height: 60px;
 }
 
 /* Realtime validation — the editor's border + subtle glow goes red
@@ -1136,6 +1216,7 @@ body.is-dragging * {
   padding: 6px 4px 0;
   font-size: 11px;
   color: var(--text-secondary);
+  flex-shrink: 0;
 }
 
 .status-footer .glow-dot {
@@ -3027,6 +3108,37 @@ body.is-dragging * {
   text-align: left;
   max-height: 140px;
   overflow-y: auto;
+}
+
+.update-accordion-body h4.update-notes-heading {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text);
+  margin: 8px 0 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.update-accordion-body h4.update-notes-heading:first-child {
+  margin-top: 0;
+}
+
+.update-accordion-body ul {
+  margin: 2px 0 6px;
+  padding-left: 16px;
+}
+
+.update-accordion-body li {
+  margin: 2px 0;
+}
+
+.update-accordion-body p {
+  margin: 4px 0;
+}
+
+.update-accordion-body strong {
+  color: var(--text);
+  font-weight: 600;
 }
 
 .update-accordion-body a {

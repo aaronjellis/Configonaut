@@ -61,6 +61,16 @@ pub struct ServerEntry {
     pub config_json: String,
 }
 
+/// A group of MCP servers scoped to a specific project directory.
+/// Only populated in CLI mode — Claude Code stores project-local servers
+/// under `projects[path].mcpServers` in ~/.claude.json.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProjectMcpGroup {
+    pub project_path: String,
+    pub servers: Vec<ServerEntry>,
+}
+
 /// Snapshot of the MCP Servers tab for a given mode — active, inactive, and
 /// the target config file path (so the UI can show it as a breadcrumb).
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -73,6 +83,9 @@ pub struct ServerListing {
     /// user relaunched Claude — the frontend uses this to show the "Restart
     /// Claude to apply" banner.
     pub needs_restart: bool,
+    /// Project-scoped MCP servers (CLI mode only). Each group contains
+    /// servers defined under `projects[path].mcpServers` in ~/.claude.json.
+    pub project_groups: Vec<ProjectMcpGroup>,
 }
 
 // ---------------------------------------------------------------------------

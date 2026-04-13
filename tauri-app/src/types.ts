@@ -11,11 +11,17 @@ export interface ServerEntry {
   configJson: string;
 }
 
+export interface ProjectMcpGroup {
+  projectPath: string;
+  servers: ServerEntry[];
+}
+
 export interface ServerListing {
   activeServers: ServerEntry[];
   storedServers: ServerEntry[];
   configPath: string;
   needsRestart: boolean;
+  projectGroups: ProjectMcpGroup[];
 }
 
 export interface HookRule {

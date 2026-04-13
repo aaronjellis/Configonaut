@@ -11,20 +11,58 @@ interface Props {
   onDismiss: () => void;
 }
 
-/** Turn basic markdown links `[text](url)` into `<a>` tags. */
+/** Render a changelog string as simple structured JSX.
+ *  Handles ### headings, **bold**, `- ` list items, and [links](url). */
 function renderMarkdown(text: string) {
-  const parts = text.split(/(\[[^\]]+\]\([^)]+\))/g);
-  return parts.map((part, i) => {
-    const match = part.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
-    if (match) {
-      return (
-        <a key={i} href={match[2]} target="_blank" rel="noopener noreferrer">
-          {match[1]}
-        </a>
-      );
+  const lines = text.split("\n");
+  const elements: React.ReactNode[] = [];
+  let listItems: React.ReactNode[] = [];
+
+  function flushList() {
+    if (listItems.length > 0) {
+      elements.push(<ul key={`ul-${elements.length}`}>{listItems}</ul>);
+      listItems = [];
     }
-    return part;
-  });
+  }
+
+  function inlineMarkdown(line: string, key: number): React.ReactNode {
+    // Bold + links in a single pass.
+    const parts = line.split(/(\*\*[^*]+\*\*|\[[^\]]+\]\([^)]+\))/g);
+    return parts.map((part, i) => {
+      const bold = part.match(/^\*\*(.+)\*\*$/);
+      if (bold) return <strong key={`${key}-${i}`}>{bold[1]}</strong>;
+      const link = part.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
+      if (link) {
+        return (
+          <a key={`${key}-${i}`} href={link[2]} target="_blank" rel="noopener noreferrer">
+            {link[1]}
+          </a>
+        );
+      }
+      return part;
+    });
+  }
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (line.startsWith("### ")) {
+      flushList();
+      elements.push(
+        <h4 key={`h-${i}`} className="update-notes-heading">
+          {line.slice(4)}
+        </h4>
+      );
+    } else if (line.startsWith("- ")) {
+      listItems.push(<li key={`li-${i}`}>{inlineMarkdown(line.slice(2), i)}</li>);
+    } else if (line.trim() === "") {
+      flushList();
+    } else {
+      flushList();
+      elements.push(<p key={`p-${i}`}>{inlineMarkdown(line, i)}</p>);
+    }
+  }
+  flushList();
+  return elements;
 }
 
 export function UpdateModal({ update, onDismiss }: Props) {

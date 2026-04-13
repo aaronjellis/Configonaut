@@ -53,6 +53,7 @@ import { displayPath } from "../lib/displayPath";
 import { validateServerConfigJson } from "../lib/validateServerJson";
 import type {
   AppMode,
+  ProjectMcpGroup,
   ServerEntry,
   ServerListing,
   ServerSource,
@@ -66,8 +67,15 @@ interface Props {
   onMutated: () => void;
 }
 
+type McpTab = "user" | "project";
+
 interface Selection {
   source: ServerSource;
+  name: string;
+}
+
+interface ProjectSelection {
+  projectPath: string;
   name: string;
 }
 
@@ -98,7 +106,7 @@ const DRAG_THRESHOLD = 4;
 
 /// localStorage key for the user's preferred detail-pane height (px).
 const DETAIL_HEIGHT_KEY = "configonaut.mcp.detailHeight";
-const DETAIL_MIN_HEIGHT = 180;
+const DETAIL_MIN_HEIGHT = 120;
 /// We always leave at least this much space above the detail pane for the
 /// columns, even if the user drags the handle all the way to the top.
 const COLUMNS_MIN_HEIGHT = 200;
@@ -115,6 +123,9 @@ export function McpServersView({ mode, onMutated }: Props) {
   const [statusMessage, setStatusMessage] = useState("Ready.");
   const [statusIsError, setStatusIsError] = useState(false);
   const [drag, setDrag] = useState<DragState | null>(null);
+  const [mcpTab, setMcpTab] = useState<McpTab>("user");
+  const [projectSelection, setProjectSelection] =
+    useState<ProjectSelection | null>(null);
 
   /// Height (in px) of the JSON editor pane. The user can drag the
   /// resize handle between the columns and the detail panel to grow or
@@ -126,7 +137,7 @@ export function McpServersView({ mode, onMutated }: Props) {
       const n = parseInt(stored, 10);
       if (Number.isFinite(n) && n >= DETAIL_MIN_HEIGHT) return n;
     }
-    return 320;
+    return 220;
   });
 
   /// Refs to each column body so pointer-move can hit-test them without
@@ -158,6 +169,8 @@ export function McpServersView({ mode, onMutated }: Props) {
 
   useEffect(() => {
     setSelection(null);
+    setProjectSelection(null);
+    setMcpTab("user");
     setEditedJson("");
     setEditError(null);
     setNeedsRestart(false);
@@ -165,13 +178,22 @@ export function McpServersView({ mode, onMutated }: Props) {
   }, [mode, refresh]);
 
   const selectedEntry: ServerEntry | null = useMemo(() => {
-    if (!selection || !listing) return null;
+    if (!listing) return null;
+    if (projectSelection) {
+      const group = listing.projectGroups.find(
+        (g) => g.projectPath === projectSelection.projectPath
+      );
+      return group?.servers.find((s) => s.name === projectSelection.name) ?? null;
+    }
+    if (!selection) return null;
     const pool =
       selection.source === "active"
         ? listing.activeServers
         : listing.storedServers;
     return pool.find((s) => s.name === selection.name) ?? null;
-  }, [selection, listing]);
+  }, [selection, projectSelection, listing]);
+
+  const isProjectSelected = projectSelection !== null;
 
   useEffect(() => {
     if (selectedEntry) {
@@ -484,7 +506,16 @@ export function McpServersView({ mode, onMutated }: Props) {
     );
   }
 
-  const totalCount = listing.activeServers.length + listing.storedServers.length;
+  const projectServerCount = listing.projectGroups.reduce(
+    (sum, g) => sum + g.servers.length,
+    0
+  );
+  const hasProjectGroups = listing.projectGroups.length > 0;
+  const showTabs = mode === "cli" && hasProjectGroups;
+  const totalCount =
+    listing.activeServers.length +
+    listing.storedServers.length +
+    projectServerCount;
   const activeCount = listing.activeServers.length;
   const storedCount = listing.storedServers.length;
 
@@ -573,48 +604,91 @@ export function McpServersView({ mode, onMutated }: Props) {
         )}
 
         <div className="mcp-view" ref={mcpViewRef}>
-          <div className="mcp-columns">
-            <Column
-              tone="active"
-              title="Active"
-              icon="⚡"
-              subtitle={
-                mode === "desktop"
-                  ? "Running in Claude Desktop right now"
-                  : "Running in Claude Code right now"
-              }
-              source="active"
-              servers={listing.activeServers}
-              selection={selection}
-              onMove={(s) => handleMove(s, "active")}
-              onDelete={(s) => handleDelete(s, "active")}
-              onRowPointerDown={handleRowPointerDown}
-              drag={drag}
-              bodyRef={(el) => {
-                columnRefs.current.active = el;
-              }}
-              emptyTitle="No active servers"
-              emptyHint="Click + Add Server above, or drag one over from Inactive."
-            />
-            <Column
-              tone="inactive"
-              title="Inactive"
-              icon="☾"
-              subtitle="Saved for later — not running"
-              source="stored"
-              servers={listing.storedServers}
-              selection={selection}
-              onMove={(s) => handleMove(s, "stored")}
-              onDelete={(s) => handleDelete(s, "stored")}
-              onRowPointerDown={handleRowPointerDown}
-              drag={drag}
-              bodyRef={(el) => {
-                columnRefs.current.stored = el;
-              }}
-              emptyTitle="Nothing saved"
-              emptyHint="Drag a server here to turn it off without losing its config."
-            />
-          </div>
+          {showTabs && (
+            <div className="mcp-tab-bar">
+              <button
+                className={`mcp-tab ${mcpTab === "user" ? "active" : ""}`}
+                onClick={() => {
+                  setMcpTab("user");
+                  setProjectSelection(null);
+                }}
+              >
+                User MCPs
+                <span className="mcp-tab-count">
+                  {activeCount + storedCount}
+                </span>
+              </button>
+              <button
+                className={`mcp-tab ${mcpTab === "project" ? "active" : ""}`}
+                onClick={() => {
+                  setMcpTab("project");
+                  setSelection(null);
+                }}
+              >
+                Project MCPs
+                <span className="mcp-tab-count">{projectServerCount}</span>
+              </button>
+            </div>
+          )}
+
+          {mcpTab === "user" ? (
+            <div className="mcp-columns">
+              <Column
+                tone="active"
+                title="Active"
+                icon="⚡"
+                subtitle={
+                  mode === "desktop"
+                    ? "Running in Claude Desktop right now"
+                    : "Running in Claude Code right now"
+                }
+                source="active"
+                servers={listing.activeServers}
+                selection={selection}
+                onMove={(s) => handleMove(s, "active")}
+                onDelete={(s) => handleDelete(s, "active")}
+                onRowPointerDown={handleRowPointerDown}
+                drag={drag}
+                bodyRef={(el) => {
+                  columnRefs.current.active = el;
+                }}
+                emptyTitle="No active servers"
+                emptyHint="Click + Add Server above, or drag one over from Inactive."
+              />
+              <Column
+                tone="inactive"
+                title="Inactive"
+                icon="☾"
+                subtitle="Saved for later — not running"
+                source="stored"
+                servers={listing.storedServers}
+                selection={selection}
+                onMove={(s) => handleMove(s, "stored")}
+                onDelete={(s) => handleDelete(s, "stored")}
+                onRowPointerDown={handleRowPointerDown}
+                drag={drag}
+                bodyRef={(el) => {
+                  columnRefs.current.stored = el;
+                }}
+                emptyTitle="Nothing saved"
+                emptyHint="Drag a server here to turn it off without losing its config."
+              />
+            </div>
+          ) : (
+            <div className="project-mcp-list">
+              {listing.projectGroups.map((group) => (
+                <ProjectGroup
+                  key={group.projectPath}
+                  group={group}
+                  projectSelection={projectSelection}
+                  onSelect={(ps) => {
+                    setSelection(null);
+                    setProjectSelection(ps);
+                  }}
+                />
+              ))}
+            </div>
+          )}
 
           <div
             className="detail-resize-handle"
@@ -629,7 +703,7 @@ export function McpServersView({ mode, onMutated }: Props) {
 
           <div
             className="detail-panel"
-            style={{ height: detailHeight, flex: "none" }}
+            style={{ flex: `0 1 ${detailHeight}px` }}
           >
             <div className="detail-header">
               <div>
@@ -641,48 +715,55 @@ export function McpServersView({ mode, onMutated }: Props) {
                     {selection.source === "active" ? "ACTIVE" : "INACTIVE"}
                   </span>
                 )}
+                {isProjectSelected && (
+                  <span className="source-tag project">PROJECT</span>
+                )}
               </div>
             </div>
             <div className="detail-body">
               <textarea
-                className={jsonError ? "invalid" : ""}
+                className={jsonError && !isProjectSelected ? "invalid" : ""}
                 value={editedJson}
                 onChange={(e) => setEditedJson(e.currentTarget.value)}
                 placeholder="Select a server to view and edit its JSON config."
                 spellCheck={false}
-                disabled={!selectedEntry}
+                disabled={!selectedEntry || isProjectSelected}
+                readOnly={isProjectSelected}
               />
-              {/* Realtime validation banner. The parse/shape error
-                  wins over the save error — once the JSON is valid
-                  we fall back to showing any backend rejection. */}
-              {jsonError ? (
+              {isProjectSelected ? (
+                <div className="banner">
+                  Read-only — project MCPs are defined in .claude.json per-project.
+                </div>
+              ) : jsonError ? (
                 <div className="banner error">{jsonError}</div>
               ) : (
                 editError && <div className="banner error">{editError}</div>
               )}
-              <div className="detail-actions">
-                <button
-                  className="ghost"
-                  onClick={handleResetEdit}
-                  disabled={!selectedEntry || !isDirty}
-                >
-                  Reset
-                </button>
-                <button
-                  className="primary"
-                  onClick={handleSaveEdit}
-                  disabled={!selectedEntry || !!jsonError || !isDirty}
-                  title={
-                    jsonError
-                      ? "Fix the errors above before saving"
-                      : !isDirty
-                        ? "No changes to save"
-                        : undefined
-                  }
-                >
-                  Save
-                </button>
-              </div>
+              {!isProjectSelected && (
+                <div className="detail-actions">
+                  <button
+                    className="ghost"
+                    onClick={handleResetEdit}
+                    disabled={!selectedEntry || !isDirty}
+                  >
+                    Reset
+                  </button>
+                  <button
+                    className="primary"
+                    onClick={handleSaveEdit}
+                    disabled={!selectedEntry || !!jsonError || !isDirty}
+                    title={
+                      jsonError
+                        ? "Fix the errors above before saving"
+                        : !isDirty
+                          ? "No changes to save"
+                          : undefined
+                    }
+                  >
+                    Save
+                  </button>
+                </div>
+              )}
             </div>
           </div>
 
@@ -873,6 +954,98 @@ function Column({
             )}
           </>
         )}
+      </div>
+    </div>
+  );
+}
+
+// ---------- Project MCP group ----------
+
+interface ProjectGroupProps {
+  group: ProjectMcpGroup;
+  projectSelection: ProjectSelection | null;
+  onSelect: (sel: ProjectSelection) => void;
+}
+
+function ProjectGroup({ group, projectSelection, onSelect }: ProjectGroupProps) {
+  const short = group.projectPath.replace(/^\/Users\/[^/]+/, "~");
+  return (
+    <div className="agent-group">
+      <div className="agent-group-header" style={{
+        background: "rgba(179, 108, 255, 0.04)",
+        borderColor: "rgba(179, 108, 255, 0.1)",
+      }}>
+        <span
+          className="glow-dot"
+          style={{
+            background: "var(--purple)",
+            boxShadow: "0 0 6px var(--purple)",
+          }}
+        />
+        <svg
+          viewBox="0 0 24 24"
+          width="13"
+          height="13"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.75"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          style={{ color: "var(--purple)" }}
+        >
+          <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z" />
+        </svg>
+        <span className="group-title" title={group.projectPath}>
+          {short}
+        </span>
+        <span
+          className="count-mini-pill"
+          style={{
+            color: "var(--purple)",
+            background: "rgba(179, 108, 255, 0.1)",
+          }}
+        >
+          {group.servers.length}
+        </span>
+        <span className="spacer" />
+      </div>
+      <div className="agent-group-body">
+        <div
+          className="thread-line"
+          style={{ background: "rgba(179, 108, 255, 0.2)" }}
+        />
+        <div className="agent-cards">
+          {group.servers.map((s) => {
+            const isSelected =
+              projectSelection?.projectPath === group.projectPath &&
+              projectSelection?.name === s.name;
+            return (
+              <div
+                key={s.name}
+                className={`agent-card ${isSelected ? "selected" : ""}`}
+                onClick={() =>
+                  onSelect({ projectPath: group.projectPath, name: s.name })
+                }
+              >
+                <span
+                  className="glow-dot"
+                  style={{
+                    background: "var(--purple)",
+                    boxShadow: "0 0 4px var(--purple)",
+                  }}
+                />
+                <span className="agent-name">{s.name}</span>
+                <span className="spacer" />
+                <span
+                  className="agent-desc"
+                  style={{ color: "var(--text-quaternary)" }}
+                >
+                  project-scoped
+                </span>
+              </div>
+            );
+          })}
+        </div>
       </div>
     </div>
   );
