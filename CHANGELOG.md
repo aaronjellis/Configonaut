@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.2.5
+
+### Added
+- **Project-scoped MCPs tab** -- CLI mode now shows a "User MCPs" / "Project MCPs" segmented control. The Project tab displays MCP servers defined per-project in `~/.claude.json`, grouped by project path with threaded layout. Clicking a project MCP shows its config read-only in the detail panel.
+- Update modal now renders release notes as styled markdown (headings, bold, lists, links) instead of raw text.
+
+### Fixed
+- MCP view layout no longer overflows -- detail panel, status footer, and action buttons stay clipped within their container at all window sizes.
+- Detail panel and columns use proper flex sizing to prevent collapsed columns when the tab bar is present.
+
 ## 0.2.4
 
 ### Added
