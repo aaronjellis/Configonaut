@@ -206,7 +206,7 @@ impl CatalogConfig {
 /// to the production repo. If that ever needs to change, swap in an env var
 /// read here.
 const REMOTE_URL: &str =
-    "https://raw.githubusercontent.com/aaronellis/configonaut-catalog/main/catalog.json";
+    "https://raw.githubusercontent.com/aaronjellis/configonaut-catalog/main/catalog.json";
 
 /// Embedded fallback catalog. `cargo build` inlines the JSON into the binary
 /// so a brand-new install with no network can still show the Marketplace tab.
