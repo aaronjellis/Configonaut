@@ -27,6 +27,7 @@ const SPLASH_DURATION_MS: u64 = 5000;
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
             // Two-window boot: `splash` is created visible by tauri.conf.json
             // and `main` starts hidden. After SPLASH_DURATION_MS we close

@@ -47,9 +47,19 @@
     },
     "macOSPrivateApi": true
   },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDUwQkMxNUE0NjEzNUFFOEUKUldTT3JqVmhwQlc4VU9vYlhYUWF5VmRPZUExdnptSWcxRVBnc3hwWHdaSEc3SG81REdPM1JUenUK",
+      "endpoints": [
+        "https://github.com/aaronjellis/Configonaut/releases/latest/download/latest.json"
+      ],
+      "dialog": true
+    }
+  },
   "bundle": {
     "active": true,
     "targets": "all",
+    "createUpdaterArtifacts": "v1Compatible",
     "category": "DeveloperTool",
     "shortDescription": "Manage MCP servers, hooks, agents, and skills for Claude Desktop and Claude Code.",
     "longDescription": "Configonaut is a control panel for the Model Context Protocol (MCP) ecosystem. Browse and install servers from a curated marketplace, toggle them on and off without editing JSON by hand, manage hooks and skills, and keep timestamped backups of every config change.",
