@@ -1,0 +1,122 @@
+# Build and release Configonaut for macOS + Windows.
+#
+# Trigger: push a tag like `v1.0.0`.
+#
+# What happens:
+#   1. Builds the Tauri app on macOS (universal) and Windows (x64).
+#   2. Signs the macOS build with your Developer ID cert.
+#   3. Generates updater artifacts (.sig files) using TAURI_SIGNING_PRIVATE_KEY.
+#   4. Creates a GitHub Release with all installers + the `latest.json`
+#      updater manifest so running instances can self-update.
+#
+# Required repository secrets:
+#   TAURI_SIGNING_PRIVATE_KEY   — from `tauri signer generate`
+#   TAURI_SIGNING_PRIVATE_KEY_PASSWORD — passphrase for the above (can be empty)
+#   APPLE_CERTIFICATE           — base64-encoded .p12 Developer ID certificate
+#   APPLE_CERTIFICATE_PASSWORD  — password for the .p12
+#   APPLE_ID                    — your Apple ID email
+#   APPLE_PASSWORD              — app-specific password for notarytool
+#   APPLE_TEAM_ID               — 10-char team ID (e.g. ABCD123456)
+
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+# Only one release at a time.
+concurrency:
+  group: release
+  cancel-in-progress: true
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-latest
+            args: --target universal-apple-darwin
+            rust-targets: aarch64-apple-darwin,x86_64-apple-darwin
+          - platform: windows-latest
+            args: ""
+            rust-targets: x86_64-pc-windows-msvc
+
+    runs-on: ${{ matrix.platform }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust-targets }}
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: tauri-app/src-tauri
+
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Install frontend deps
+        working-directory: tauri-app
+        run: bun install
+
+      # macOS only: import the Developer ID certificate into a temporary keychain
+      # so codesign can find it during `tauri build`.
+      - name: Import Apple certificate
+        if: runner.os == 'macOS'
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+        run: |
+          KEYCHAIN_PATH=$RUNNER_TEMP/build.keychain
+          KEYCHAIN_PASSWORD=$(openssl rand -base64 32)
+
+          # Create a temporary keychain
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 3600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+          # Import certificate
+          echo "$APPLE_CERTIFICATE" | base64 --decode > $RUNNER_TEMP/certificate.p12
+          security import $RUNNER_TEMP/certificate.p12 \
+            -k "$KEYCHAIN_PATH" \
+            -P "$APPLE_CERTIFICATE_PASSWORD" \
+            -T /usr/bin/codesign \
+            -T /usr/bin/productsign
+
+          # Allow codesign to use the key without UI prompt
+          security set-key-partition-list -S apple-tool:,apple: \
+            -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+          # Add to search list so codesign finds it
+          security list-keychains -d user -s "$KEYCHAIN_PATH" login.keychain
+
+      - name: Build Tauri app
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Updater signing
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          # macOS code signing + notarization
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: "Developer ID Application: YOUR_NAME (YOUR_TEAM_ID)"
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        with:
+          projectPath: tauri-app
+          tagName: ${{ github.ref_name }}
+          releaseName: "Configonaut ${{ github.ref_name }}"
+          releaseBody: |
+            See the [changelog](https://github.com/aaronjellis/Configonaut/blob/main/CHANGELOG.md) for details.
+          releaseDraft: true
+          prerelease: false
+          args: ${{ matrix.args }}
+          includeUpdaterJson: true
