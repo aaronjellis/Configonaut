@@ -21,7 +21,7 @@ Copy the public key contents and replace `UPDATER_PUBKEY_PLACEHOLDER` in
 
 ## 2. Export your Apple Developer ID certificate as .p12
 
-Open Keychain Access → find "Developer ID Application: YOUR_NAME (YOUR_TEAM_ID)"
+Open Keychain Access → find your "Developer ID Application" certificate
 → right-click → Export → save as `.p12` with a password.
 
 Then base64-encode it:
@@ -42,7 +42,7 @@ Go to your repo → Settings → Secrets and variables → Actions → New repos
 | `APPLE_CERTIFICATE_PASSWORD`         | Password you set when exporting the .p12            |
 | `APPLE_ID`                           | Your Apple ID email                                 |
 | `APPLE_PASSWORD`                     | App-specific password (the one you stored earlier)  |
-| `APPLE_TEAM_ID`                      | `ABCD123456`                                        |
+| `APPLE_TEAM_ID`                      | Your 10-character Team ID                            |
 
 ## 4. Replace the updater public key placeholder
 

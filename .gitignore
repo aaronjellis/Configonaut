@@ -10,3 +10,8 @@ DerivedData/
 *.dmg
 dmg-staging/
 *.zip
+*.env
+*.env.*
+*.p12
+*.key
+*.pem

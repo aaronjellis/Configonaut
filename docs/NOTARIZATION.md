@@ -40,7 +40,7 @@ before running a release build:
 export APPLE_ID="you@example.com"
 export APPLE_PASSWORD="xxxx-xxxx-xxxx-xxxx"   # app-specific password
 export APPLE_TEAM_ID="ABCD123456"             # your 10-char Team ID
-export APPLE_SIGNING_IDENTITY="Developer ID Application: aaronjellis (ABCD123456)"
+export APPLE_SIGNING_IDENTITY="Developer ID Application: Your Name (ABCD123456)"
 ```
 
 The `APPLE_SIGNING_IDENTITY` string has to match the full Common Name
