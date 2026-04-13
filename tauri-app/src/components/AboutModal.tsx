@@ -36,7 +36,7 @@ export function AboutModal({ version, onCheckForUpdates, onDismiss }: Props) {
         </p>
         <div className="about-actions">
           <button
-            className="btn update-btn-primary"
+            className="update-btn-primary"
             onClick={handleCheck}
             disabled={checking}
           >

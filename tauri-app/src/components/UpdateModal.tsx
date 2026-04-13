@@ -1,6 +1,6 @@
 // Modal overlay that appears when a new version is available.
-// Shows version + release notes, lets the user download & install in-place,
-// and offers a "Restart Now" button once the install completes.
+// Shows version + release notes in a collapsible accordion, lets the user
+// download & install in-place, and offers a "Restart Now" button once done.
 
 import { useState } from "react";
 import type { Update } from "@tauri-apps/plugin-updater";
@@ -11,12 +11,29 @@ interface Props {
   onDismiss: () => void;
 }
 
+/** Turn basic markdown links `[text](url)` into `<a>` tags. */
+function renderMarkdown(text: string) {
+  const parts = text.split(/(\[[^\]]+\]\([^)]+\))/g);
+  return parts.map((part, i) => {
+    const match = part.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
+    if (match) {
+      return (
+        <a key={i} href={match[2]} target="_blank" rel="noopener noreferrer">
+          {match[1]}
+        </a>
+      );
+    }
+    return part;
+  });
+}
+
 export function UpdateModal({ update, onDismiss }: Props) {
   const [phase, setPhase] = useState<"prompt" | "downloading" | "done">(
     "prompt"
   );
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [notesOpen, setNotesOpen] = useState(false);
 
   const handleInstall = async () => {
     setPhase("downloading");
@@ -66,22 +83,36 @@ export function UpdateModal({ update, onDismiss }: Props) {
         </div>
 
         <h2 className="update-title">Update Available</h2>
-        <p className="update-version">
-          v{update.version}
-        </p>
+        <p className="update-version">v{update.version}</p>
 
         {update.body && (
-          <p className="update-notes">{update.body}</p>
+          <div className="update-accordion">
+            <button
+              className="update-accordion-trigger"
+              onClick={() => setNotesOpen((o) => !o)}
+              aria-expanded={notesOpen}
+            >
+              <span className={`update-accordion-chevron ${notesOpen ? "open" : ""}`}>
+                &#9656;
+              </span>
+              What's New
+            </button>
+            {notesOpen && (
+              <div className="update-accordion-body">
+                {renderMarkdown(update.body)}
+              </div>
+            )}
+          </div>
         )}
 
         {error && <p className="update-error">{error}</p>}
 
         {phase === "prompt" && (
           <div className="update-actions">
-            <button className="btn update-btn-primary" onClick={handleInstall}>
+            <button className="update-btn-primary" onClick={handleInstall}>
               Update Now
             </button>
-            <button className="btn update-btn-secondary" onClick={onDismiss}>
+            <button className="update-btn-secondary" onClick={onDismiss}>
               Later
             </button>
           </div>
@@ -97,19 +128,17 @@ export function UpdateModal({ update, onDismiss }: Props) {
             </div>
             <span className="update-progress-text">
               {progress < 100
-                ? `Downloading... ${Math.round(progress)}%`
-                : "Installing..."}
+                ? `Downloading\u2026 ${Math.round(progress)}%`
+                : "Installing\u2026"}
             </span>
           </div>
         )}
 
         {phase === "done" && (
           <div className="update-actions">
-            <p className="update-done-text">
-              Update installed successfully.
-            </p>
+            <p className="update-done-text">Update installed successfully.</p>
             <button
-              className="btn update-btn-primary"
+              className="update-btn-primary"
               onClick={() => relaunch()}
             >
               Restart Now
