@@ -36,6 +36,7 @@ import {
   toggleHook as apiToggleHook,
   updateHookRule,
 } from "../api";
+import { useToast } from "../components/Toast";
 import { displayPath } from "../lib/displayPath";
 import type { HookRule } from "../types";
 
@@ -50,6 +51,7 @@ const DETAIL_MIN_HEIGHT = 180;
 const LIST_MIN_HEIGHT = 160;
 
 export function HooksView({ onMutated }: Props) {
+  const toast = useToast();
   const [hooks, setHooks] = useState<HookRule[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -129,9 +131,9 @@ export function HooksView({ onMutated }: Props) {
   async function handleToggle(rule: HookRule) {
     try {
       await apiToggleHook(rule.event, rule.matcher, !rule.isEnabled);
-      setStatus(
-        `${rule.isEnabled ? "Disabled" : "Enabled"} ${rule.event} (${rule.matcher}).`
-      );
+      const msg = `${rule.isEnabled ? "Disabled" : "Enabled"} ${rule.event} (${rule.matcher}).`;
+      setStatus(msg);
+      toast.show(msg, "success");
       onMutated();
       await refresh();
     } catch (e) {
@@ -151,6 +153,7 @@ export function HooksView({ onMutated }: Props) {
     try {
       await updateHookRule(selected.event, selected.matcher, editedJson);
       setStatus(`Saved ${selected.event} hook.`);
+      toast.show(`Saved ${selected.event} hook.`, "success");
       onMutated();
       await refresh();
     } catch (e) {

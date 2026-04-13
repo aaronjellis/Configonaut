@@ -15,6 +15,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
+  checkRuntime,
   getCatalog,
   getCatalogLinks,
   installFromCatalog,
@@ -26,9 +27,11 @@ import type {
   AppMode,
   Catalog,
   CatalogServer,
+  RuntimeStatus,
   ServerTuple,
 } from "../types";
 import { MarketplaceTab } from "./MarketplaceTab";
+import { useToast } from "./Toast";
 
 interface Props {
   mode: AppMode;
@@ -50,6 +53,7 @@ export function AddServerModal({
   onCommit,
   onCatalogInstalled,
 }: Props) {
+  const toast = useToast();
   const [tab, setTab] = useState<Tab>("marketplace");
 
   // Catalog state — shared across tabs so switching back and forth doesn't
@@ -59,9 +63,12 @@ export function AddServerModal({
   const [catalogError, setCatalogError] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [links, setLinks] = useState<Record<string, string>>({});
+  const [runtimeStatus, setRuntimeStatus] = useState<RuntimeStatus | null>(null);
 
   // Bootstrap on mount. `getCatalog` is instant (cache or embedded baseline)
   // so we show the UI immediately, then hit `refreshCatalog` in the background.
+  // Runtime detection runs in parallel — it's cheap (~100ms) and we want the
+  // result ready before the user expands a server row.
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -77,17 +84,25 @@ export function AddServerModal({
         if (!cancelled) setCatalogError(String(e));
       }
 
-      // Background refresh — don't block the UI or surface transient errors,
-      // but update the list if a newer catalog comes back.
-      try {
-        setIsRefreshing(true);
-        const fresh = await refreshCatalog();
-        if (!cancelled) setCatalog(fresh);
-      } catch {
-        // Swallow — offline or rate-limited is fine, we have a baseline.
-      } finally {
-        if (!cancelled) setIsRefreshing(false);
-      }
+      // Fire runtime detection and background catalog refresh in parallel.
+      // Neither blocks the UI — if either fails, we degrade gracefully.
+      const runtimePromise = checkRuntime()
+        .then((rt) => { if (!cancelled) setRuntimeStatus(rt); })
+        .catch(() => {});
+
+      const refreshPromise = (async () => {
+        try {
+          setIsRefreshing(true);
+          const fresh = await refreshCatalog();
+          if (!cancelled) setCatalog(fresh);
+        } catch {
+          // Swallow — offline or rate-limited is fine, we have a baseline.
+        } finally {
+          if (!cancelled) setIsRefreshing(false);
+        }
+      })();
+
+      await Promise.all([runtimePromise, refreshPromise]);
     })();
     return () => {
       cancelled = true;
@@ -152,14 +167,17 @@ export function AddServerModal({
             catalogError={catalogError}
             isRefreshing={isRefreshing}
             links={links}
+            runtimeStatus={runtimeStatus}
             onRefresh={async () => {
               setIsRefreshing(true);
               try {
                 const fresh = await refreshCatalog();
                 setCatalog(fresh);
                 setCatalogError(null);
+                toast.show("Catalog refreshed.", "success");
               } catch (e) {
                 setCatalogError(String(e));
+                toast.show("Catalog refresh failed.", "error");
               } finally {
                 setIsRefreshing(false);
               }

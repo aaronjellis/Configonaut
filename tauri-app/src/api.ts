@@ -10,6 +10,7 @@ import type {
   BackupFile,
   Catalog,
   HookRule,
+  RuntimeStatus,
   ServerListing,
   ServerSource,
   ServerTuple,
@@ -256,4 +257,10 @@ export function writeClaudeFile(
   content: string
 ): Promise<void> {
   return invoke("write_claude_file", { filePath, content });
+}
+
+// ---------- Runtime detection ----------
+
+export function checkRuntime(): Promise<RuntimeStatus> {
+  return invoke<RuntimeStatus>("check_runtime");
 }

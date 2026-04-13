@@ -1,6 +1,6 @@
 [package]
 name = "configonaut"
-version = "0.1.0"
+version = "0.2.0"
 description = "Configonaut — MCP server, hook, and skill manager for Claude Desktop and Claude Code."
 authors = ["aaronjellis"]
 edition = "2021"

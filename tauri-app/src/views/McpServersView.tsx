@@ -48,6 +48,7 @@ import {
   updateServerConfig,
 } from "../api";
 import { AddServerModal } from "../components/AddServerModal";
+import { useToast } from "../components/Toast";
 import { displayPath } from "../lib/displayPath";
 import { validateServerConfigJson } from "../lib/validateServerJson";
 import type {
@@ -103,6 +104,7 @@ const DETAIL_MIN_HEIGHT = 180;
 const COLUMNS_MIN_HEIGHT = 200;
 
 export function McpServersView({ mode, onMutated }: Props) {
+  const toast = useToast();
   const [listing, setListing] = useState<ServerListing | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [selection, setSelection] = useState<Selection | null>(null);
@@ -268,14 +270,13 @@ export function McpServersView({ mode, onMutated }: Props) {
         await moveServerToStored(mode, entry.name);
         setNeedsRestart(true);
         setStatus(`Moved "${entry.name}" to Inactive.`);
+        toast.show(`Moved "${entry.name}" to Inactive.`, "success");
       } else {
         const warning = await moveServerToActive(mode, entry.name);
         setNeedsRestart(true);
-        setStatus(
-          warning
-            ? warning
-            : `Turned "${entry.name}" on.`
-        );
+        const msg = warning || `Turned "${entry.name}" on.`;
+        setStatus(msg);
+        toast.show(msg, warning ? "warning" : "success");
       }
       onMutated();
       await refresh();
@@ -304,10 +305,12 @@ export function McpServersView({ mode, onMutated }: Props) {
         setSelection(null);
       }
       setStatus(`Deleted "${entry.name}".`);
+      toast.show(`Deleted "${entry.name}".`, "success");
       onMutated();
       await refresh();
     } catch (e) {
       setStatus(String(e), true);
+      toast.show(String(e), "error");
     }
   }
 
@@ -330,6 +333,7 @@ export function McpServersView({ mode, onMutated }: Props) {
       );
       if (selection.source === "active") setNeedsRestart(true);
       setStatus(`Saved "${selection.name}".`);
+      toast.show(`Saved "${selection.name}".`, "success");
       onMutated();
       await refresh();
     } catch (e) {
@@ -355,9 +359,9 @@ export function McpServersView({ mode, onMutated }: Props) {
       } else {
         await addServersToStored(mode, entries);
       }
-      setStatus(
-        `Added ${entries.length} server${entries.length === 1 ? "" : "s"}.`
-      );
+      const msg = `Added ${entries.length} server${entries.length === 1 ? "" : "s"}.`;
+      setStatus(msg);
+      toast.show(msg, "success");
       onMutated();
       await refresh();
     } catch (e) {
@@ -732,6 +736,7 @@ export function McpServersView({ mode, onMutated }: Props) {
           onCatalogInstalled={async (name) => {
             setNeedsRestart(true);
             setStatus(`Installed "${name}" from the marketplace.`);
+            toast.show(`Installed "${name}" from the marketplace.`, "success");
             onMutated();
             await refresh();
           }}

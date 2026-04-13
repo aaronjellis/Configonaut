@@ -32,6 +32,7 @@ import {
   togglePlugin,
   writeClaudeFile,
 } from "../api";
+import { useToast } from "../components/Toast";
 import { displayPath } from "../lib/displayPath";
 import type { AgentEntry } from "../types";
 
@@ -63,6 +64,7 @@ You are a specialized agent. Describe your role and capabilities here.
 `;
 
 export function AgentsView({ onMutated }: Props) {
+  const toast = useToast();
   const [agents, setAgents] = useState<AgentEntry[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [searchText, setSearchText] = useState("");
@@ -192,6 +194,7 @@ export function AgentsView({ onMutated }: Props) {
     try {
       await writeClaudeFile(selected.filePath, editingContent);
       setStatus(`Saved "${selected.name}".`);
+      toast.show(`Saved "${selected.name}".`, "success");
       onMutated();
       await refresh();
     } catch (e) {
@@ -203,6 +206,7 @@ export function AgentsView({ onMutated }: Props) {
     try {
       await apiDeleteAgent(agent.filePath);
       setStatus(`Deleted "${agent.name}".`);
+      toast.show(`Deleted "${agent.name}".`, "success");
       if (selectedPath === agent.filePath) setSelectedPath(null);
       setConfirmDelete(null);
       onMutated();
@@ -217,6 +221,7 @@ export function AgentsView({ onMutated }: Props) {
       const key = `${pluginName}@claude-plugins-official`;
       await togglePlugin(key);
       setStatus(`Toggled plugin "${pluginName}".`);
+      toast.show(`Toggled plugin "${pluginName}".`, "success");
       onMutated();
       await refresh();
     } catch (e) {
@@ -238,6 +243,7 @@ export function AgentsView({ onMutated }: Props) {
         }
       }
       setStatus(`Created "${name}".`);
+      toast.show(`Created agent "${name}".`, "success");
       setShowNew(false);
       setNewName("");
       setNewContent("");

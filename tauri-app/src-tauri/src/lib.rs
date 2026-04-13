@@ -81,6 +81,8 @@ pub fn run() {
             commands::install_from_catalog,
             commands::get_catalog_links,
             commands::missing_secrets_for_server,
+            // Runtime detection
+            commands::check_runtime,
             // Paths
             commands::get_config_path,
             commands::get_storage_dir,

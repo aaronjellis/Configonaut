@@ -403,6 +403,42 @@ pub fn missing_secrets_for_server(
 }
 
 // ---------------------------------------------------------------------------
+// Runtime prerequisite detection
+// ---------------------------------------------------------------------------
+
+/// Probe the user's PATH for runtimes that stdio MCP servers depend on.
+/// Returns a struct with the detected version string for each runtime, or
+/// `None` if not found. This is intentionally fire-and-forget — we never
+/// block an install, just surface a warning.
+#[tauri::command]
+pub fn check_runtime() -> crate::models::RuntimeStatus {
+    use std::process::Command;
+
+    fn probe(cmd: &str, args: &[&str]) -> Option<String> {
+        Command::new(cmd)
+            .args(args)
+            .output()
+            .ok()
+            .and_then(|out| {
+                if out.status.success() {
+                    let raw = String::from_utf8_lossy(&out.stdout).trim().to_string();
+                    if raw.is_empty() { None } else { Some(raw) }
+                } else {
+                    None
+                }
+            })
+    }
+
+    crate::models::RuntimeStatus {
+        node: probe("node", &["--version"]),
+        python: probe("python3", &["--version"])
+            .or_else(|| probe("python", &["--version"])),
+        uv: probe("uv", &["--version"]),
+        docker: probe("docker", &["--version"]),
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Paths (debug helpers used by the UI to display "editing → /path/to/file")
 // ---------------------------------------------------------------------------
 

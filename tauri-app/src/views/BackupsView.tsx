@@ -19,6 +19,7 @@ import {
   readBackupContent,
   restoreBackup,
 } from "../api";
+import { useToast } from "../components/Toast";
 import type { AppMode, BackupFile } from "../types";
 
 interface Props {
@@ -32,6 +33,7 @@ interface DiffSummary {
 }
 
 export function BackupsView({ mode, onMutated }: Props) {
+  const toast = useToast();
   const [backups, setBackups] = useState<BackupFile[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
@@ -126,10 +128,12 @@ export function BackupsView({ mode, onMutated }: Props) {
     if (!ok) return;
     try {
       await restoreBackup(mode, b.path);
+      toast.show(`Restored backup from ${formatDate(b.createdAt)}.`, "success");
       onMutated();
       await refresh();
     } catch (e) {
       setError(String(e));
+      toast.show(String(e), "error");
     }
   }
 
@@ -143,20 +147,24 @@ export function BackupsView({ mode, onMutated }: Props) {
         setPreviewText("");
         setDiff(null);
       }
+      toast.show("Backup deleted.", "success");
       onMutated();
       await refresh();
     } catch (e) {
       setError(String(e));
+      toast.show(String(e), "error");
     }
   }
 
   async function handleForce() {
     try {
       await forceBackup(mode);
+      toast.show("Backup created.", "success");
       onMutated();
       await refresh();
     } catch (e) {
       setError(String(e));
+      toast.show(String(e), "error");
     }
   }
 

@@ -73,6 +73,10 @@ fn default_publisher_type() -> String {
     "community".to_string()
 }
 
+fn default_transport() -> String {
+    "stdio".to_string()
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CatalogServer {
@@ -94,6 +98,15 @@ pub struct CatalogServer {
     #[serde(default)]
     pub popularity: i64,
     pub config: CatalogConfig,
+    /// `"stdio"` or `"remote"`. Older catalogs may omit this — we default to
+    /// `"stdio"` because that's the common case and the one that actually has
+    /// runtime prerequisites.
+    #[serde(default = "default_transport")]
+    pub transport: String,
+    /// Runtime prerequisites, e.g. `["node"]`, `["python", "uv"]`, `["docker"]`.
+    /// Empty means no special runtime is needed.
+    #[serde(default)]
+    pub requirements: Vec<String>,
     #[serde(default)]
     pub setup_notes: Option<String>,
     /// Optional because older catalogs may omit this entirely — the baseline

@@ -101,8 +101,17 @@ export interface CatalogServer {
   license?: string | null;
   popularity: number;
   config: CatalogConfig;
+  transport: string;
+  requirements: string[];
   setupNotes?: string | null;
   envVars?: CatalogEnvVar[] | null;
+}
+
+export interface RuntimeStatus {
+  node: string | null;
+  python: string | null;
+  uv: string | null;
+  docker: string | null;
 }
 
 export interface CatalogEnvVar {

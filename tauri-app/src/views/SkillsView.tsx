@@ -33,6 +33,7 @@ import {
   toggleSkill as apiToggleSkill,
   writeClaudeFile,
 } from "../api";
+import { useToast } from "../components/Toast";
 import { displayPath } from "../lib/displayPath";
 import type { SkillEntry, SkillSource } from "../types";
 
@@ -73,6 +74,7 @@ Describe what this skill does and when it should activate.
 }
 
 export function SkillsView({ onMutated }: Props) {
+  const toast = useToast();
   const [skills, setSkills] = useState<SkillEntry[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [searchText, setSearchText] = useState("");
@@ -178,6 +180,7 @@ export function SkillsView({ onMutated }: Props) {
     try {
       await writeClaudeFile(selected.filePath, editingContent);
       setStatus(`Saved "${selected.name}".`);
+      toast.show(`Saved "${selected.name}".`, "success");
       onMutated();
       await refresh();
     } catch (e) {
@@ -188,7 +191,9 @@ export function SkillsView({ onMutated }: Props) {
   async function handleToggle(skill: SkillEntry) {
     try {
       await apiToggleSkill(skill.filePath, skill.source, skill.isEnabled);
-      setStatus(`${skill.isEnabled ? "Disabled" : "Enabled"} "${skill.name}".`);
+      const msg = `${skill.isEnabled ? "Disabled" : "Enabled"} "${skill.name}".`;
+      setStatus(msg);
+      toast.show(msg, "success");
       // Path changes when toggled (moved to/from .disabled/), so drop selection
       setSelectedPath(null);
       onMutated();
@@ -211,6 +216,7 @@ export function SkillsView({ onMutated }: Props) {
         }
       }
       setStatus(`Created "${name}".`);
+      toast.show(`Created skill "${name}".`, "success");
       setShowNew(false);
       setNewName("");
       setNewContent("");

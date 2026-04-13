@@ -154,6 +154,22 @@ pub struct SkillEntry {
 }
 
 // ---------------------------------------------------------------------------
+// Runtime prerequisite detection
+// ---------------------------------------------------------------------------
+
+/// Result of probing the user's PATH for runtimes that stdio MCP servers
+/// depend on. Each field is `Some("v20.11.0")` if the tool is found, or
+/// `None` if `which` / version check fails.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RuntimeStatus {
+    pub node: Option<String>,
+    pub python: Option<String>,
+    pub uv: Option<String>,
+    pub docker: Option<String>,
+}
+
+// ---------------------------------------------------------------------------
 // Command errors — serialized to JS as plain strings
 // ---------------------------------------------------------------------------
 

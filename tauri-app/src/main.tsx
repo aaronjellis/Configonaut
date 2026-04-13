@@ -1,6 +1,7 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";
+import { ToastProvider } from "./components/Toast";
 
 // Tag the root element with the current OS before React mounts so CSS
 // can branch on it from the very first paint. We only distinguish the
@@ -24,6 +25,8 @@ document.documentElement.dataset.os = detectOs();
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
-    <App />
+    <ToastProvider>
+      <App />
+    </ToastProvider>
   </React.StrictMode>,
 );

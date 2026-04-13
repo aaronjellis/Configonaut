@@ -1,7 +1,16 @@
-# Tauri + React + Typescript
+# Configonaut (Tauri App)
 
-This template should help get you started developing with Tauri, React and Typescript in Vite.
+See the [root README](../README.md) for project overview and features.
 
-## Recommended IDE Setup
+## Quick Start
 
-- [VS Code](https://code.visualstudio.com/) + [Tauri](https://marketplace.visualstudio.com/items?itemName=tauri-apps.tauri-vscode) + [rust-analyzer](https://marketplace.visualstudio.com/items?itemName=rust-lang.rust-analyzer)
+```bash
+bun install
+cargo tauri dev
+```
+
+## Stack
+
+- **Frontend:** React 19 + TypeScript + Vite
+- **Backend:** Rust (Tauri 2 commands)
+- **Styling:** Custom CSS with neon dark theme

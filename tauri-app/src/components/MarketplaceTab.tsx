@@ -21,6 +21,7 @@ import type {
   Catalog,
   CatalogCategory,
   CatalogServer,
+  RuntimeStatus,
 } from "../types";
 
 interface Props {
@@ -29,6 +30,7 @@ interface Props {
   isRefreshing: boolean;
   /// Map of installed-server-name → catalog-id for "Installed" badges.
   links: Record<string, string>;
+  runtimeStatus: RuntimeStatus | null;
   onRefresh: () => void | Promise<void>;
   onInstall: (
     server: CatalogServer,
@@ -42,6 +44,7 @@ export function MarketplaceTab({
   catalogError,
   isRefreshing,
   links,
+  runtimeStatus,
   onRefresh,
   onInstall,
 }: Props) {
@@ -248,6 +251,7 @@ export function MarketplaceTab({
                 server={server}
                 isSelected={expandedServerId === server.id}
                 isInstalled={isInstalled(server)}
+                runtimeStatus={runtimeStatus}
                 editedJson={editedJson}
                 editError={editError}
                 busy={busyInstalling}
@@ -445,6 +449,7 @@ interface ServerRowProps {
   server: CatalogServer;
   isSelected: boolean;
   isInstalled: boolean;
+  runtimeStatus: RuntimeStatus | null;
   editedJson: string;
   editError: string | null;
   busy: boolean;
@@ -454,10 +459,28 @@ interface ServerRowProps {
   onInstall: () => void;
 }
 
+/// Check which of a server's requirements are missing from the user's machine.
+function missingRequirements(
+  requirements: string[],
+  rt: RuntimeStatus | null
+): string[] {
+  if (!rt || requirements.length === 0) return [];
+  const missing: string[] = [];
+  for (const req of requirements) {
+    const key = req.toLowerCase();
+    if (key === "node" && !rt.node) missing.push("Node.js");
+    else if (key === "python" && !rt.python) missing.push("Python");
+    else if (key === "uv" && !rt.uv) missing.push("uv");
+    else if (key === "docker" && !rt.docker) missing.push("Docker");
+  }
+  return missing;
+}
+
 function ServerRow({
   server,
   isSelected,
   isInstalled,
+  runtimeStatus,
   editedJson,
   editError,
   busy,
@@ -519,6 +542,20 @@ function ServerRow({
           {server.setupNotes && (
             <div className="setup-notes">{server.setupNotes}</div>
           )}
+
+          {(() => {
+            const missing = missingRequirements(server.requirements, runtimeStatus);
+            if (missing.length === 0) return null;
+            return (
+              <div className="banner warning">
+                <strong>Missing:</strong> {missing.join(", ")} — this server
+                requires {missing.length === 1 ? "it" : "them"} to run.
+                You can still install it, but it won't start until{" "}
+                {missing.length === 1 ? "it's" : "they're"} available on
+                your PATH.
+              </div>
+            );
+          })()}
 
           {(server.envVars?.filter((v) => v.required).length ?? 0) > 0 && (
             <div className="env-vars-required">
