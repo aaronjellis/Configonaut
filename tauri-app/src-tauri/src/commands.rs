@@ -172,25 +172,25 @@ pub fn move_server_to_stored(mode: AppMode, name: String) -> AppResult<()> {
 ///
 /// Mirrors the Swift `moveToActiveIfReady(name:catalog:)` gate: when the
 /// server was originally installed from the catalog, we know which env
-/// vars are required, so we can look at the stored config block and
-/// refuse to activate it if any of them still hold a placeholder. The
-/// error message lists every missing var so the user can open the JSON
-/// editor and fill them in before retrying.
+/// Promote a stored server to active. If the validator detects possibly-
+/// unfilled env vars, a warning string is returned but the server is
+/// **still turned on**. We can't reliably distinguish a real token from
+/// a placeholder, so we warn and let the user decide.
 ///
 /// Servers that have no catalog link (e.g. pasted manually) are
-/// promoted unconditionally — we have no reliable way to know what
-/// "ready" means for an arbitrary config.
+/// promoted unconditionally.
 #[tauri::command]
-pub fn move_server_to_active(mode: AppMode, name: String) -> AppResult<()> {
+pub fn move_server_to_active(mode: AppMode, name: String) -> AppResult<String> {
     let missing = stored_server_missing_secrets(mode, &name)?;
+    config::move_to_active(mode, &name)?;
     if !missing.is_empty() {
-        return Err(anyhow::anyhow!(
-            "Can't turn on \"{name}\" — still need: {}",
+        Ok(format!(
+            "Warning: {} may still be placeholder values. The server was turned on — double-check if it doesn't connect.",
             missing.join(", ")
-        )
-        .into());
+        ))
+    } else {
+        Ok(String::new())
     }
-    config::move_to_active(mode, &name)
 }
 
 /// Look up the stored config for `name`, find its catalog link (if any),

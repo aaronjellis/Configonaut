@@ -57,7 +57,7 @@ export function moveServerToStored(
 export function moveServerToActive(
   mode: AppMode,
   name: string
-): Promise<void> {
+): Promise<string> {
   return invoke("move_server_to_active", { mode, name });
 }
 

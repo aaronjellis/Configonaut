@@ -266,15 +266,17 @@ export function McpServersView({ mode, onMutated }: Props) {
     try {
       if (source === "active") {
         await moveServerToStored(mode, entry.name);
+        setNeedsRestart(true);
+        setStatus(`Moved "${entry.name}" to Inactive.`);
       } else {
-        await moveServerToActive(mode, entry.name);
+        const warning = await moveServerToActive(mode, entry.name);
+        setNeedsRestart(true);
+        setStatus(
+          warning
+            ? warning
+            : `Turned "${entry.name}" on.`
+        );
       }
-      setNeedsRestart(true);
-      setStatus(
-        source === "active"
-          ? `Moved "${entry.name}" to Inactive.`
-          : `Turned "${entry.name}" on.`
-      );
       onMutated();
       await refresh();
       setSelection({

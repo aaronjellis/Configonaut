@@ -444,13 +444,13 @@ struct MCPView: View {
                     )
 
                 if !isReady {
-                    Label("Needs \(missing.joined(separator: ", "))", systemImage: "key.fill")
+                    Label("Check \(missing.joined(separator: ", "))", systemImage: "exclamationmark.triangle.fill")
                         .font(.caption2.weight(.semibold))
                         .foregroundStyle(Theme.amber)
                         .padding(.horizontal, 8)
                         .padding(.vertical, 2)
                         .background(Theme.amber.opacity(0.12), in: Capsule())
-                        .help("This server is still using placeholder values for required credentials.")
+                        .help("These values may still be placeholders — double-check before turning on. We can't fully validate syntax or credentials.")
                 }
 
                 Spacer()
@@ -509,28 +509,22 @@ struct MCPView: View {
                             config.moveToStored(server.name)
                             selectedServer = nil
                         } else {
-                            // Gated promotion — refuses if required envVars are placeholders.
-                            if config.moveToActiveIfReady(server.name, catalog: catalogStore.catalog) {
-                                selectedServer = nil
-                            }
+                            // Warn if secrets look like placeholders, but never block.
+                            config.moveToActiveWithWarning(server.name, catalog: catalogStore.catalog)
+                            selectedServer = nil
                         }
                     }
                 } label: {
-                    let canFlip = isActive || isReady
                     Label(
                         isActive ? "Turn Off" : "Turn On",
                         systemImage: isActive ? "moon.fill" : "bolt.fill"
                     )
                     .font(.caption.weight(.medium))
-                    .foregroundStyle(
-                        canFlip
-                            ? (isActive ? Theme.red : Theme.green)
-                            : .gray.opacity(0.5)
-                    )
+                    .foregroundStyle(isActive ? Theme.red : Theme.green)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 6)
                     .background(
-                        (canFlip ? (isActive ? Theme.red : Theme.green) : .gray).opacity(0.1),
+                        (isActive ? Theme.red : Theme.green).opacity(0.1),
                         in: RoundedRectangle(cornerRadius: 6)
                     )
                     .overlay(
@@ -542,10 +536,6 @@ struct MCPView: View {
                     )
                 }
                 .buttonStyle(.plain)
-                .disabled(!isActive && !isReady)
-                .help(!isActive && !isReady
-                      ? "Fill in: \(missing.joined(separator: ", "))"
-                      : "")
 
                 Button { copyToClipboard(server) } label: {
                     Label("Copy JSON", systemImage: "doc.on.doc")

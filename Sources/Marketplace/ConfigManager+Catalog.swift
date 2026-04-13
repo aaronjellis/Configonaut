@@ -167,23 +167,21 @@ extension ConfigManager {
         return obj
     }
 
-    // MARK: Gated move-to-active
+    // MARK: Move-to-active with warning
 
-    /// Same semantics as `moveToActive(_:)` but refuses to promote if the server
-    /// still has unfilled required env vars. Returns `true` if the server was
-    /// actually turned on.
-    @discardableResult
-    func moveToActiveIfReady(_ name: String, catalog: Catalog?) -> Bool {
+    /// Promote a server to active. If the validator detects possibly-unfilled env
+    /// vars it shows a warning in the status bar but **never blocks**. We can't
+    /// reliably distinguish a real token from a placeholder, so we warn and let
+    /// the user decide.
+    func moveToActiveWithWarning(_ name: String, catalog: Catalog?) {
         let missing = missingSecrets(forServer: name, catalog: catalog)
         if !missing.isEmpty {
             let joined = missing.joined(separator: ", ")
             setStatus(
-                "Can't turn on \"\(name)\" -- still need: \(joined)",
-                isError: true
+                "Warning: \(joined) may still be placeholder values. The server was turned on — double-check if it doesn't connect.",
+                isError: false
             )
-            return false
         }
         moveToActive(name)
-        return true
     }
 }
