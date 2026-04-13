@@ -70,10 +70,7 @@ export function MarketplaceTab({
   const [busyInstalling, setBusyInstalling] = useState(false);
 
   // Feed manager state
-  const [showFeedForm, setShowFeedForm] = useState(false);
-  const [newFeedLabel, setNewFeedLabel] = useState("");
-  const [newFeedUrl, setNewFeedUrl] = useState("");
-  const [addingFeed, setAddingFeed] = useState(false);
+  const [showFeedModal, setShowFeedModal] = useState(false);
 
   // Feed status lookup by id.
   const feedStatusMap = useMemo(() => {
@@ -81,21 +78,6 @@ export function MarketplaceTab({
     for (const s of feedStatuses) m.set(s.id, s);
     return m;
   }, [feedStatuses]);
-
-  async function handleAddFeed() {
-    const url = newFeedUrl.trim();
-    const label = newFeedLabel.trim();
-    if (!url || !label) return;
-    setAddingFeed(true);
-    try {
-      await onAddFeed(label, url);
-      setNewFeedLabel("");
-      setNewFeedUrl("");
-      setShowFeedForm(false);
-    } finally {
-      setAddingFeed(false);
-    }
-  }
 
   // Set of installed catalog ids, for the "Installed" pill. Values of `links`
   // are catalog ids, keys are server names — either match marks a row as
@@ -283,42 +265,14 @@ export function MarketplaceTab({
           <div className="feed-manager">
             <div className="feed-manager-header">
               <span className="feed-manager-title">Feeds</span>
-              <button
-                className="ghost small"
-                onClick={() => setShowFeedForm((v) => !v)}
-                title="Add a custom feed"
-              >
-                {showFeedForm ? "✕" : "+"}
-              </button>
             </div>
 
-            {showFeedForm && (
-              <div className="feed-add-form">
-                <input
-                  placeholder="Label"
-                  value={newFeedLabel}
-                  onChange={(e) => setNewFeedLabel(e.currentTarget.value)}
-                  disabled={addingFeed}
-                />
-                <input
-                  placeholder="https://example.com/catalog.json"
-                  value={newFeedUrl}
-                  onChange={(e) => setNewFeedUrl(e.currentTarget.value)}
-                  disabled={addingFeed}
-                />
-                <button
-                  className="primary small"
-                  disabled={
-                    addingFeed ||
-                    !newFeedLabel.trim() ||
-                    !newFeedUrl.trim()
-                  }
-                  onClick={handleAddFeed}
-                >
-                  {addingFeed ? "Adding…" : "Add"}
-                </button>
-              </div>
-            )}
+            <button
+              className="feed-add-button"
+              onClick={() => setShowFeedModal(true)}
+            >
+              + Add Custom Feed
+            </button>
 
             {feeds.map((feed) => {
               const status = feedStatusMap.get(feed.id);
@@ -395,6 +349,100 @@ export function MarketplaceTab({
               />
             ))
           )}
+        </div>
+      </div>
+
+      {showFeedModal && (
+        <AddFeedModal
+          onClose={() => setShowFeedModal(false)}
+          onAdd={onAddFeed}
+        />
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Add Feed modal
+// ---------------------------------------------------------------------------
+
+function AddFeedModal({
+  onClose,
+  onAdd,
+}: {
+  onClose: () => void;
+  onAdd: (label: string, url: string) => Promise<void>;
+}) {
+  const [label, setLabel] = useState("");
+  const [url, setUrl] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleSubmit() {
+    if (!label.trim() || !url.trim()) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await onAdd(label.trim(), url.trim());
+      onClose();
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div
+        className="modal feed-modal"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="modal-header">
+          <h3>Add Custom Feed</h3>
+          <button className="ghost" onClick={onClose}>
+            ✕
+          </button>
+        </div>
+        <div className="modal-body feed-modal-body">
+          <p className="feed-modal-hint">
+            Point to a JSON catalog hosted on your network, a GitHub fork,
+            or any URL that serves the same schema as the official catalog.
+          </p>
+          <label className="feed-modal-label">
+            Label
+            <input
+              type="text"
+              value={label}
+              onChange={(e) => setLabel(e.currentTarget.value)}
+              placeholder="My team catalog"
+              disabled={busy}
+              autoFocus
+            />
+          </label>
+          <label className="feed-modal-label">
+            Feed URL
+            <input
+              type="url"
+              value={url}
+              onChange={(e) => setUrl(e.currentTarget.value)}
+              placeholder="https://example.com/catalog.json"
+              disabled={busy}
+            />
+          </label>
+          {error && <div className="banner error">{error}</div>}
+        </div>
+        <div className="modal-footer">
+          <button className="ghost" onClick={onClose} disabled={busy}>
+            Cancel
+          </button>
+          <button
+            className="primary"
+            onClick={handleSubmit}
+            disabled={busy || !label.trim() || !url.trim()}
+          >
+            {busy ? "Adding…" : "Add Feed"}
+          </button>
         </div>
       </div>
     </div>

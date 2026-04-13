@@ -502,3 +502,133 @@ pub fn delete_backup(backup_path: &str) -> AppResult<()> {
     }
     Ok(())
 }
+
+// ---------------------------------------------------------------------------
+// Tests
+// ---------------------------------------------------------------------------
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    // -- unwrap_mcp_wrapper --
+
+    #[test]
+    fn unwrap_wrapper_by_name() {
+        let val = json!({
+            "mcpServers": {
+                "github": { "command": "npx", "args": ["-y", "@github/mcp"] }
+            }
+        });
+        let result = unwrap_mcp_wrapper(&val, "github");
+        assert_eq!(result, json!({ "command": "npx", "args": ["-y", "@github/mcp"] }));
+    }
+
+    #[test]
+    fn unwrap_wrapper_single_entry_different_name() {
+        // If there's only one entry in mcpServers, extract it even if the name doesn't match.
+        let val = json!({
+            "mcpServers": {
+                "old-name": { "command": "docker", "args": ["run"] }
+            }
+        });
+        let result = unwrap_mcp_wrapper(&val, "new-name");
+        assert_eq!(result, json!({ "command": "docker", "args": ["run"] }));
+    }
+
+    #[test]
+    fn unwrap_wrapper_multi_entry_no_name_match() {
+        // Multiple entries but none match the name — return the original.
+        let val = json!({
+            "mcpServers": {
+                "a": { "command": "x" },
+                "b": { "command": "y" }
+            }
+        });
+        let result = unwrap_mcp_wrapper(&val, "c");
+        assert_eq!(result, val);
+    }
+
+    #[test]
+    fn unwrap_non_wrapper_passthrough() {
+        // Already a plain config — return as-is.
+        let val = json!({ "command": "npx", "args": ["foo"] });
+        let result = unwrap_mcp_wrapper(&val, "test");
+        assert_eq!(result, val);
+    }
+
+    #[test]
+    fn unwrap_wrapper_with_extra_keys_passthrough() {
+        // Has mcpServers but also other top-level keys — not a wrapper.
+        let val = json!({
+            "mcpServers": { "a": { "command": "x" } },
+            "otherKey": true
+        });
+        let result = unwrap_mcp_wrapper(&val, "a");
+        assert_eq!(result, val);
+    }
+
+    #[test]
+    fn unwrap_non_object_passthrough() {
+        let val = json!("just a string");
+        assert_eq!(unwrap_mcp_wrapper(&val, "x"), val);
+
+        let val = json!(42);
+        assert_eq!(unwrap_mcp_wrapper(&val, "x"), val);
+    }
+
+    // -- sort_keys --
+
+    #[test]
+    fn sort_keys_flat_object() {
+        let val = json!({ "z": 1, "a": 2, "m": 3 });
+        let sorted = sort_keys(&val);
+        let keys: Vec<&String> = sorted.as_object().unwrap().keys().collect();
+        assert_eq!(keys, vec!["a", "m", "z"]);
+    }
+
+    #[test]
+    fn sort_keys_nested() {
+        let val = json!({ "outer": { "z": 1, "a": 2 } });
+        let sorted = sort_keys(&val);
+        let inner = sorted["outer"].as_object().unwrap();
+        let keys: Vec<&String> = inner.keys().collect();
+        assert_eq!(keys, vec!["a", "z"]);
+    }
+
+    #[test]
+    fn sort_keys_array_of_objects() {
+        let val = json!([{ "b": 1, "a": 2 }]);
+        let sorted = sort_keys(&val);
+        let keys: Vec<&String> = sorted[0].as_object().unwrap().keys().collect();
+        assert_eq!(keys, vec!["a", "b"]);
+    }
+
+    #[test]
+    fn sort_keys_primitives_unchanged() {
+        assert_eq!(sort_keys(&json!(42)), json!(42));
+        assert_eq!(sort_keys(&json!("hello")), json!("hello"));
+        assert_eq!(sort_keys(&json!(true)), json!(true));
+        assert_eq!(sort_keys(&json!(null)), json!(null));
+    }
+
+    // -- pretty_json --
+
+    #[test]
+    fn pretty_json_sorts_and_formats() {
+        let val = json!({ "command": "npx", "args": ["-y", "foo"] });
+        let output = pretty_json(&val);
+        assert!(output.contains("\"args\""));
+        assert!(output.contains("\"command\""));
+        // "args" should come before "command" alphabetically
+        let args_pos = output.find("\"args\"").unwrap();
+        let cmd_pos = output.find("\"command\"").unwrap();
+        assert!(args_pos < cmd_pos);
+    }
+
+    #[test]
+    fn pretty_json_empty_object() {
+        assert_eq!(pretty_json(&json!({})), "{}");
+    }
+}

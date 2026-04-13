@@ -1769,28 +1769,77 @@ body.is-dragging * {
   color: var(--text-tertiary);
 }
 
-.feed-add-form {
+.feed-add-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 6px 9px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--blue);
+  background: rgba(0, 180, 255, 0.06);
+  border: 1px dashed rgba(0, 180, 255, 0.25);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 120ms ease, border-color 120ms ease;
+}
+
+.feed-add-button:hover {
+  background: rgba(0, 180, 255, 0.12);
+  border-color: rgba(0, 180, 255, 0.4);
+}
+
+/* Add Feed modal */
+
+.feed-modal {
+  width: 420px;
+}
+
+.feed-modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.feed-modal-hint {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.feed-modal-label {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  padding: 4px 6px 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
 }
 
-.feed-add-form input {
-  font-size: 11px;
-  padding: 4px 7px;
-  border-radius: 5px;
+.feed-modal-label input {
+  font-size: 13px;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: normal;
+  padding: 8px 10px;
+  border-radius: var(--radius);
   border: 1px solid var(--card-border);
-  background: rgba(0, 0, 0, 0.2);
+  background: var(--bg-input);
   color: var(--text);
 }
 
-.feed-add-form input::placeholder {
+.feed-modal-label input::placeholder {
   color: var(--text-quaternary);
 }
 
-.feed-add-form button {
-  align-self: flex-end;
+.feed-modal-label input:focus {
+  outline: none;
+  border-color: var(--blue);
+  box-shadow: 0 0 0 2px rgba(0, 180, 255, 0.15);
 }
 
 .feed-row {

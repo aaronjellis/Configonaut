@@ -829,3 +829,124 @@ pub fn read_claude_file(file_path: String) -> AppResult<String> {
 pub fn write_claude_file(file_path: String, content: String) -> AppResult<()> {
     claude_code::write_claude_file(&file_path, &content)
 }
+
+// ---------------------------------------------------------------------------
+// Tests
+// ---------------------------------------------------------------------------
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    // -- parse_server_input --
+
+    #[test]
+    fn parse_mcpservers_wrapper() {
+        let input = json!({
+            "mcpServers": {
+                "github": { "command": "npx", "args": ["-y", "@github/mcp"] }
+            }
+        })
+        .to_string();
+        let result = parse_server_input(input, None).unwrap();
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].0, "github");
+        assert_eq!(result[0].1["command"], "npx");
+    }
+
+    #[test]
+    fn parse_single_server_body_with_name() {
+        let input = json!({ "command": "docker", "args": ["run", "img"] }).to_string();
+        let result = parse_server_input(input, Some("my-server".into())).unwrap();
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].0, "my-server");
+        assert_eq!(result[0].1["command"], "docker");
+    }
+
+    #[test]
+    fn parse_single_server_body_no_name_fails() {
+        let input = json!({ "command": "docker" }).to_string();
+        let err = parse_server_input(input, None).unwrap_err();
+        assert!(err.to_string().contains("provide a name"));
+    }
+
+    #[test]
+    fn parse_bare_map() {
+        let input = json!({
+            "github": { "command": "npx" },
+            "gitlab": { "url": "http://localhost" }
+        })
+        .to_string();
+        let result = parse_server_input(input, None).unwrap();
+        assert_eq!(result.len(), 2);
+        let names: Vec<&str> = result.iter().map(|(n, _)| n.as_str()).collect();
+        assert!(names.contains(&"github"));
+        assert!(names.contains(&"gitlab"));
+    }
+
+    #[test]
+    fn parse_empty_input_fails() {
+        let err = parse_server_input("".into(), None).unwrap_err();
+        assert!(err.to_string().contains("Nothing to parse"));
+    }
+
+    #[test]
+    fn parse_invalid_json_fails() {
+        let err = parse_server_input("{ not json }".into(), None).unwrap_err();
+        assert!(err.to_string().contains("Invalid JSON"));
+    }
+
+    #[test]
+    fn parse_non_object_fails() {
+        let err = parse_server_input("[1, 2]".into(), None).unwrap_err();
+        assert!(err.to_string().contains("object"));
+    }
+
+    #[test]
+    fn parse_empty_mcpservers_fails() {
+        let input = json!({ "mcpServers": {} }).to_string();
+        let err = parse_server_input(input, None).unwrap_err();
+        assert!(err.to_string().contains("empty"));
+    }
+
+    // -- validate_server_entries --
+
+    #[test]
+    fn validate_valid_command_entry() {
+        let entries = vec![("test".into(), json!({ "command": "npx" }))];
+        assert!(validate_server_entries(&entries).is_ok());
+    }
+
+    #[test]
+    fn validate_valid_url_entry() {
+        let entries = vec![("test".into(), json!({ "url": "http://localhost" }))];
+        assert!(validate_server_entries(&entries).is_ok());
+    }
+
+    #[test]
+    fn validate_missing_both_fails() {
+        let entries = vec![("bad".into(), json!({ "args": ["foo"] }))];
+        let err = validate_server_entries(&entries).unwrap_err();
+        assert!(err.to_string().contains("\"bad\""));
+        assert!(err.to_string().contains("missing both"));
+    }
+
+    #[test]
+    fn validate_empty_command_fails() {
+        let entries = vec![("bad".into(), json!({ "command": "" }))];
+        let err = validate_server_entries(&entries).unwrap_err();
+        assert!(err.to_string().contains("\"bad\""));
+    }
+
+    #[test]
+    fn validate_multiple_bad_entries_reports_all() {
+        let entries = vec![
+            ("a".into(), json!({ "args": [] })),
+            ("b".into(), json!({ "env": {} })),
+        ];
+        let err = validate_server_entries(&entries).unwrap_err();
+        assert!(err.to_string().contains("\"a\""));
+        assert!(err.to_string().contains("\"b\""));
+    }
+}
