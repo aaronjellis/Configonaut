@@ -16,7 +16,8 @@ mod config;
 mod models;
 mod paths;
 
-use tauri::Manager;
+use tauri::menu::{MenuBuilder, MenuItem, SubmenuBuilder};
+use tauri::{Emitter, Manager};
 
 // How long the splash window stays up before we tear it down and show
 // the main window. Short enough that nobody feels nagged, long enough
@@ -28,14 +29,87 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_process::init())
         .setup(|app| {
-            // Two-window boot: `splash` is created visible by tauri.conf.json
-            // and `main` starts hidden. After SPLASH_DURATION_MS we close
-            // the splash and reveal main. We do the wait on a background
-            // thread so the Tauri event loop keeps running and the splash
-            // animation stays smooth; the actual window mutations hop back
-            // to the main thread via `run_on_main_thread` because window
-            // handles are not Send-safe on all platforms.
+            // ── Native application menu ─────────────────────────────
+            let check_updates = MenuItem::with_id(
+                app,
+                "check_for_updates",
+                "Check for Updates\u{2026}",
+                true,
+                None::<&str>,
+            )?;
+
+            let edit_sub = SubmenuBuilder::new(app, "Edit")
+                .undo()
+                .redo()
+                .separator()
+                .cut()
+                .copy()
+                .paste()
+                .select_all()
+                .build()?;
+
+            let window_sub = SubmenuBuilder::new(app, "Window")
+                .minimize()
+                .separator()
+                .close_window()
+                .build()?;
+
+            #[cfg(target_os = "macos")]
+            let menu = {
+                let app_sub = SubmenuBuilder::new(app, "Configonaut")
+                    .about(None)
+                    .separator()
+                    .item(&check_updates)
+                    .separator()
+                    .services()
+                    .separator()
+                    .hide()
+                    .hide_others()
+                    .show_all()
+                    .separator()
+                    .quit()
+                    .build()?;
+
+                MenuBuilder::new(app)
+                    .item(&app_sub)
+                    .item(&edit_sub)
+                    .item(&window_sub)
+                    .build()?
+            };
+
+            #[cfg(not(target_os = "macos"))]
+            let menu = {
+                let help_sub = SubmenuBuilder::new(app, "Help")
+                    .about(None)
+                    .separator()
+                    .item(&check_updates)
+                    .build()?;
+
+                MenuBuilder::new(app)
+                    .item(&edit_sub)
+                    .item(&window_sub)
+                    .item(&help_sub)
+                    .build()?
+            };
+
+            app.set_menu(menu)?;
+
+            app.on_menu_event(|app_handle, event| {
+                if event.id().as_ref() == "check_for_updates" {
+                    let _ = app_handle.emit("check-for-updates", ());
+                }
+            });
+
+            // ── Two-window boot ─────────────────────────────────────
+            // `splash` is created visible by tauri.conf.json and `main`
+            // starts hidden. After SPLASH_DURATION_MS we close the splash
+            // and reveal main. We do the wait on a background thread so
+            // the Tauri event loop keeps running and the splash animation
+            // stays smooth; the actual window mutations hop back to the
+            // main thread via `run_on_main_thread` because window handles
+            // are not Send-safe on all platforms.
             let handle = app.handle().clone();
             std::thread::spawn(move || {
                 std::thread::sleep(std::time::Duration::from_millis(

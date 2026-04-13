@@ -1,6 +1,6 @@
 [package]
 name = "configonaut"
-version = "0.2.1"
+version = "0.2.2"
 description = "Configonaut — MCP server, hook, and skill manager for Claude Desktop and Claude Code."
 authors = ["aaronjellis"]
 edition = "2021"
@@ -32,6 +32,7 @@ tauri-build = { version = "2", features = [] }
 tauri = { version = "2", features = ["macos-private-api"] }
 tauri-plugin-opener = "2"
 tauri-plugin-updater = "2"
+tauri-plugin-process = "2"
 
 # JSON: we preserve the original key order when writing config files so diffs
 # stay minimal, hence the preserve_order feature on serde_json.

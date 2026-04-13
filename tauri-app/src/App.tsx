@@ -10,6 +10,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import "./App.css";
 import { Sidebar } from "./components/Sidebar";
+import { UpdateModal } from "./components/UpdateModal";
 import {
   listAgents,
   listBackups,
@@ -22,6 +23,8 @@ import { BackupsView } from "./views/BackupsView";
 import { HooksView } from "./views/HooksView";
 import { McpServersView } from "./views/McpServersView";
 import { SkillsView } from "./views/SkillsView";
+import { check, type Update } from "@tauri-apps/plugin-updater";
+import { listen } from "@tauri-apps/api/event";
 import type { AppMode, ViewKey } from "./types";
 
 const MODE_KEY = "configonaut.mode";
@@ -43,6 +46,8 @@ function App() {
   const [view, setView] = useState<ViewKey>(loadView);
   const [badges, setBadges] = useState<Partial<Record<ViewKey, number>>>({});
   const [refreshTick, setRefreshTick] = useState(0);
+  const [pendingUpdate, setPendingUpdate] = useState<Update | null>(null);
+  const [showUpdateModal, setShowUpdateModal] = useState(false);
 
   useEffect(() => {
     localStorage.setItem(MODE_KEY, mode);
@@ -88,6 +93,41 @@ function App() {
     []
   );
 
+  // Check for app updates on startup (fires during the splash phase since
+  // the main webview loads in the background).
+  useEffect(() => {
+    check()
+      .then((update) => {
+        if (update) {
+          setPendingUpdate(update);
+          setShowUpdateModal(true);
+        }
+      })
+      .catch(console.error);
+  }, []);
+
+  const handleCheckForUpdates = useCallback(async () => {
+    try {
+      const update = await check();
+      if (update) {
+        setPendingUpdate(update);
+        setShowUpdateModal(true);
+      }
+    } catch (err) {
+      console.error("Update check failed:", err);
+    }
+  }, []);
+
+  // Listen for the native menu "Check for Updates…" item.
+  useEffect(() => {
+    const unlisten = listen("check-for-updates", () => {
+      handleCheckForUpdates();
+    });
+    return () => {
+      unlisten.then((fn) => fn());
+    };
+  }, [handleCheckForUpdates]);
+
   const body = useMemo(() => {
     switch (view) {
       case "mcp":
@@ -123,9 +163,15 @@ function App() {
         mode={mode}
         onModeChange={setMode}
         badges={badges}
-        version="0.2.1"
+        version="0.2.2"
       />
       <main className="main">{body}</main>
+      {showUpdateModal && pendingUpdate && (
+        <UpdateModal
+          update={pendingUpdate}
+          onDismiss={() => setShowUpdateModal(false)}
+        />
+      )}
     </div>
   );
 }

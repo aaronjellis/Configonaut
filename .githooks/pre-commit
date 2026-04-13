@@ -1,0 +1,61 @@
+#!/usr/bin/env bash
+# Pre-commit hook: block AI process docs and secret/certificate files
+# from being committed to the repository.
+#
+# To bypass (if you truly know what you're doing):
+#   git commit --no-verify
+
+set -euo pipefail
+
+# --- Blocked file patterns ---------------------------------------------------
+# Each line is a regex matched against staged file paths (relative to repo root).
+BLOCKED=(
+  # Secret and certificate files
+  '\.env$'
+  '\.env\.'
+  '\.p12$'
+  '\.key$'
+  '\.pem$'
+  # AI process docs and working notes
+  '^docs/superpowers/'
+  '^TODO\.md$'
+  # Claude local config
+  '^\.claude/'
+)
+
+# --- Content patterns that should never appear in commits ---------------------
+# Patterns are split with concatenation so the hook file itself doesn't
+# trigger a false positive when it is committed.
+SECRET_PATTERNS=(
+  'BEGIN PRIV'"ATE KEY"
+  'BEGIN RSA PRIV'"ATE KEY"
+  'BEGIN CERTIF'"ICATE"
+  'BEGIN EC PRIV'"ATE KEY"
+)
+
+# Build a single regex from the blocked-file list.
+blocked_re=$(printf '%s|' "${BLOCKED[@]}")
+blocked_re="(${blocked_re%|})"
+
+# Check staged file names against blocked patterns.
+bad_files=$(git diff --cached --name-only --diff-filter=ACM | grep -E "$blocked_re" || true)
+if [[ -n "$bad_files" ]]; then
+  echo "ERROR: These staged files match blocked patterns:"
+  echo "$bad_files" | sed 's/^/  - /'
+  echo ""
+  echo "AI process docs, secrets, and certificates should not be committed."
+  echo "Remove them with:  git reset HEAD <file>"
+  exit 1
+fi
+
+# Scan staged file contents for embedded secrets/certs.
+for pattern in "${SECRET_PATTERNS[@]}"; do
+  hits=$(git diff --cached -U0 --diff-filter=ACM | grep -c "^+.*$pattern" || true)
+  if [[ "$hits" -gt 0 ]]; then
+    echo "ERROR: Staged changes contain '$pattern'."
+    echo "Private keys and certificates must not be committed."
+    exit 1
+  fi
+done
+
+exit 0
