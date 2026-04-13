@@ -33,7 +33,7 @@ const CONFIGURE: NavItemDef[] = [
   },
   {
     key: "hooks",
-    title: "Hooks",
+    title: "Global Hooks",
     subtitle: "Automation triggers",
     glyph: "⤴",
     accent: "var(--blue)",

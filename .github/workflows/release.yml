@@ -52,6 +52,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Extract release notes from CHANGELOG
+        id: changelog
+        shell: bash
+        run: |
+          # Grab the first version section (between 1st and 2nd ## headings).
+          NOTES=$(awk '/^## /{if(found) exit; found=1; next} found' CHANGELOG.md)
+          # Write to GITHUB_OUTPUT using a delimiter for multiline values.
+          echo "notes<<CHANGELOG_EOF" >> "$GITHUB_OUTPUT"
+          echo "$NOTES" >> "$GITHUB_OUTPUT"
+          echo "CHANGELOG_EOF" >> "$GITHUB_OUTPUT"
+
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -118,8 +129,7 @@ jobs:
           projectPath: tauri-app
           tagName: ${{ github.ref_name }}
           releaseName: "Configonaut ${{ github.ref_name }}"
-          releaseBody: |
-            See the [changelog](https://github.com/aaronjellis/Configonaut/blob/main/CHANGELOG.md) for details.
+          releaseBody: ${{ steps.changelog.outputs.notes }}
           releaseDraft: true
           prerelease: false
           args: ${{ matrix.args }}

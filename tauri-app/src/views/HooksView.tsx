@@ -209,7 +209,7 @@ export function HooksView({ onMutated }: Props) {
       <header className="main-header" data-tauri-drag-region>
         <div className="title-block" data-tauri-drag-region>
           <div className="title-row">
-            <h2>Hooks</h2>
+            <h2>Global Hooks</h2>
             <span
               className="count-pill"
               style={{ color: "var(--blue)", background: "rgba(90, 147, 255, 0.12)" }}
