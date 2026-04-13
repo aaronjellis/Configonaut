@@ -1,14 +1,18 @@
 # Changelog
 
-## 0.2.5
+## 0.2.6
 
 ### Added
 - **Project-scoped MCPs tab** -- CLI mode now shows a "User MCPs" / "Project MCPs" segmented control. The Project tab displays MCP servers defined per-project in `~/.claude.json`, grouped by project path with threaded layout. Clicking a project MCP shows its config read-only in the detail panel.
+- **Auto-unwrap mcpServers wrapper** -- Pasting a full `{ "mcpServers": { ... } }` config into the detail editor auto-extracts the inner server body on paste and on save.
+- **Add Custom Feed modal** -- Replaced the inline feed form with a proper modal dialog for adding custom catalog feeds.
 - Update modal now renders release notes as styled markdown (headings, bold, lists, links) instead of raw text.
+- Test suites: 28 frontend tests (vitest) and 25 Rust tests covering validation, JSON helpers, and config unwrapping.
 
 ### Fixed
 - MCP view layout no longer overflows -- detail panel, status footer, and action buttons stay clipped within their container at all window sizes.
 - Detail panel and columns use proper flex sizing to prevent collapsed columns when the tab bar is present.
+- Config validation is now a non-blocking warning -- users can save any valid JSON object, not just configs with `command` or `url`.
 
 ## 0.2.4
 
