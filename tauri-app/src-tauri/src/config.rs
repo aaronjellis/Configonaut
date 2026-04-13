@@ -210,6 +210,7 @@ pub fn delete_server(
 }
 
 /// Replace the JSON config for a single server in place.
+/// Auto-unwraps `{ "mcpServers": { ... } }` wrappers that users commonly paste.
 pub fn update_server_config(
     mode: AppMode,
     name: &str,
@@ -219,22 +220,47 @@ pub fn update_server_config(
     let new_value: Value = serde_json::from_str(new_json)
         .context("config JSON is invalid")?;
 
+    // Unwrap `{ "mcpServers": { "name": { ... } } }` if the user pasted the
+    // full Claude config snippet instead of just the server body.
+    let unwrapped = unwrap_mcp_wrapper(&new_value, name);
+
     match source {
         ServerSource::Active => {
             let config_path = paths::config_file(mode);
             let mut root = load_config_root(&config_path)?;
             let mcp = ensure_mcp_map(&mut root);
-            mcp.insert(name.to_string(), new_value);
+            mcp.insert(name.to_string(), unwrapped);
             backup_config(mode)?;
             save_config_root(&config_path, &root)?;
         }
         ServerSource::Stored => {
             let mut stored = load_stored_map(mode)?;
-            stored.insert(name.to_string(), new_value);
+            stored.insert(name.to_string(), unwrapped);
             save_stored_map(mode, &stored)?;
         }
     }
     Ok(())
+}
+
+/// If `value` looks like `{ "mcpServers": { ... } }`, extract the inner
+/// server config. Tries matching by `name` first, then falls back to the
+/// single entry if there's only one.
+fn unwrap_mcp_wrapper(value: &Value, name: &str) -> Value {
+    let Some(obj) = value.as_object() else { return value.clone() };
+    let Some(Value::Object(inner)) = obj.get("mcpServers") else { return value.clone() };
+
+    // Only unwrap if "mcpServers" is the sole top-level key (it's a wrapper, not a real config).
+    if obj.len() != 1 { return value.clone(); }
+
+    if let Some(server_config) = inner.get(name) {
+        return server_config.clone();
+    }
+    if inner.len() == 1 {
+        if let Some((_, server_config)) = inner.iter().next() {
+            return server_config.clone();
+        }
+    }
+    value.clone()
 }
 
 // ---------------------------------------------------------------------------

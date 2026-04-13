@@ -202,12 +202,10 @@ export function McpServersView({ mode, onMutated }: Props) {
     }
   }, [selectedEntry]);
 
-  /// Realtime shape-check of the JSON editor. Re-runs on every keystroke
-  /// so the user gets feedback before hitting Save — matches the same
-  /// rules the Rust side enforces (`validate_server_entries`), so if
-  /// this passes, the backend save will almost always succeed (the only
-  /// remaining failure mode is I/O errors writing the file).
-  const jsonError = useMemo(() => {
+  /// Realtime shape-check — shown as a warning, not a blocker. Users can
+  /// save configs that don't match the standard command/url pattern (e.g.
+  /// custom transports, SSE, etc).
+  const jsonWarning = useMemo(() => {
     if (!selectedEntry) return null;
     return validateServerConfigJson(editedJson);
   }, [selectedEntry, editedJson]);
@@ -338,20 +336,35 @@ export function McpServersView({ mode, onMutated }: Props) {
 
   async function handleSaveEdit() {
     if (!selection) return;
-    // Defense in depth — the Save button is already disabled when
-    // jsonError is set, but if the user hits ⌘S or otherwise bypasses
-    // the click handler we still want to block the write.
-    if (jsonError) {
-      setEditError(jsonError);
-      return;
-    }
     setEditError(null);
+
+    // Auto-unwrap if the user pasted a full `{ "mcpServers": { ... } }` wrapper.
+    let jsonToSave = editedJson;
+    try {
+      const parsed = JSON.parse(jsonToSave);
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        if (parsed.mcpServers && typeof parsed.mcpServers === "object") {
+          const inner = parsed.mcpServers;
+          const keys = Object.keys(inner);
+          if (keys.length === 1 && typeof inner[keys[0]] === "object") {
+            // Extract the single server body
+            jsonToSave = JSON.stringify(inner[keys[0]], null, 2);
+          } else if (keys.includes(selection.name)) {
+            // Extract matching server by name
+            jsonToSave = JSON.stringify(inner[selection.name], null, 2);
+          }
+        }
+      }
+    } catch {
+      // Not valid JSON — let the backend handle the error
+    }
+
     try {
       await updateServerConfig(
         mode,
         selection.name,
         selection.source,
-        editedJson
+        jsonToSave
       );
       if (selection.source === "active") setNeedsRestart(true);
       setStatus(`Saved "${selection.name}".`);
@@ -722,9 +735,35 @@ export function McpServersView({ mode, onMutated }: Props) {
             </div>
             <div className="detail-body">
               <textarea
-                className={jsonError && !isProjectSelected ? "invalid" : ""}
                 value={editedJson}
-                onChange={(e) => setEditedJson(e.currentTarget.value)}
+                onChange={(e) => {
+                  let val = e.currentTarget.value;
+                  // Auto-unwrap { "mcpServers": { ... } } wrappers on paste.
+                  try {
+                    const parsed = JSON.parse(val);
+                    if (
+                      parsed &&
+                      typeof parsed === "object" &&
+                      !Array.isArray(parsed) &&
+                      parsed.mcpServers &&
+                      typeof parsed.mcpServers === "object" &&
+                      Object.keys(parsed).length === 1
+                    ) {
+                      const inner = parsed.mcpServers;
+                      const keys = Object.keys(inner);
+                      if (keys.length === 1 && typeof inner[keys[0]] === "object") {
+                        val = JSON.stringify(inner[keys[0]], null, 2);
+                        toast.show("Extracted server config from mcpServers wrapper.", "success");
+                      } else if (selection && inner[selection.name]) {
+                        val = JSON.stringify(inner[selection.name], null, 2);
+                        toast.show("Extracted server config from mcpServers wrapper.", "success");
+                      }
+                    }
+                  } catch {
+                    // Not valid JSON yet — that's fine, user is still typing
+                  }
+                  setEditedJson(val);
+                }}
                 placeholder="Select a server to view and edit its JSON config."
                 spellCheck={false}
                 disabled={!selectedEntry || isProjectSelected}
@@ -734,11 +773,11 @@ export function McpServersView({ mode, onMutated }: Props) {
                 <div className="banner">
                   Read-only — project MCPs are defined in .claude.json per-project.
                 </div>
-              ) : jsonError ? (
-                <div className="banner error">{jsonError}</div>
-              ) : (
-                editError && <div className="banner error">{editError}</div>
-              )}
+              ) : editError ? (
+                <div className="banner error">{editError}</div>
+              ) : jsonWarning ? (
+                <div className="banner warning">{jsonWarning}</div>
+              ) : null}
               {!isProjectSelected && (
                 <div className="detail-actions">
                   <button
@@ -751,13 +790,9 @@ export function McpServersView({ mode, onMutated }: Props) {
                   <button
                     className="primary"
                     onClick={handleSaveEdit}
-                    disabled={!selectedEntry || !!jsonError || !isDirty}
+                    disabled={!selectedEntry || !isDirty}
                     title={
-                      jsonError
-                        ? "Fix the errors above before saving"
-                        : !isDirty
-                          ? "No changes to save"
-                          : undefined
+                      !isDirty ? "No changes to save" : undefined
                     }
                   >
                     Save

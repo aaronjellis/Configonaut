@@ -23,29 +23,17 @@ export function validateServerConfigJson(raw: string): string | null {
     return "Config is empty.";
   }
 
-  let parsed: unknown;
   try {
-    parsed = JSON.parse(raw);
+    const parsed = JSON.parse(raw);
+    if (
+      typeof parsed !== "object" ||
+      parsed === null ||
+      Array.isArray(parsed)
+    ) {
+      return "Config must be a JSON object.";
+    }
   } catch (e) {
     return `Invalid JSON: ${(e as Error).message}`;
-  }
-
-  if (
-    typeof parsed !== "object" ||
-    parsed === null ||
-    Array.isArray(parsed)
-  ) {
-    return "Config must be a JSON object.";
-  }
-
-  const obj = parsed as Record<string, unknown>;
-  const hasCommand =
-    typeof obj.command === "string" && obj.command.trim().length > 0;
-  const hasUrl =
-    typeof obj.url === "string" && obj.url.trim().length > 0;
-
-  if (!hasCommand && !hasUrl) {
-    return "Missing both `command` (for stdio) and `url` (for http).";
   }
 
   return null;
