@@ -10,6 +10,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import "./App.css";
 import { Sidebar } from "./components/Sidebar";
+import { AboutModal } from "./components/AboutModal";
+import { useToast } from "./components/Toast";
 import { UpdateModal } from "./components/UpdateModal";
 import {
   listAgents,
@@ -48,6 +50,8 @@ function App() {
   const [refreshTick, setRefreshTick] = useState(0);
   const [pendingUpdate, setPendingUpdate] = useState<Update | null>(null);
   const [showUpdateModal, setShowUpdateModal] = useState(false);
+  const [showAbout, setShowAbout] = useState(false);
+  const toast = useToast();
 
   useEffect(() => {
     localStorage.setItem(MODE_KEY, mode);
@@ -112,19 +116,26 @@ function App() {
       if (update) {
         setPendingUpdate(update);
         setShowUpdateModal(true);
+      } else {
+        toast.show("You\u2019re on the latest version\u2026 for now.", "success");
       }
     } catch (err) {
       console.error("Update check failed:", err);
+      toast.show("Couldn\u2019t reach the update server.", "warning");
     }
-  }, []);
+  }, [toast]);
 
-  // Listen for the native menu "Check for Updates…" item.
+  // Listen for native menu events.
   useEffect(() => {
-    const unlisten = listen("check-for-updates", () => {
+    const unlistenUpdate = listen("check-for-updates", () => {
       handleCheckForUpdates();
     });
+    const unlistenAbout = listen("show-about", () => {
+      setShowAbout(true);
+    });
     return () => {
-      unlisten.then((fn) => fn());
+      unlistenUpdate.then((fn) => fn());
+      unlistenAbout.then((fn) => fn());
     };
   }, [handleCheckForUpdates]);
 
@@ -163,13 +174,20 @@ function App() {
         mode={mode}
         onModeChange={setMode}
         badges={badges}
-        version="0.2.2"
+        version="0.2.3"
       />
       <main className="main">{body}</main>
       {showUpdateModal && pendingUpdate && (
         <UpdateModal
           update={pendingUpdate}
           onDismiss={() => setShowUpdateModal(false)}
+        />
+      )}
+      {showAbout && (
+        <AboutModal
+          version="0.2.3"
+          onCheckForUpdates={handleCheckForUpdates}
+          onDismiss={() => setShowAbout(false)}
         />
       )}
     </div>

@@ -32,6 +32,13 @@ pub fn run() {
         .plugin(tauri_plugin_process::init())
         .setup(|app| {
             // ── Native application menu ─────────────────────────────
+            let about_item = MenuItem::with_id(
+                app,
+                "about_configonaut",
+                "About Configonaut",
+                true,
+                None::<&str>,
+            )?;
             let check_updates = MenuItem::with_id(
                 app,
                 "check_for_updates",
@@ -59,8 +66,7 @@ pub fn run() {
             #[cfg(target_os = "macos")]
             let menu = {
                 let app_sub = SubmenuBuilder::new(app, "Configonaut")
-                    .about(None)
-                    .separator()
+                    .item(&about_item)
                     .item(&check_updates)
                     .separator()
                     .services()
@@ -82,8 +88,7 @@ pub fn run() {
             #[cfg(not(target_os = "macos"))]
             let menu = {
                 let help_sub = SubmenuBuilder::new(app, "Help")
-                    .about(None)
-                    .separator()
+                    .item(&about_item)
                     .item(&check_updates)
                     .build()?;
 
@@ -97,8 +102,14 @@ pub fn run() {
             app.set_menu(menu)?;
 
             app.on_menu_event(|app_handle, event| {
-                if event.id().as_ref() == "check_for_updates" {
-                    let _ = app_handle.emit("check-for-updates", ());
+                match event.id().as_ref() {
+                    "about_configonaut" => {
+                        let _ = app_handle.emit("show-about", ());
+                    }
+                    "check_for_updates" => {
+                        let _ = app_handle.emit("check-for-updates", ());
+                    }
+                    _ => {}
                 }
             });
 
