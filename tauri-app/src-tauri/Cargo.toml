@@ -59,3 +59,7 @@ walkdir = "2"
 
 # Regex for the SecretValidator placeholder heuristics (xxxx..., <TOKEN>, etc.)
 regex = "1"
+
+# Async runtime — needed for install_server (process spawning + stream reading).
+# Tauri already brings tokio transitively but we need explicit features.
+tokio = { version = "1", features = ["process", "io-util", "rt"] }

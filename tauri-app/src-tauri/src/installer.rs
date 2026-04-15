@@ -3,10 +3,14 @@
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Map, Value};
 use std::collections::BTreeMap;
-use std::process::Command;
+use std::process::{Command, Stdio};
 use tauri::AppHandle;
+use tauri::Emitter;
+use tokio::io::AsyncBufReadExt;
+use tokio::process::Command as TokioCommand;
 
-use crate::catalog::{CatalogConfig, ConfigField, ConfigFieldKind, RuntimeName};
+use crate::catalog::{CatalogConfig, CatalogPrerequisite, CatalogServer, ConfigField,
+                     ConfigFieldKind, ConfigFieldType, InstallStep, RuntimeName};
 use crate::sidecar;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -261,6 +265,213 @@ fn substitute_substrings(
     out
 }
 
+// ---------------------------------------------------------------------------
+// inspect_install — returns schema for the Setup UI
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PrerequisiteEntry {
+    pub r#type: RuntimeName,
+    pub status: Option<RuntimeStatus>,
+    pub install_url: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct InstallSchema {
+    pub prerequisites: Vec<PrerequisiteEntry>,
+    pub config_fields: Vec<ConfigField>,
+    pub install_step_count: usize,
+    pub has_unknown_install_step: bool,
+}
+
+pub fn build_inspect_schema(server: &CatalogServer) -> InstallSchema {
+    let prerequisites = server.prerequisites.iter().map(|p: &CatalogPrerequisite| {
+        PrerequisiteEntry {
+            r#type: p.r#type,
+            status: None,
+            install_url: runtime_install_url(p.r#type).map(str::to_string),
+        }
+    }).collect();
+
+    let has_unknown = server.install.iter().any(|s| matches!(s, InstallStep::Unknown));
+
+    // Coalesce config_fields with the legacy env_vars field for old catalog entries.
+    let mut config_fields = server.config_fields.clone();
+    if config_fields.is_empty() {
+        if let Some(env_vars) = &server.env_vars {
+            config_fields = env_vars.iter().map(|ev| ConfigField {
+                name: ev.name.clone(),
+                kind: ConfigFieldKind::Env,
+                r#type: if ev.secret { ConfigFieldType::Secret } else { ConfigFieldType::String },
+                label: ev.name.clone(),
+                description: ev.description.clone(),
+                required: ev.required,
+                placeholder: ev.placeholder.clone(),
+                default: None,
+                help_url: ev.help_url.clone(),
+            }).collect();
+        }
+    }
+
+    InstallSchema {
+        prerequisites,
+        config_fields,
+        install_step_count: server.install.len(),
+        has_unknown_install_step: has_unknown,
+    }
+}
+
+#[tauri::command]
+pub async fn inspect_install(server_id: String) -> Result<InstallSchema, String> {
+    let catalog = crate::catalog::bootstrap_catalog()
+        .map_err(|e| format!("Failed to read catalog: {e}"))?;
+    let server = catalog.servers.iter().find(|s| s.id == server_id)
+        .ok_or_else(|| format!("Server '{server_id}' not found in catalog."))?;
+    Ok(build_inspect_schema(server))
+}
+
+// ---------------------------------------------------------------------------
+// install_server — runs install steps, streams progress events, writes config
+// ---------------------------------------------------------------------------
+
+pub fn warmup_command_for(step: &InstallStep) -> (&'static str, Vec<String>) {
+    match step {
+        InstallStep::NpmWarmup { package } => {
+            ("npx", vec!["-y".into(), package.clone(), "--help".into()])
+        }
+        InstallStep::UvxWarmup { package } => {
+            ("uvx", vec![package.clone(), "--help".into()])
+        }
+        InstallStep::DockerPull { image } => ("docker", vec!["pull".into(), image.clone()]),
+        InstallStep::None | InstallStep::Unknown => ("true", vec![]),
+    }
+}
+
+fn label_for(step: &InstallStep) -> String {
+    match step {
+        InstallStep::NpmWarmup { package } => format!("Pre-fetching {package}..."),
+        InstallStep::UvxWarmup { package } => format!("Pre-fetching {package} via uv..."),
+        InstallStep::DockerPull { image } => format!("Pulling {image}..."),
+        InstallStep::None => "No install step needed".into(),
+        InstallStep::Unknown => "Skipping unknown install step".into(),
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+pub enum InstallProgress {
+    Step { step: String, label: String },
+    Log { line: String },
+    Error { step: String, message: String, can_retry: bool },
+}
+
+const PROGRESS_EVENT: &str = "install-progress";
+
+#[tauri::command]
+pub async fn install_server(
+    app: tauri::AppHandle,
+    server_id: String,
+    field_values: BTreeMap<String, Value>,
+) -> Result<(), String> {
+    let catalog = crate::catalog::bootstrap_catalog()
+        .map_err(|e| format!("Failed to read catalog: {e}"))?;
+    let server = catalog.servers.iter().find(|s| s.id == server_id)
+        .ok_or_else(|| format!("Server '{server_id}' not found in catalog."))?
+        .clone();
+
+    app.emit(PROGRESS_EVENT, InstallProgress::Step {
+        step: "configure".into(),
+        label: "Validating configuration".into(),
+    }).ok();
+    let rendered = render_config_block(&server.config, &server.config_fields, &field_values)?;
+
+    for step in &server.install {
+        let label = label_for(step);
+        app.emit(PROGRESS_EVENT, InstallProgress::Step {
+            step: "install".into(),
+            label,
+        }).ok();
+
+        let (program, args) = warmup_command_for(step);
+        // Skip no-op steps
+        if program == "true" {
+            continue;
+        }
+
+        let mut child = TokioCommand::new(program)
+            .args(&args)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .map_err(|e| {
+                let msg = format!("Could not start {program}: {e}");
+                app.emit(PROGRESS_EVENT, InstallProgress::Error {
+                    step: "install".into(),
+                    message: msg.clone(),
+                    can_retry: false,
+                }).ok();
+                msg
+            })?;
+
+        let stdout = child.stdout.take().unwrap();
+        let stderr = child.stderr.take().unwrap();
+        let app_a = app.clone();
+        let app_b = app.clone();
+
+        let stdout_task = tokio::spawn(async move {
+            let mut reader = tokio::io::BufReader::new(stdout).lines();
+            while let Ok(Some(line)) = reader.next_line().await {
+                app_a.emit(PROGRESS_EVENT, InstallProgress::Log { line }).ok();
+            }
+        });
+
+        let stderr_task = tokio::spawn(async move {
+            let mut buf = String::new();
+            let mut reader = tokio::io::BufReader::new(stderr).lines();
+            while let Ok(Some(line)) = reader.next_line().await {
+                buf.push_str(&line);
+                buf.push('\n');
+                app_b.emit(PROGRESS_EVENT, InstallProgress::Log { line }).ok();
+            }
+            buf
+        });
+
+        let status = child.wait().await.map_err(|e| e.to_string())?;
+        stdout_task.await.ok();
+        let stderr_buf = stderr_task.await.unwrap_or_default();
+
+        if !status.success() {
+            let kind = classify_install_error(&stderr_buf, status.code().unwrap_or(-1));
+            let message = kind.user_message();
+            app.emit(PROGRESS_EVENT, InstallProgress::Error {
+                step: "install".into(),
+                message: message.clone(),
+                can_retry: !matches!(kind, InstallErrorKind::Generic(_)),
+            }).ok();
+            return Err(message);
+        }
+    }
+
+    // Write to Claude config using existing config API.
+    app.emit(PROGRESS_EVENT, InstallProgress::Step {
+        step: "configure".into(),
+        label: "Writing configuration".into(),
+    }).ok();
+
+    use crate::models::AppMode;
+    crate::config::add_to_active(AppMode::Desktop, vec![(server.id.clone(), rendered)])
+        .map_err(|e| e.to_string())?;
+
+    app.emit(PROGRESS_EVENT, InstallProgress::Step {
+        step: "done".into(),
+        label: "Done".into(),
+    }).ok();
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -446,6 +657,61 @@ mod tests {
         }];
         let values = fields(&[]);
         assert!(render_config_block(&cfg, &schema, &values).is_err());
+    }
+
+    #[test]
+    fn build_warmup_command_for_npm() {
+        let (program, args) = warmup_command_for(&InstallStep::NpmWarmup {
+            package: "@scope/foo".into(),
+        });
+        assert_eq!(program, "npx");
+        assert_eq!(args, vec!["-y", "@scope/foo", "--help"]);
+    }
+
+    #[test]
+    fn build_warmup_command_for_uvx() {
+        let (program, args) = warmup_command_for(&InstallStep::UvxWarmup {
+            package: "mcp-server-foo".into(),
+        });
+        assert_eq!(program, "uvx");
+        assert_eq!(args, vec!["mcp-server-foo", "--help"]);
+    }
+
+    #[test]
+    fn build_warmup_command_for_docker_pull() {
+        let (program, args) = warmup_command_for(&InstallStep::DockerPull {
+            image: "ghcr.io/foo/bar:latest".into(),
+        });
+        assert_eq!(program, "docker");
+        assert_eq!(args, vec!["pull", "ghcr.io/foo/bar:latest"]);
+    }
+
+    #[test]
+    fn inspect_combines_prereqs_and_fields() {
+        use crate::catalog::{CatalogServer, CatalogPrerequisite, CatalogPublisher, CatalogConfig,
+                             ConfigField, ConfigFieldKind, ConfigFieldType, InstallStep};
+
+        let server = CatalogServer {
+            id: "x".into(), name: "X".into(), description: String::new(),
+            category: String::new(), tags: vec![],
+            publisher: CatalogPublisher { name: "a".into(), kind: "official".into(), verified: false },
+            homepage: None, repository: None, license: None, popularity: 0,
+            config: CatalogConfig { command: Some("npx".into()), args: None, env: None, url: None, headers: None },
+            transport: "stdio".into(),
+            requirements: vec![], setup_notes: None, env_vars: None, feed_origin: None,
+            prerequisites: vec![CatalogPrerequisite { r#type: RuntimeName::Node }],
+            install: vec![InstallStep::NpmWarmup { package: "x".into() }],
+            config_fields: vec![ConfigField {
+                name: "k".into(), kind: ConfigFieldKind::Env, r#type: ConfigFieldType::Secret,
+                label: "K".into(), description: None, required: true,
+                placeholder: None, default: None, help_url: None,
+            }],
+        };
+
+        let schema = build_inspect_schema(&server);
+        assert_eq!(schema.prerequisites.len(), 1);
+        assert_eq!(schema.config_fields.len(), 1);
+        assert_eq!(schema.install_step_count, 1);
     }
 
     #[test]
