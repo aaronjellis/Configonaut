@@ -4,14 +4,20 @@
 // if the Rust side changes.
 
 import { invoke } from "@tauri-apps/api/core";
+import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import type {
   AgentEntry,
   AppMode,
   BackupFile,
   Catalog,
+  CatalogRuntimeStatus,
   FeedEntry,
   FeedStatus,
   HookRule,
+  InstallAction,
+  InstallProgress,
+  InstallSchema,
+  RuntimeName,
   RuntimeStatus,
   ServerListing,
   ServerSource,
@@ -305,6 +311,28 @@ export function writeClaudeFile(
 
 // ---------- Runtime detection ----------
 
-export function checkRuntime(): Promise<RuntimeStatus> {
-  return invoke<RuntimeStatus>("check_runtime");
+export function checkRuntime(): Promise<CatalogRuntimeStatus> {
+  return invoke<CatalogRuntimeStatus>("check_runtime");
+}
+
+// ---------- Auto-install ----------
+
+export const apiCheckRuntime = (name: RuntimeName) =>
+  invoke<RuntimeStatus>("check_runtime", { name });
+
+export const apiInstallRuntime = (name: RuntimeName) =>
+  invoke<InstallAction>("install_runtime", { name });
+
+export const apiInspectInstall = (serverId: string) =>
+  invoke<InstallSchema>("inspect_install", { serverId });
+
+export const apiInstallServer = (
+  serverId: string,
+  fieldValues: Record<string, unknown>,
+) => invoke<void>("install_server", { serverId, fieldValues });
+
+export function onInstallProgress(
+  handler: (p: InstallProgress) => void,
+): Promise<UnlistenFn> {
+  return listen<InstallProgress>("install-progress", (e) => handler(e.payload));
 }
