@@ -111,6 +111,9 @@ jobs:
           # Add to search list so codesign finds it
           security list-keychains -d user -s "$KEYCHAIN_PATH" login.keychain
 
+      - name: Download uv sidecar binaries
+        run: bash tauri-app/src-tauri/binaries/download-uv.sh
+
       - name: Build Tauri app
         uses: tauri-apps/tauri-action@v0
         env:

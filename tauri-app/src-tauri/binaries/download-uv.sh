@@ -17,6 +17,20 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 echo "Downloading uv ${UV_VER} sidecar binaries..."
 
+verify_checksum() {
+  local asset="$1"   # e.g. uv-aarch64-apple-darwin.tar.gz
+  local filepath="$2" # absolute path to the downloaded file
+  local tmp_dir="$3"
+
+  curl -fsSL "${BASE_URL}/${asset}.sha256" -o "${tmp_dir}/expected.sha256"
+  HASH=$(awk '{print $1}' "${tmp_dir}/expected.sha256")
+  if command -v shasum &>/dev/null; then
+    echo "${HASH}  ${filepath}" | shasum -a 256 -c - || { echo "Checksum verification failed for ${filepath}"; exit 1; }
+  else
+    echo "${HASH}  ${filepath}" | sha256sum -c - || { echo "Checksum verification failed for ${filepath}"; exit 1; }
+  fi
+}
+
 download_tar() {
   local name="$1"   # e.g. uv-aarch64-apple-darwin
   local asset="$2"  # e.g. uv-aarch64-apple-darwin.tar.gz
@@ -24,7 +38,9 @@ download_tar() {
 
   echo "  -> ${name}"
   TMP_DIR=$(mktemp -d)
-  curl -fsSL "${BASE_URL}/${asset}" | tar -xz -C "${TMP_DIR}"
+  curl -fsSL "${BASE_URL}/${asset}" -o "${TMP_DIR}/archive.tar.gz"
+  verify_checksum "${asset}" "${TMP_DIR}/archive.tar.gz" "${TMP_DIR}"
+  tar -xz -C "${TMP_DIR}" -f "${TMP_DIR}/archive.tar.gz"
   cp "${TMP_DIR}/${name}/${binary}" "${SCRIPT_DIR}/${name}"
   chmod +x "${SCRIPT_DIR}/${name}"
   rm -rf "${TMP_DIR}"
@@ -38,6 +54,7 @@ download_zip() {
   echo "  -> ${name}"
   TMP_DIR=$(mktemp -d)
   curl -fsSL "${BASE_URL}/${asset}" -o "${TMP_DIR}/archive.zip"
+  verify_checksum "${asset}" "${TMP_DIR}/archive.zip" "${TMP_DIR}"
   unzip -q "${TMP_DIR}/archive.zip" "${binary}" -d "${TMP_DIR}"
   cp "${TMP_DIR}/${binary}" "${SCRIPT_DIR}/${name}"
   chmod +x "${SCRIPT_DIR}/${name}"
