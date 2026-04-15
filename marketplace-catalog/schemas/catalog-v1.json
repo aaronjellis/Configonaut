@@ -147,6 +147,7 @@
     "prerequisite": {
       "type": "object",
       "required": ["type"],
+      "description": "Must match RuntimeName in catalog.rs — no forward-compat fallback for unknown values.",
       "properties": {
         "type": { "enum": ["node", "uv", "docker"] }
       }
@@ -154,7 +155,6 @@
 
     "installStep": {
       "type": "object",
-      "required": ["type"],
       "oneOf": [
         {
           "properties": {
