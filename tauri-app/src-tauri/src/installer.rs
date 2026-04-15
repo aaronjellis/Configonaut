@@ -1,10 +1,12 @@
 // Auto-install runner. See docs/superpowers/specs/2026-04-14-mcp-auto-install-design.md.
 
 use serde::{Deserialize, Serialize};
+use serde_json::{json, Map, Value};
+use std::collections::BTreeMap;
 use std::process::Command;
 use tauri::AppHandle;
 
-use crate::catalog::RuntimeName;
+use crate::catalog::{CatalogConfig, ConfigField, ConfigFieldKind, RuntimeName};
 use crate::sidecar;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -160,6 +162,104 @@ pub async fn check_runtime(app: AppHandle, name: RuntimeName) -> Result<RuntimeS
     Ok(RuntimeStatus { installed: true, version, source: Some("system".into()) })
 }
 
+/// Render the final config JSON for a server, substituting template
+/// markers `{{name}}` with values from the user's form input.
+pub fn render_config_block(
+    cfg: &CatalogConfig,
+    schema: &[ConfigField],
+    values: &BTreeMap<String, Value>,
+) -> Result<Value, String> {
+    for f in schema {
+        if f.required && !values.contains_key(&f.name) {
+            return Err(format!("Missing required field: {}", f.name));
+        }
+    }
+
+    let mut out = Map::new();
+
+    if let Some(cmd) = &cfg.command {
+        out.insert("command".into(), json!(cmd));
+    }
+
+    if let Some(args) = &cfg.args {
+        let mut rendered: Vec<Value> = Vec::with_capacity(args.len());
+        for arg in args {
+            if let Some(field) = schema_field_for_marker(arg, schema) {
+                if matches!(field.kind, ConfigFieldKind::ArgSpread) {
+                    if let Some(Value::Array(items)) = values.get(&field.name) {
+                        rendered.extend(items.iter().cloned());
+                    }
+                    continue;
+                }
+                if matches!(field.kind, ConfigFieldKind::Arg) {
+                    if let Some(v) = values.get(&field.name) {
+                        rendered.push(v.clone());
+                    }
+                    continue;
+                }
+            }
+            rendered.push(json!(substitute_substrings(arg, schema, values)));
+        }
+        out.insert("args".into(), Value::Array(rendered));
+    }
+
+    let mut env: Map<String, Value> = cfg.env.clone().unwrap_or_default();
+    for (k, v) in env.clone() {
+        if let Value::String(s) = v {
+            env.insert(k, json!(substitute_substrings(&s, schema, values)));
+        }
+    }
+    for f in schema {
+        if matches!(f.kind, ConfigFieldKind::Env) {
+            if let Some(v) = values.get(&f.name) {
+                env.insert(f.name.clone(), v.clone());
+            }
+        }
+    }
+    if !env.is_empty() {
+        out.insert("env".into(), Value::Object(env));
+    }
+
+    if let Some(url) = &cfg.url {
+        out.insert("url".into(), json!(substitute_substrings(url, schema, values)));
+    }
+    if let Some(headers) = &cfg.headers {
+        out.insert("headers".into(), Value::Object(headers.clone()));
+    }
+
+    Ok(Value::Object(out))
+}
+
+fn schema_field_for_marker<'a>(s: &str, schema: &'a [ConfigField]) -> Option<&'a ConfigField> {
+    let trimmed = s.trim();
+    if !(trimmed.starts_with("{{") && trimmed.ends_with("}}")) {
+        return None;
+    }
+    let name = trimmed[2..trimmed.len() - 2].trim();
+    schema.iter().find(|f| f.name == name)
+}
+
+fn substitute_substrings(
+    raw: &str,
+    schema: &[ConfigField],
+    values: &BTreeMap<String, Value>,
+) -> String {
+    let mut out = raw.to_string();
+    for f in schema {
+        let marker = format!("{{{{{}}}}}", f.name);
+        if !out.contains(&marker) {
+            continue;
+        }
+        let replacement = match values.get(&f.name) {
+            Some(Value::String(s)) => s.clone(),
+            Some(v) => v.to_string(),
+            None => String::new(),
+        };
+        out = out.replace(&marker, &replacement);
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -261,5 +361,89 @@ mod tests {
     fn install_runtime_docker_returns_open_url() {
         let action = install_runtime_for(RuntimeName::Docker);
         assert!(matches!(action, InstallAction::OpenUrl { .. }));
+    }
+
+    use serde_json::json;
+    use std::collections::BTreeMap;
+
+    fn fields(pairs: &[(&str, serde_json::Value)]) -> BTreeMap<String, serde_json::Value> {
+        pairs.iter().map(|(k, v)| (k.to_string(), v.clone())).collect()
+    }
+
+    #[test]
+    fn render_substring_substitution_in_env() {
+        use crate::catalog::{CatalogConfig, ConfigField, ConfigFieldKind, ConfigFieldType};
+        let cfg = CatalogConfig {
+            command: Some("npx".into()),
+            args: Some(vec!["-y".into(), "@scope/foo".into()]),
+            env: Some(serde_json::Map::from_iter([(
+                "API_KEY".to_string(), json!("Bearer {{api_key}}"),
+            )])),
+            url: None,
+            headers: None,
+        };
+        let schema = vec![ConfigField {
+            name: "api_key".into(),
+            kind: ConfigFieldKind::Env,
+            r#type: ConfigFieldType::Secret,
+            label: "API key".into(),
+            description: None, required: true, placeholder: None, default: None, help_url: None,
+        }];
+        let values = fields(&[("api_key", json!("sk-test-123"))]);
+        let rendered = render_config_block(&cfg, &schema, &values).unwrap();
+        assert_eq!(rendered["env"]["API_KEY"], json!("Bearer sk-test-123"));
+    }
+
+    #[test]
+    fn render_arg_spread_expands_into_args() {
+        use crate::catalog::{CatalogConfig, ConfigField, ConfigFieldKind, ConfigFieldType};
+        let cfg = CatalogConfig {
+            command: Some("npx".into()),
+            args: Some(vec!["-y".into(), "@scope/foo".into(), "{{paths}}".into()]),
+            env: None, url: None, headers: None,
+        };
+        let schema = vec![ConfigField {
+            name: "paths".into(),
+            kind: ConfigFieldKind::ArgSpread,
+            r#type: ConfigFieldType::PathArray,
+            label: "Paths".into(),
+            description: None, required: true, placeholder: None, default: None, help_url: None,
+        }];
+        let values = fields(&[("paths", json!(["/a", "/b"]))]);
+        let rendered = render_config_block(&cfg, &schema, &values).unwrap();
+        assert_eq!(rendered["args"], json!(["-y", "@scope/foo", "/a", "/b"]));
+    }
+
+    #[test]
+    fn render_empty_arg_spread_drops_marker() {
+        use crate::catalog::{CatalogConfig, ConfigField, ConfigFieldKind, ConfigFieldType};
+        let cfg = CatalogConfig {
+            command: Some("npx".into()),
+            args: Some(vec!["-y".into(), "{{paths}}".into()]),
+            env: None, url: None, headers: None,
+        };
+        let schema = vec![ConfigField {
+            name: "paths".into(), kind: ConfigFieldKind::ArgSpread,
+            r#type: ConfigFieldType::PathArray, label: "Paths".into(),
+            description: None, required: false, placeholder: None, default: None, help_url: None,
+        }];
+        let values = fields(&[("paths", json!([]))]);
+        let rendered = render_config_block(&cfg, &schema, &values).unwrap();
+        assert_eq!(rendered["args"], json!(["-y"]));
+    }
+
+    #[test]
+    fn render_missing_required_field_returns_err() {
+        use crate::catalog::{CatalogConfig, ConfigField, ConfigFieldKind, ConfigFieldType};
+        let cfg = CatalogConfig {
+            command: Some("npx".into()), args: None, env: None, url: None, headers: None,
+        };
+        let schema = vec![ConfigField {
+            name: "api_key".into(), kind: ConfigFieldKind::Env,
+            r#type: ConfigFieldType::Secret, label: "API key".into(),
+            description: None, required: true, placeholder: None, default: None, help_url: None,
+        }];
+        let values = fields(&[]);
+        assert!(render_config_block(&cfg, &schema, &values).is_err());
     }
 }
