@@ -39,7 +39,7 @@ def derive_prereq(server):
 
 def migrate_one(server):
     server.setdefault("prerequisites", derive_prereq(server))
-    if not server.get("install"):
+    if "install" not in server:
         server["install"] = [derive_install_step(server)]
     return server
 
