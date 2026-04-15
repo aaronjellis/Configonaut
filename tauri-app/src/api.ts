@@ -312,16 +312,19 @@ export function writeClaudeFile(
 // ---------- Runtime detection ----------
 
 export async function checkRuntime(): Promise<CatalogRuntimeStatus> {
-  const [node, uv, docker] = await Promise.all([
+  const [node, uv, docker] = await Promise.allSettled([
     apiCheckRuntime("node"),
     apiCheckRuntime("uv"),
     apiCheckRuntime("docker"),
   ]);
+  const ok = (r: PromiseSettledResult<RuntimeStatus>) =>
+    r.status === "fulfilled" ? r.value : null;
+  const nodeR = ok(node), uvR = ok(uv), dockerR = ok(docker);
   return {
-    node: node.installed ? (node.version ?? "") : null,
+    node:   nodeR?.installed ? (nodeR.version ?? "") : null,
     python: null,
-    uv: uv.installed ? (uv.version ?? "") : null,
-    docker: docker.installed ? (docker.version ?? "") : null,
+    uv:     uvR?.installed   ? (uvR.version   ?? "") : null,
+    docker: dockerR?.installed ? (dockerR.version ?? "") : null,
   };
 }
 

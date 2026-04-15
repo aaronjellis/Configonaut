@@ -24,6 +24,7 @@ import type {
   FeedEntry,
   FeedStatus,
   CatalogRuntimeStatus,
+  RuntimeName,
 } from "../types";
 
 interface Props {
@@ -656,7 +657,7 @@ const RUNTIME_DOWNLOADS: Record<string, string> = {
 /// Uses the typed `prerequisites` catalog field when present; falls back to the
 /// legacy `requirements` string array for custom-feed entries that predate 1.1.0.
 function missingRequirements(
-  server: { requirements: string[]; prerequisites?: Array<{ type: string }> },
+  server: { requirements: string[]; prerequisites?: Array<{ type: RuntimeName }> },
   rt: CatalogRuntimeStatus | null
 ): MissingRuntime[] {
   if (!rt) return [];

@@ -113,7 +113,7 @@ export interface CatalogServer {
   envVars?: CatalogEnvVar[] | null;
   feedOrigin?: string | null;
   prerequisites?: Array<{ type: RuntimeName }>;
-  install?: unknown[];
+  install?: InstallStep[];
   configFields?: ConfigField[];
 }
 
@@ -170,6 +170,13 @@ export type ViewKey = "mcp" | "hooks" | "agents" | "skills" | "backups";
 // ─── Auto-install ────────────────────────────────────────────────────
 
 export type RuntimeName = "node" | "uv" | "docker";
+
+export type InstallStep =
+  | { type: "npmWarmup"; package: string }
+  | { type: "uvxWarmup"; package: string }
+  | { type: "dockerPull"; image: string }
+  | { type: "none" }
+  | { type: string }; // forward-compat catch-all for unknown step types
 
 export interface RuntimeStatus {
   installed: boolean;
