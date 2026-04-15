@@ -112,6 +112,9 @@ export interface CatalogServer {
   setupNotes?: string | null;
   envVars?: CatalogEnvVar[] | null;
   feedOrigin?: string | null;
+  prerequisites?: Array<{ type: RuntimeName }>;
+  install?: unknown[];
+  configFields?: ConfigField[];
 }
 
 export interface CatalogRuntimeStatus {

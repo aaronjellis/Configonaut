@@ -652,14 +652,34 @@ const RUNTIME_DOWNLOADS: Record<string, string> = {
   Docker: "https://www.docker.com/products/docker-desktop/",
 };
 
-/// Check which of a server's requirements are missing from the user's machine.
+/// Check which of a server's prerequisites are missing from the user's machine.
+/// Uses the typed `prerequisites` catalog field when present; falls back to the
+/// legacy `requirements` string array for custom-feed entries that predate 1.1.0.
 function missingRequirements(
-  requirements: string[],
+  server: { requirements: string[]; prerequisites?: Array<{ type: string }> },
   rt: CatalogRuntimeStatus | null
 ): MissingRuntime[] {
-  if (!rt || requirements.length === 0) return [];
+  if (!rt) return [];
+
+  // Prefer the typed prerequisites from catalog schema 1.1.0+
+  if (server.prerequisites && server.prerequisites.length > 0) {
+    const missing: MissingRuntime[] = [];
+    for (const prereq of server.prerequisites) {
+      const key = prereq.type;
+      if (key === "node" && !rt.node)
+        missing.push({ label: "Node.js", downloadUrl: RUNTIME_DOWNLOADS["Node.js"] });
+      else if (key === "uv" && !rt.uv)
+        missing.push({ label: "uv", downloadUrl: RUNTIME_DOWNLOADS["uv"] });
+      else if (key === "docker" && !rt.docker)
+        missing.push({ label: "Docker", downloadUrl: RUNTIME_DOWNLOADS["Docker"] });
+    }
+    return missing;
+  }
+
+  // Legacy fallback: plain requirements string array
+  if (server.requirements.length === 0) return [];
   const missing: MissingRuntime[] = [];
-  for (const req of requirements) {
+  for (const req of server.requirements) {
     const key = req.toLowerCase();
     if (key === "node" && !rt.node)
       missing.push({ label: "Node.js", downloadUrl: RUNTIME_DOWNLOADS["Node.js"] });
@@ -746,7 +766,7 @@ function ServerRow({
           )}
 
           {(() => {
-            const missing = missingRequirements(server.requirements, runtimeStatus);
+            const missing = missingRequirements(server, runtimeStatus);
             if (missing.length === 0) return null;
             return (
               <div className="banner warning">
