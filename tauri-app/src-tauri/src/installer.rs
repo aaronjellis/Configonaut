@@ -284,6 +284,23 @@ pub struct InstallSchema {
     pub has_unknown_install_step: bool,
 }
 
+fn effective_config_fields(server: &CatalogServer) -> Vec<ConfigField> {
+    if !server.config_fields.is_empty() {
+        return server.config_fields.clone();
+    }
+    server.env_vars.as_deref().unwrap_or(&[]).iter().map(|ev| ConfigField {
+        name: ev.name.clone(),
+        kind: ConfigFieldKind::Env,
+        r#type: if ev.secret { ConfigFieldType::Secret } else { ConfigFieldType::String },
+        label: ev.name.clone(),
+        description: ev.description.clone(),
+        required: ev.required,
+        placeholder: ev.placeholder.clone(),
+        default: None,
+        help_url: ev.help_url.clone(),
+    }).collect()
+}
+
 pub fn build_inspect_schema(server: &CatalogServer) -> InstallSchema {
     let prerequisites = server.prerequisites.iter().map(|p: &CatalogPrerequisite| {
         PrerequisiteEntry {
@@ -295,23 +312,7 @@ pub fn build_inspect_schema(server: &CatalogServer) -> InstallSchema {
 
     let has_unknown = server.install.iter().any(|s| matches!(s, InstallStep::Unknown));
 
-    // Coalesce config_fields with the legacy env_vars field for old catalog entries.
-    let mut config_fields = server.config_fields.clone();
-    if config_fields.is_empty() {
-        if let Some(env_vars) = &server.env_vars {
-            config_fields = env_vars.iter().map(|ev| ConfigField {
-                name: ev.name.clone(),
-                kind: ConfigFieldKind::Env,
-                r#type: if ev.secret { ConfigFieldType::Secret } else { ConfigFieldType::String },
-                label: ev.name.clone(),
-                description: ev.description.clone(),
-                required: ev.required,
-                placeholder: ev.placeholder.clone(),
-                default: None,
-                help_url: ev.help_url.clone(),
-            }).collect();
-        }
-    }
+    let config_fields = effective_config_fields(server);
 
     InstallSchema {
         prerequisites,
@@ -383,7 +384,7 @@ pub async fn install_server(
         step: "configure".into(),
         label: "Validating configuration".into(),
     }).ok();
-    let rendered = render_config_block(&server.config, &server.config_fields, &field_values)?;
+    let rendered = render_config_block(&server.config, &effective_config_fields(&server), &field_values)?;
 
     for step in &server.install {
         let label = label_for(step);
@@ -446,7 +447,7 @@ pub async fn install_server(
             app.emit(PROGRESS_EVENT, InstallProgress::Error {
                 step: "install".into(),
                 message: message.clone(),
-                can_retry: !matches!(kind, InstallErrorKind::Generic(_)),
+                can_retry: matches!(kind, InstallErrorKind::Network | InstallErrorKind::DockerDaemonDown | InstallErrorKind::DiskFull),
             }).ok();
             return Err(message);
         }
