@@ -88,6 +88,21 @@
           "items": { "$ref": "#/$defs/envVar" },
           "description": "Declarative list of environment variables used by the server."
         },
+        "prerequisites": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/prerequisite" },
+          "description": "Runtime prerequisites needed before this server can launch."
+        },
+        "install": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/installStep" },
+          "description": "Bounded-DSL steps Configonaut runs to make the server usable."
+        },
+        "configFields": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/configField" },
+          "description": "Form schema for the auto-install setup wizard."
+        },
         "setupNotes": {
           "type": "string",
           "description": "Human-readable instructions shown under the add form."
@@ -126,6 +141,62 @@
         "placeholder": { "type": "string", "description": "Example value shown as a hint (never written to config)." },
         "helpUrl":     { "type": "string", "format": "uri", "description": "Link to docs explaining how to obtain this credential." },
         "default":     { "type": "string" }
+      }
+    },
+
+    "prerequisite": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": { "enum": ["node", "uv", "docker"] }
+      }
+    },
+
+    "installStep": {
+      "type": "object",
+      "required": ["type"],
+      "oneOf": [
+        {
+          "properties": {
+            "type": { "const": "npmWarmup" },
+            "package": { "type": "string" }
+          },
+          "required": ["type", "package"]
+        },
+        {
+          "properties": {
+            "type": { "const": "uvxWarmup" },
+            "package": { "type": "string" }
+          },
+          "required": ["type", "package"]
+        },
+        {
+          "properties": {
+            "type": { "const": "dockerPull" },
+            "image": { "type": "string" }
+          },
+          "required": ["type", "image"]
+        },
+        {
+          "properties": { "type": { "const": "none" } },
+          "required": ["type"]
+        }
+      ]
+    },
+
+    "configField": {
+      "type": "object",
+      "required": ["name", "kind", "type", "label"],
+      "properties": {
+        "name":        { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_]*$" },
+        "kind":        { "enum": ["env", "arg", "argSpread"] },
+        "type":        { "enum": ["string", "secret", "path", "pathArray", "url", "number"] },
+        "label":       { "type": "string" },
+        "description": { "type": "string" },
+        "required":    { "type": "boolean", "default": false },
+        "placeholder": { "type": "string" },
+        "default":     {},
+        "helpUrl":     { "type": "string", "format": "uri" }
       }
     }
   }
