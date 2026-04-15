@@ -2,6 +2,7 @@
 .swiftpm/
 .claude/
 .claude-flow/
+.worktrees/
 *.xcodeproj/
 xcuserdata/
 DerivedData/
