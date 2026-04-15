@@ -131,9 +131,7 @@ pub async fn install_runtime(name: RuntimeName) -> Result<InstallAction, String>
     Ok(install_runtime_for(name))
 }
 
-// NOTE: `#[tauri::command]` is intentionally omitted here to avoid a macro
-// name collision with `commands::check_runtime` (the legacy all-runtimes probe).
-// This command will be registered once the old stub is retired in a later task.
+#[tauri::command]
 pub async fn check_runtime(app: AppHandle, name: RuntimeName) -> Result<RuntimeStatus, String> {
     if matches!(name, RuntimeName::Uv) {
         let out = sidecar::run_uv(&app, &["-V"]).await.map_err(|e| e.to_string())?;

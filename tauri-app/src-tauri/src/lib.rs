@@ -176,8 +176,11 @@ pub fn run() {
             commands::toggle_feed,
             commands::get_catalog_with_feeds,
             commands::refresh_all_feeds,
-            // Runtime detection
-            commands::check_runtime,
+            // Auto-install
+            installer::check_runtime,
+            installer::install_runtime,
+            installer::inspect_install,
+            installer::install_server,
             // Paths
             commands::get_config_path,
             commands::get_storage_dir,
