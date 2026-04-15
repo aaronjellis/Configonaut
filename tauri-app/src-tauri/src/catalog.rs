@@ -225,6 +225,78 @@ impl CatalogConfig {
 }
 
 // ---------------------------------------------------------------------------
+// Auto-install schema (catalog v1.1.0)
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum RuntimeName {
+    Node,
+    Uv,
+    Docker,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CatalogPrerequisite {
+    pub r#type: RuntimeName,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "camelCase")]
+pub enum InstallStep {
+    NpmWarmup { package: String },
+    UvxWarmup { package: String },
+    DockerPull { image: String },
+    None,
+    /// Forward-compat: any unknown `type` parses to this so old clients
+    /// don't crash on newer catalog feeds. Renderer treats it as "skip
+    /// install, write config, show banner".
+    ///
+    /// NOTE: deserialization-only. `#[serde(other)]` has no serialization
+    /// form — do not call `serde_json::to_value` on this variant.
+    #[serde(other)]
+    Unknown,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ConfigFieldKind {
+    Env,
+    Arg,
+    ArgSpread,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ConfigFieldType {
+    String,
+    Secret,
+    Path,
+    PathArray,
+    Url,
+    Number,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConfigField {
+    pub name: String,
+    pub kind: ConfigFieldKind,
+    pub r#type: ConfigFieldType,
+    pub label: String,
+    #[serde(default)]
+    pub description: Option<String>,
+    #[serde(default)]
+    pub required: bool,
+    #[serde(default)]
+    pub placeholder: Option<String>,
+    #[serde(default)]
+    pub default: Option<Value>,
+    #[serde(default)]
+    pub help_url: Option<String>,
+}
+
+// ---------------------------------------------------------------------------
 // Catalog store — bootstrap + remote refresh
 // ---------------------------------------------------------------------------
 
@@ -837,75 +909,6 @@ pub fn missing_secrets(config_block: &Value, server: &CatalogServer) -> Vec<Stri
         }
     }
     missing
-}
-
-// ---------------------------------------------------------------------------
-// Auto-install schema (catalog v1.1.0)
-// ---------------------------------------------------------------------------
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum RuntimeName {
-    Node,
-    Uv,
-    Docker,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CatalogPrerequisite {
-    pub r#type: RuntimeName,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "type", rename_all = "camelCase")]
-pub enum InstallStep {
-    NpmWarmup { package: String },
-    UvxWarmup { package: String },
-    DockerPull { image: String },
-    None,
-    /// Forward-compat: any unknown `type` parses to this so old clients
-    /// don't crash on newer catalog feeds. Renderer treats it as "skip
-    /// install, write config, show banner".
-    #[serde(other)]
-    Unknown,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub enum ConfigFieldKind {
-    Env,
-    Arg,
-    ArgSpread,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub enum ConfigFieldType {
-    String,
-    Secret,
-    Path,
-    PathArray,
-    Url,
-    Number,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ConfigField {
-    pub name: String,
-    pub kind: ConfigFieldKind,
-    pub r#type: ConfigFieldType,
-    pub label: String,
-    #[serde(default)]
-    pub description: Option<String>,
-    #[serde(default)]
-    pub required: bool,
-    #[serde(default)]
-    pub placeholder: Option<String>,
-    #[serde(default)]
-    pub default: Option<Value>,
-    #[serde(default)]
-    pub help_url: Option<String>,
 }
 
 #[cfg(test)]
