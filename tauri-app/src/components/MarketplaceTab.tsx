@@ -23,7 +23,7 @@ import type {
   CatalogServer,
   FeedEntry,
   FeedStatus,
-  RuntimeStatus,
+  CatalogRuntimeStatus,
 } from "../types";
 
 interface Props {
@@ -32,7 +32,7 @@ interface Props {
   isRefreshing: boolean;
   /// Map of installed-server-name → catalog-id for "Installed" badges.
   links: Record<string, string>;
-  runtimeStatus: RuntimeStatus | null;
+  runtimeStatus: CatalogRuntimeStatus | null;
   feeds: FeedEntry[];
   feedStatuses: FeedStatus[];
   onRefresh: () => void | Promise<void>;
@@ -630,7 +630,7 @@ interface ServerRowProps {
   server: CatalogServer;
   isSelected: boolean;
   isInstalled: boolean;
-  runtimeStatus: RuntimeStatus | null;
+  runtimeStatus: CatalogRuntimeStatus | null;
   editedJson: string;
   editError: string | null;
   busy: boolean;
@@ -655,7 +655,7 @@ const RUNTIME_DOWNLOADS: Record<string, string> = {
 /// Check which of a server's requirements are missing from the user's machine.
 function missingRequirements(
   requirements: string[],
-  rt: RuntimeStatus | null
+  rt: CatalogRuntimeStatus | null
 ): MissingRuntime[] {
   if (!rt || requirements.length === 0) return [];
   const missing: MissingRuntime[] = [];

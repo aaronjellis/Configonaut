@@ -114,7 +114,7 @@ export interface CatalogServer {
   feedOrigin?: string | null;
 }
 
-export interface RuntimeStatus {
+export interface CatalogRuntimeStatus {
   node: string | null;
   python: string | null;
   uv: string | null;
@@ -163,3 +163,51 @@ export interface FeedStatus {
 // Swift version it lives as a tab inside the Add Server flow, not as its own
 // view.
 export type ViewKey = "mcp" | "hooks" | "agents" | "skills" | "backups";
+
+// ─── Auto-install ────────────────────────────────────────────────────
+
+export type RuntimeName = "node" | "uv" | "docker";
+
+export interface RuntimeStatus {
+  installed: boolean;
+  version: string | null;
+  source: "system" | "sidecar" | null;
+}
+
+export type InstallAction =
+  | { action: "ready" }
+  | { action: "openUrl"; url: string };
+
+export type ConfigFieldKind = "env" | "arg" | "argSpread";
+export type ConfigFieldType =
+  | "string" | "secret" | "path" | "pathArray" | "url" | "number";
+
+export interface ConfigField {
+  name: string;
+  kind: ConfigFieldKind;
+  type: ConfigFieldType;
+  label: string;
+  description?: string;
+  required?: boolean;
+  placeholder?: string;
+  default?: unknown;
+  helpUrl?: string;
+}
+
+export interface PrerequisiteEntry {
+  type: RuntimeName;
+  status: RuntimeStatus | null;
+  installUrl: string | null;
+}
+
+export interface InstallSchema {
+  prerequisites: PrerequisiteEntry[];
+  configFields: ConfigField[];
+  installStepCount: number;
+  hasUnknownInstallStep: boolean;
+}
+
+export type InstallProgress =
+  | { kind: "step"; step: "check" | "install" | "configure" | "done"; label: string }
+  | { kind: "log"; line: string }
+  | { kind: "error"; step: string; message: string; canRetry: boolean };

@@ -33,7 +33,7 @@ import type {
   CatalogServer,
   FeedEntry,
   FeedStatus,
-  RuntimeStatus,
+  CatalogRuntimeStatus,
   ServerTuple,
 } from "../types";
 import { MarketplaceTab } from "./MarketplaceTab";
@@ -69,7 +69,7 @@ export function AddServerModal({
   const [catalogError, setCatalogError] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [links, setLinks] = useState<Record<string, string>>({});
-  const [runtimeStatus, setRuntimeStatus] = useState<RuntimeStatus | null>(null);
+  const [runtimeStatus, setRuntimeStatus] = useState<CatalogRuntimeStatus | null>(null);
   const [feeds, setFeeds] = useState<FeedEntry[]>([]);
   const [feedStatuses, setFeedStatuses] = useState<FeedStatus[]>([]);
 
