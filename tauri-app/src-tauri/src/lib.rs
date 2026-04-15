@@ -13,6 +13,7 @@ mod catalog;
 mod claude_code;
 mod commands;
 mod config;
+mod installer;
 mod models;
 mod paths;
 pub mod sidecar;
