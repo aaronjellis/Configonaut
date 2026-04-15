@@ -15,6 +15,7 @@ mod commands;
 mod config;
 mod models;
 mod paths;
+pub mod sidecar;
 
 use tauri::menu::{MenuBuilder, MenuItem, SubmenuBuilder};
 use tauri::{Emitter, Manager};
