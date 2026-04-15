@@ -113,6 +113,18 @@ pub fn parse_runtime_version(name: RuntimeName, raw: &str) -> Option<String> {
     }
 }
 
+pub fn install_runtime_for(name: RuntimeName) -> InstallAction {
+    match runtime_install_url(name) {
+        None => InstallAction::Ready,
+        Some(url) => InstallAction::OpenUrl { url: url.to_string() },
+    }
+}
+
+#[tauri::command]
+pub async fn install_runtime(name: RuntimeName) -> Result<InstallAction, String> {
+    Ok(install_runtime_for(name))
+}
+
 // NOTE: `#[tauri::command]` is intentionally omitted here to avoid a macro
 // name collision with `commands::check_runtime` (the legacy all-runtimes probe).
 // This command will be registered once the old stub is retired in a later task.
@@ -228,5 +240,26 @@ mod tests {
     fn parse_docker_version_from_dashv() {
         let v = parse_runtime_version(RuntimeName::Docker, "Docker version 24.0.7, build afdd53b\n");
         assert_eq!(v, Some("24.0.7".into()));
+    }
+
+    #[test]
+    fn install_runtime_uv_returns_ready() {
+        let action = install_runtime_for(RuntimeName::Uv);
+        assert!(matches!(action, InstallAction::Ready));
+    }
+
+    #[test]
+    fn install_runtime_node_returns_open_url() {
+        let action = install_runtime_for(RuntimeName::Node);
+        match action {
+            InstallAction::OpenUrl { url } => assert!(url.starts_with("https://nodejs.org")),
+            _ => panic!("expected OpenUrl"),
+        }
+    }
+
+    #[test]
+    fn install_runtime_docker_returns_open_url() {
+        let action = install_runtime_for(RuntimeName::Docker);
+        assert!(matches!(action, InstallAction::OpenUrl { .. }));
     }
 }
