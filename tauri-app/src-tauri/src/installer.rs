@@ -96,7 +96,7 @@ pub fn check_command_for(name: RuntimeName) -> (&'static str, Vec<&'static str>)
 fn version_command_for(name: RuntimeName) -> (&'static str, Vec<&'static str>) {
     match name {
         RuntimeName::Node => ("node", vec!["-v"]),
-        RuntimeName::Docker => ("docker", vec!["-v"]),
+        RuntimeName::Docker => ("docker", vec!["-v"]), // parse_runtime_version is calibrated to "docker -v" format
         RuntimeName::Uv => ("uv", vec!["-V"]),
     }
 }
@@ -195,6 +195,7 @@ pub fn render_config_block(
                     if let Some(v) = values.get(&field.name) {
                         rendered.push(v.clone());
                     }
+                    // optional Arg field with no value: drop the slot (same semantics as empty ArgSpread)
                     continue;
                 }
             }
@@ -445,5 +446,25 @@ mod tests {
         }];
         let values = fields(&[]);
         assert!(render_config_block(&cfg, &schema, &values).is_err());
+    }
+
+    #[test]
+    fn render_absent_optional_arg_drops_slot() {
+        use crate::catalog::{CatalogConfig, ConfigField, ConfigFieldKind, ConfigFieldType};
+        let cfg = CatalogConfig {
+            command: Some("npx".into()),
+            args: Some(vec!["-y".into(), "{{port}}".into()]),
+            env: None, url: None, headers: None,
+        };
+        let schema = vec![ConfigField {
+            name: "port".into(), kind: ConfigFieldKind::Arg,
+            r#type: ConfigFieldType::Number, label: "Port".into(),
+            description: None, required: false, placeholder: None, default: None, help_url: None,
+        }];
+        // No "port" value — optional field absent.
+        let values = std::collections::BTreeMap::new();
+        let rendered = render_config_block(&cfg, &schema, &values).unwrap();
+        // The marker slot is dropped; only the static flags remain.
+        assert_eq!(rendered["args"], serde_json::json!(["-y"]));
     }
 }
