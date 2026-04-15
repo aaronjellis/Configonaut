@@ -769,6 +769,20 @@ pub fn update_hook_rule(
     claude_code::update_hook_rule(&event, &matcher, &new_json)
 }
 
+#[tauri::command]
+pub fn create_hook(
+    event: String,
+    matcher: String,
+    commands: Vec<String>,
+) -> AppResult<()> {
+    claude_code::create_hook(&event, &matcher, &commands)
+}
+
+#[tauri::command]
+pub fn delete_hook(event: String, matcher: String) -> AppResult<()> {
+    claude_code::delete_hook(&event, &matcher)
+}
+
 // ---------------------------------------------------------------------------
 // Agents
 // ---------------------------------------------------------------------------
@@ -809,6 +823,11 @@ pub fn toggle_skill(
 #[tauri::command]
 pub fn create_skill(name: String, source: SkillSource) -> AppResult<String> {
     claude_code::create_skill(&name, source)
+}
+
+#[tauri::command]
+pub fn delete_skill(file_path: String) -> AppResult<()> {
+    claude_code::delete_skill(&file_path)
 }
 
 // ---------------------------------------------------------------------------

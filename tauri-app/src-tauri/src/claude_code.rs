@@ -246,6 +246,102 @@ pub fn toggle_hook(event: &str, matcher: &str, enable: bool) -> AppResult<()> {
     save_settings(&settings)
 }
 
+/// Create a brand new hook rule under `event`. We refuse to silently
+/// overwrite: if a rule with the same matcher already exists under this
+/// event, the caller gets an error instead of a surprise stomp.
+///
+/// The inner shape follows what Claude Code actually writes:
+///   { "matcher": "...", "hooks": [ { "type": "command", "command": "..." } ] }
+/// `type: "command"` isn't required by our reader but is the documented
+/// format, so we emit it for forward-compat.
+pub fn create_hook(event: &str, matcher: &str, commands: &[String]) -> AppResult<()> {
+    if commands.iter().all(|c| c.trim().is_empty()) {
+        return Err(anyhow!("hook needs at least one non-empty command").into());
+    }
+
+    let mut settings = load_settings()?;
+
+    // Ensure the top-level "hooks" object exists (may be absent on fresh
+    // installs; `create_hook` is the one command that's allowed to mint it).
+    let hooks_entry = settings
+        .entry("hooks".to_string())
+        .or_insert_with(|| Value::Object(Map::new()));
+    let hooks_obj = hooks_entry
+        .as_object_mut()
+        .ok_or_else(|| anyhow!("'hooks' in settings.json is not a JSON object"))?;
+
+    // Ensure the event array exists.
+    let event_entry = hooks_obj
+        .entry(event.to_string())
+        .or_insert_with(|| Value::Array(vec![]));
+    let arr = event_entry
+        .as_array_mut()
+        .ok_or_else(|| anyhow!("'hooks.{event}' is not a JSON array"))?;
+
+    // Duplicate check. Same convention as list_hooks: absent matcher defaults to "*".
+    for rule in arr.iter() {
+        if let Value::Object(m) = rule {
+            let existing = m.get("matcher").and_then(|v| v.as_str()).unwrap_or("*");
+            if existing == matcher {
+                return Err(anyhow!(
+                    "a hook with matcher '{matcher}' already exists under {event}"
+                )
+                .into());
+            }
+        }
+    }
+
+    // Build the new rule. Skip empty command strings; the caller may have
+    // sent placeholders from a multi-row form.
+    let commands_json: Vec<Value> = commands
+        .iter()
+        .filter(|c| !c.trim().is_empty())
+        .map(|c| {
+            let mut m = Map::new();
+            m.insert("type".to_string(), Value::String("command".to_string()));
+            m.insert("command".to_string(), Value::String(c.clone()));
+            Value::Object(m)
+        })
+        .collect();
+
+    let mut rule = Map::new();
+    rule.insert("matcher".to_string(), Value::String(matcher.to_string()));
+    rule.insert("hooks".to_string(), Value::Array(commands_json));
+    arr.push(Value::Object(rule));
+
+    save_settings(&settings)
+}
+
+/// Delete a single hook rule. Also prunes the event key if this was the
+/// last rule under it, so the file stays tidy and list_hooks doesn't see
+/// phantom events with zero rules.
+pub fn delete_hook(event: &str, matcher: &str) -> AppResult<()> {
+    let mut settings = load_settings()?;
+    let hooks_obj = settings
+        .get_mut("hooks")
+        .and_then(|v| v.as_object_mut())
+        .ok_or_else(|| anyhow!("no hooks section in settings.json"))?;
+    let arr = hooks_obj
+        .get_mut(event)
+        .and_then(|v| v.as_array_mut())
+        .ok_or_else(|| anyhow!("hook event {event} not found"))?;
+
+    let before = arr.len();
+    arr.retain(|rule| {
+        let Value::Object(m) = rule else { return true };
+        let existing = m.get("matcher").and_then(|v| v.as_str()).unwrap_or("*");
+        existing != matcher
+    });
+    if arr.len() == before {
+        return Err(anyhow!("no hook rule matched {event}/{matcher}").into());
+    }
+
+    if arr.is_empty() {
+        hooks_obj.remove(event);
+    }
+    save_settings(&settings)
+}
+
 /// Replace the whole JSON body for a single hook rule. The new JSON is
 /// expected to be a complete rule object (matcher, hooks, etc.) — we don't
 /// merge, we substitute.
@@ -685,6 +781,51 @@ pub fn create_skill(name: &str, source: SkillSource) -> AppResult<String> {
     };
     fs::write(&file_path, template)?;
     Ok(file_path.to_string_lossy().into_owned())
+}
+
+/// Delete a personal slash command or skill. Rejects plugin skills, which
+/// are managed by the plugin itself. For `<name>/SKILL.md`-shaped skills we
+/// remove the whole parent directory so sibling assets (scripts/, etc.)
+/// don't get orphaned; for single `<name>.md` files we just remove the file.
+pub fn delete_skill(file_path: &str) -> AppResult<()> {
+    let path = Path::new(file_path);
+    let canonical = fs::canonicalize(path)
+        .with_context(|| format!("resolve {}", path.display()))?;
+
+    // The path must live under ~/.claude/commands or ~/.claude/skills
+    // (including their .disabled/ siblings). Plugin skills live elsewhere
+    // and are read-only from the user's perspective.
+    let commands = paths::commands_dir();
+    let skills = paths::skills_dir();
+    let canonical_commands = fs::canonicalize(&commands).unwrap_or(commands.clone());
+    let canonical_skills = fs::canonicalize(&skills).unwrap_or(skills.clone());
+    let allowed = canonical.starts_with(&canonical_commands)
+        || canonical.starts_with(&canonical_skills);
+    if !allowed {
+        return Err(anyhow!("can only delete personal skills or commands").into());
+    }
+
+    // If this is a SKILL.md, blow away the whole folder so scripts/,
+    // references/, etc. come with it. Otherwise just the .md file.
+    let is_skill_md = canonical
+        .file_name()
+        .and_then(|s| s.to_str())
+        .map(|n| n == "SKILL.md")
+        .unwrap_or(false);
+    if is_skill_md {
+        let parent = canonical
+            .parent()
+            .ok_or_else(|| anyhow!("invalid skill path"))?;
+        // Safety rail: never let a bogus path talk us into deleting the
+        // commands or skills root itself.
+        if parent == canonical_commands || parent == canonical_skills {
+            return Err(anyhow!("refusing to delete root skills directory").into());
+        }
+        fs::remove_dir_all(parent)?;
+    } else {
+        fs::remove_file(&canonical)?;
+    }
+    Ok(())
 }
 
 // ---------------------------------------------------------------------------

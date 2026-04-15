@@ -549,6 +549,21 @@ a:hover {
     0 0 18px color-mix(in srgb, var(--nav-accent, var(--green)) 40%, transparent);
 }
 
+/* Muted nav item: the target exists for this mode but only with caveats
+ * (e.g. Hooks in Desktop mode only apply inside Cowork). Still clickable;
+ * the view itself renders a ModeBanner with the full story. Hover lifts
+ * opacity so the user knows it's interactive. Active state restores full
+ * opacity so the selected row reads clearly. */
+.nav-item--muted {
+  opacity: 0.55;
+}
+.nav-item--muted:hover {
+  opacity: 0.85;
+}
+.nav-item--muted.active {
+  opacity: 1;
+}
+
 .sidebar-divider {
   height: 1px;
   margin: 10px 14px;
@@ -571,6 +586,21 @@ a:hover {
   font-weight: 500;
   color: var(--text-quaternary);
   padding: 10px 0 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+}
+
+.sidebar-dev-badge {
+  display: inline-block;
+  padding: 1px 5px;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  color: #fff;
+  background: #d97706;
+  border-radius: 3px;
 }
 
 /* ---------- Main pane ---------- */
@@ -683,6 +713,18 @@ a {
   max-width: 520px;
 }
 
+/* Section description: a human-readable sentence that explains what a
+ * section (MCP Servers, Hooks, etc.) actually IS, for people who don't
+ * already know the jargon. Distinct from .config-path, which is the
+ * monospace path-to-settings affordance. Can wrap across two lines so
+ * the description doesn't get clipped on narrow windows. */
+.main-header .section-description {
+  font-size: 11.5px;
+  color: var(--text-secondary);
+  line-height: 1.45;
+  max-width: 640px;
+}
+
 .main-header .header-actions {
   display: flex;
   gap: 6px;
@@ -741,6 +783,56 @@ a {
 }
 .banner.warning a:hover {
   color: #fff;
+}
+
+/* ModeBanner: contextual explainer at the top of a view when the
+ * current (view, mode) pair has caveats. Shown e.g. for Hooks/Agents/
+ * Skills in Desktop mode because those features are Claude Code-native
+ * and the Chat surface doesn't pick them up the same way. Purple tint
+ * so it reads as informational, distinct from the blue `.banner` and
+ * red/amber error/warning variants. */
+.mode-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 14px;
+  margin: 0 0 10px;
+  background: linear-gradient(
+    90deg,
+    rgba(179, 108, 255, 0.1),
+    rgba(0, 180, 255, 0.06)
+  );
+  border: 1px solid rgba(179, 108, 255, 0.28);
+  border-radius: var(--radius);
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.mode-banner__icon {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: rgba(179, 108, 255, 0.18);
+  color: var(--purple);
+  font-weight: 700;
+  font-size: 11px;
+  margin-top: 1px;
+}
+.mode-banner__text {
+  flex: 1;
+  min-width: 0;
+}
+.mode-banner__title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 2px;
+}
+.mode-banner__body {
+  color: var(--text-secondary);
 }
 
 /* ---------- MCP columns ---------- */
@@ -1499,6 +1591,16 @@ body.is-dragging * {
   border: 1px solid var(--card-border-hover);
   border-radius: var(--radius-xl);
   box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6);
+}
+
+.confirm-modal {
+  width: 380px;
+}
+
+.confirm-modal .modal-body p {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.5;
 }
 
 .modal-header {

@@ -235,6 +235,18 @@ export function updateHookRule(
   return invoke("update_hook_rule", { event, matcher, newJson });
 }
 
+export function createHook(
+  event: string,
+  matcher: string,
+  commands: string[]
+): Promise<void> {
+  return invoke("create_hook", { event, matcher, commands });
+}
+
+export function deleteHook(event: string, matcher: string): Promise<void> {
+  return invoke("delete_hook", { event, matcher });
+}
+
 // ---------- Agents ----------
 
 export function listAgents(): Promise<AgentEntry[]> {
@@ -268,6 +280,10 @@ export function createSkill(
   source: SkillSource
 ): Promise<string> {
   return invoke<string>("create_skill", { name, source });
+}
+
+export function deleteSkill(filePath: string): Promise<void> {
+  return invoke("delete_skill", { filePath });
 }
 
 // ---------- Shared (plugins + file I/O) ----------

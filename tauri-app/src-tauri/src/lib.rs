@@ -187,6 +187,8 @@ pub fn run() {
             commands::get_hook_rule_json,
             commands::toggle_hook,
             commands::update_hook_rule,
+            commands::create_hook,
+            commands::delete_hook,
             // Agents
             commands::list_agents,
             commands::create_agent,
@@ -195,6 +197,7 @@ pub fn run() {
             commands::list_skills,
             commands::toggle_skill,
             commands::create_skill,
+            commands::delete_skill,
             // Shared: plugin toggle + raw file I/O
             commands::toggle_plugin,
             commands::read_claude_file,

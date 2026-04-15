@@ -146,11 +146,11 @@ function App() {
       case "backups":
         return <BackupsView mode={mode} onMutated={bumpRefresh} />;
       case "hooks":
-        return <HooksView onMutated={bumpRefresh} />;
+        return <HooksView mode={mode} onMutated={bumpRefresh} />;
       case "agents":
-        return <AgentsView onMutated={bumpRefresh} />;
+        return <AgentsView mode={mode} onMutated={bumpRefresh} />;
       case "skills":
-        return <SkillsView onMutated={bumpRefresh} />;
+        return <SkillsView mode={mode} onMutated={bumpRefresh} />;
     }
   }, [view, mode, bumpRefresh]);
 

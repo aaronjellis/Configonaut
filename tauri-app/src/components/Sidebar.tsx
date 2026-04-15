@@ -9,7 +9,13 @@
 // Each nav item gets its own accent color and an optional badge count.
 // Marketplace is intentionally NOT a sidebar item — in the Swift version
 // it's a tab inside the Add Server flow.
+//
+// Availability: each item declares whether it's "native" to a given mode
+// or "muted" (applies with caveats, e.g. Hooks in Desktop mode only fire
+// inside Cowork). Muted items stay clickable and the view itself renders
+// a ModeBanner explaining the nuance.
 
+import { AVAILABILITY } from "../lib/availability";
 import type { AppMode, ViewKey } from "../types";
 
 interface NavItemDef {
@@ -82,12 +88,27 @@ export function Sidebar({
   const renderItem = (item: NavItemDef) => {
     const isActive = currentView === item.key;
     const count = badges[item.key] ?? 0;
+    const availability = AVAILABILITY[item.key][mode];
+    const isMuted = availability === "muted";
+    const classes = [
+      "nav-item",
+      isActive ? "active" : "",
+      isMuted ? "nav-item--muted" : "",
+    ]
+      .filter(Boolean)
+      .join(" ");
+    // Title hint explains at a glance why the item looks dimmed. The full
+    // explainer lives in the view body as a ModeBanner.
+    const hint = isMuted
+      ? `Applies with caveats in ${mode === "desktop" ? "Desktop" : "CLI"} mode. Open to see details.`
+      : undefined;
     return (
       <button
         key={item.key}
-        className={`nav-item ${isActive ? "active" : ""}`}
+        className={classes}
         style={{ ["--nav-accent" as string]: item.accent }}
         onClick={() => onViewChange(item.key)}
+        title={hint}
       >
         <span className="glyph">{item.glyph}</span>
         <span className="labels">
@@ -142,7 +163,10 @@ export function Sidebar({
       <div className="sidebar-divider" />
       {renderItem(BACKUPS)}
 
-      <div className="sidebar-version">v{version}</div>
+      <div className="sidebar-version">
+        v{version}
+        {import.meta.env.DEV && <span className="sidebar-dev-badge">DEV</span>}
+      </div>
     </aside>
   );
 }

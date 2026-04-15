@@ -32,11 +32,15 @@ import {
   togglePlugin,
   writeClaudeFile,
 } from "../api";
+import { ModeBanner } from "../components/ModeBanner";
 import { useToast } from "../components/Toast";
 import { displayPath } from "../lib/displayPath";
-import type { AgentEntry } from "../types";
+import type { AgentEntry, AppMode } from "../types";
 
 interface Props {
+  // Used purely to decide whether to show the ModeBanner. The underlying
+  // files don't change per mode (they're always `~/.claude/agents/`).
+  mode: AppMode;
   onMutated: () => void;
 }
 
@@ -63,7 +67,7 @@ You are a specialized agent. Describe your role and capabilities here.
 - What rules should it follow?
 `;
 
-export function AgentsView({ onMutated }: Props) {
+export function AgentsView({ mode, onMutated }: Props) {
   const toast = useToast();
   const [agents, setAgents] = useState<AgentEntry[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -285,8 +289,10 @@ export function AgentsView({ onMutated }: Props) {
               {agents.length}
             </span>
           </div>
-          <div className="config-path">
-            Personal and plugin agents for Claude Code.
+          <div className="section-description">
+            Specialized sub-agents Claude can delegate to. Each one carries
+            its own system prompt and tool permissions for a focused job
+            like code review, triage, or release notes.
           </div>
         </div>
         {/* Icons on the left, primary CTA anchored to the far right —
@@ -337,6 +343,7 @@ export function AgentsView({ onMutated }: Props) {
       </div>
 
       <div className="main-body main-body--flex">
+        <ModeBanner view="agents" mode={mode} />
         {error && <div className="banner error">{error}</div>}
 
         {agents.length === 0 ? (

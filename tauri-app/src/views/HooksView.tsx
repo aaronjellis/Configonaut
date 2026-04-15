@@ -26,21 +26,28 @@ import {
   useEffect,
   useRef,
   useState,
+  type KeyboardEvent as ReactKeyboardEvent,
   type PointerEvent as ReactPointerEvent,
 } from "react";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import {
+  createHook as apiCreateHook,
+  deleteHook as apiDeleteHook,
   getClaudeCodeSettingsPath,
   getHookRuleJson,
   listHooks,
   toggleHook as apiToggleHook,
   updateHookRule,
 } from "../api";
+import { ModeBanner } from "../components/ModeBanner";
 import { useToast } from "../components/Toast";
 import { displayPath } from "../lib/displayPath";
-import type { HookRule } from "../types";
+import type { AppMode, HookRule } from "../types";
 
 interface Props {
+  // Used purely to decide whether to show the ModeBanner. The hook rules
+  // themselves always live in `~/.claude/settings.json`.
+  mode: AppMode;
   /// Same handoff as BackupsView — bumps the shell's refresh counter so
   /// future badge counts can pick up any changes.
   onMutated: () => void;
@@ -50,7 +57,23 @@ const DETAIL_HEIGHT_KEY = "configonaut.hooks.detailHeight";
 const DETAIL_MIN_HEIGHT = 180;
 const LIST_MIN_HEIGHT = 160;
 
-export function HooksView({ onMutated }: Props) {
+// Hook events Claude Code currently fires. Keep in sync with Claude Code's
+// docs; if the user picks one the runtime doesn't recognize the hook is
+// simply never triggered (no harm, no error).
+const HOOK_EVENTS = [
+  { name: "PreToolUse", desc: "Before Claude uses a tool (can block it)" },
+  { name: "PostToolUse", desc: "After a tool completes" },
+  { name: "UserPromptSubmit", desc: "When the user submits a prompt" },
+  { name: "Notification", desc: "When Claude sends a notification" },
+  { name: "Stop", desc: "When Claude finishes a task" },
+  { name: "SubagentStop", desc: "When a dispatched subagent finishes" },
+  { name: "SessionStart", desc: "When a session begins" },
+  { name: "SessionEnd", desc: "When a session ends" },
+] as const;
+
+const DEFAULT_NEW_EVENT: (typeof HOOK_EVENTS)[number]["name"] = "PreToolUse";
+
+export function HooksView({ mode, onMutated }: Props) {
   const toast = useToast();
   const [hooks, setHooks] = useState<HookRule[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -69,6 +92,15 @@ export function HooksView({ onMutated }: Props) {
     }
     return 280;
   });
+
+  // New-hook flow
+  const [showNew, setShowNew] = useState(false);
+  const [newEvent, setNewEvent] = useState<string>(DEFAULT_NEW_EVENT);
+  const [newMatcher, setNewMatcher] = useState("*");
+  const [newCommand, setNewCommand] = useState("");
+
+  // Delete confirmation
+  const [confirmDelete, setConfirmDelete] = useState<HookRule | null>(null);
 
   const containerRef = useRef<HTMLDivElement | null>(null);
 
@@ -161,6 +193,49 @@ export function HooksView({ onMutated }: Props) {
     }
   }
 
+  function openNewHookPanel() {
+    setSelectedId(null);
+    setShowNew(true);
+    setNewEvent(DEFAULT_NEW_EVENT);
+    setNewMatcher("*");
+    setNewCommand("");
+  }
+
+  async function handleCreate() {
+    const event = newEvent.trim();
+    const matcher = newMatcher.trim() || "*";
+    const command = newCommand.trim();
+    if (!event || !command) return;
+    try {
+      await apiCreateHook(event, matcher, [command]);
+      setStatus(`Created ${event} hook.`);
+      toast.show(`Created ${event} hook.`, "success");
+      setShowNew(false);
+      setNewCommand("");
+      onMutated();
+      await refresh();
+      // Auto-select the newly created rule so the user can jump straight
+      // into editing if they want to.
+      setSelectedId(`${event}::${matcher}`);
+    } catch (e) {
+      setStatus(`Create error: ${String(e)}`, true);
+    }
+  }
+
+  async function handleDelete(rule: HookRule) {
+    try {
+      await apiDeleteHook(rule.event, rule.matcher);
+      setStatus(`Deleted ${rule.event} hook.`);
+      toast.show(`Deleted ${rule.event} hook.`, "success");
+      if (selectedId === rule.id) setSelectedId(null);
+      setConfirmDelete(null);
+      onMutated();
+      await refresh();
+    } catch (e) {
+      setStatus(`Delete error: ${String(e)}`, true);
+    }
+  }
+
   // --- Resize handle (see McpServersView for the full pattern) ---
   function handleResizePointerDown(
     e: ReactPointerEvent<HTMLDivElement>
@@ -217,8 +292,10 @@ export function HooksView({ onMutated }: Props) {
               {hooks.length}
             </span>
           </div>
-          <div className="config-path">
-            Automation triggers that run when Claude performs actions.
+          <div className="section-description">
+            Shell commands that run automatically when Claude uses tools.
+            Useful for linting, logging, or blocking risky actions before
+            they happen.
           </div>
         </div>
         <div className="header-actions">
@@ -254,10 +331,18 @@ export function HooksView({ onMutated }: Props) {
               <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z" />
             </svg>
           </button>
+          <button
+            className="gradient-btn gradient-btn--blue"
+            onClick={openNewHookPanel}
+          >
+            <span className="plus">+</span>
+            New Hook
+          </button>
         </div>
       </header>
 
       <div className="main-body main-body--flex" ref={containerRef}>
+        <ModeBanner view="hooks" mode={mode} />
         {error && <div className="banner error">{error}</div>}
 
         {hooks.length === 0 ? (
@@ -399,6 +484,12 @@ export function HooksView({ onMutated }: Props) {
                 >
                   {selected.isEnabled ? "Disable" : "Enable"}
                 </button>
+                <button
+                  className="danger"
+                  onClick={() => setConfirmDelete(selected)}
+                >
+                  Delete
+                </button>
                 <span className="spacer" />
                 <span className="settings-path-hint">{settingsPath}</span>
               </div>
@@ -424,6 +515,30 @@ export function HooksView({ onMutated }: Props) {
           </div>
         )}
       </footer>
+
+      {showNew && (
+        <CreateHookModal
+          event={newEvent}
+          matcher={newMatcher}
+          command={newCommand}
+          onEventChange={setNewEvent}
+          onMatcherChange={setNewMatcher}
+          onCommandChange={setNewCommand}
+          onCreate={handleCreate}
+          onCancel={() => {
+            setShowNew(false);
+            setNewCommand("");
+          }}
+        />
+      )}
+
+      {confirmDelete && (
+        <ConfirmDeleteModal
+          rule={confirmDelete}
+          onCancel={() => setConfirmDelete(null)}
+          onConfirm={() => handleDelete(confirmDelete)}
+        />
+      )}
     </>
   );
 }
@@ -476,7 +591,8 @@ function HooksEmptyState() {
       <h3>No Hooks Configured</h3>
       <p className="empty-blurb">
         Hooks run custom commands when Claude performs actions. Great for
-        linting, formatting, or validation.
+        linting, formatting, or validation. Use the New Hook button above
+        to add one.
       </p>
       <div className="empty-card">
         <div className="empty-card-label">HOOK TYPES</div>
@@ -520,4 +636,161 @@ function eventColorVar(event: string): string {
 /// into something the OS can open.
 function homeGuess(): string {
   return "/";
+}
+
+// ----------------------------------------------------------------------
+// Create modal
+// ----------------------------------------------------------------------
+
+function CreateHookModal({
+  event,
+  matcher,
+  command,
+  onEventChange,
+  onMatcherChange,
+  onCommandChange,
+  onCreate,
+  onCancel,
+}: {
+  event: string;
+  matcher: string;
+  command: string;
+  onEventChange: (v: string) => void;
+  onMatcherChange: (v: string) => void;
+  onCommandChange: (v: string) => void;
+  onCreate: () => void;
+  onCancel: () => void;
+}) {
+  function handleKeyDown(e: ReactKeyboardEvent<HTMLDivElement>) {
+    if (e.key === "Escape") onCancel();
+  }
+  const active = HOOK_EVENTS.find((h) => h.name === event);
+  const canSubmit = command.trim().length > 0;
+  return (
+    <div className="modal-backdrop" onClick={onCancel}>
+      <div
+        className="modal modal-wide modal-editor create-panel"
+        onClick={(e) => e.stopPropagation()}
+        onKeyDown={handleKeyDown}
+      >
+        <div className="modal-header modal-editor-header">
+          <span className="create-icon">+</span>
+          <span className="agent-name">Create New Hook</span>
+          <span className="spacer" />
+          <button className="icon" onClick={onCancel} aria-label="Close" title="Close">
+            ✕
+          </button>
+        </div>
+
+        <div className="modal-body modal-editor-body">
+          <div className="name-row">
+            <label>Event:</label>
+            <select
+              value={event}
+              onChange={(e) => onEventChange(e.target.value)}
+              className="name-input"
+            >
+              {HOOK_EVENTS.map((h) => (
+                <option key={h.name} value={h.name}>
+                  {h.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          {active && (
+            <div
+              style={{
+                fontSize: 11.5,
+                color: "var(--text-secondary)",
+                marginTop: -6,
+                marginBottom: 10,
+                paddingLeft: 54,
+              }}
+            >
+              {active.desc}
+            </div>
+          )}
+
+          <div className="name-row">
+            <label>Matcher:</label>
+            <input
+              type="text"
+              placeholder="* (all tools) or e.g. Bash, Edit|Write"
+              value={matcher}
+              onChange={(e) => onMatcherChange(e.target.value)}
+              className="name-input"
+            />
+          </div>
+
+          <div className="name-row" style={{ alignItems: "flex-start" }}>
+            <label style={{ marginTop: 6 }}>Command:</label>
+            <textarea
+              className="code-editor"
+              style={{ minHeight: 140, flex: 1 }}
+              placeholder="bash ./lint.sh"
+              value={command}
+              onChange={(e) => onCommandChange(e.target.value)}
+              spellCheck={false}
+              autoFocus
+            />
+          </div>
+        </div>
+
+        <div className="modal-footer modal-editor-footer">
+          <span className="spacer" />
+          <button onClick={onCancel}>Cancel</button>
+          <button
+            className="primary"
+            disabled={!canSubmit}
+            onClick={onCreate}
+          >
+            Create
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ----------------------------------------------------------------------
+// Confirm delete modal
+// ----------------------------------------------------------------------
+
+function ConfirmDeleteModal({
+  rule,
+  onCancel,
+  onConfirm,
+}: {
+  rule: HookRule;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <div className="modal-backdrop" onClick={onCancel}>
+      <div
+        className="modal"
+        style={{ width: 440 }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="modal-header">
+          <h3>Delete Hook?</h3>
+        </div>
+        <div className="modal-body">
+          <p style={{ margin: 0, color: "var(--text-secondary)", fontSize: 12 }}>
+            Permanently delete the <strong>{rule.event}</strong> hook
+            {rule.matcher !== "*" && (
+              <> with matcher <strong>{rule.matcher}</strong></>
+            )}
+            ? This can't be undone.
+          </p>
+        </div>
+        <div className="modal-footer">
+          <button onClick={onCancel}>Cancel</button>
+          <button className="danger" onClick={onConfirm}>
+            Delete
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }
