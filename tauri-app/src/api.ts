@@ -311,8 +311,18 @@ export function writeClaudeFile(
 
 // ---------- Runtime detection ----------
 
-export function checkRuntime(): Promise<CatalogRuntimeStatus> {
-  return invoke<CatalogRuntimeStatus>("check_runtime");
+export async function checkRuntime(): Promise<CatalogRuntimeStatus> {
+  const [node, uv, docker] = await Promise.all([
+    apiCheckRuntime("node"),
+    apiCheckRuntime("uv"),
+    apiCheckRuntime("docker"),
+  ]);
+  return {
+    node: node.installed ? (node.version ?? "") : null,
+    python: null,
+    uv: uv.installed ? (uv.version ?? "") : null,
+    docker: docker.installed ? (docker.version ?? "") : null,
+  };
 }
 
 // ---------- Auto-install ----------
