@@ -795,10 +795,18 @@ pub fn delete_skill(file_path: &str) -> AppResult<()> {
     // The path must live under ~/.claude/commands or ~/.claude/skills
     // (including their .disabled/ siblings). Plugin skills live elsewhere
     // and are read-only from the user's perspective.
+    //
+    // Both roots must canonicalize successfully. Falling back to a raw
+    // (non-canonical) path here would let a prefix-match slip through when
+    // `~/.claude` itself is a symlink, so we require the roots to exist
+    // and treat a resolve failure as an error. Matches delete_agent's
+    // stricter posture.
     let commands = paths::commands_dir();
     let skills = paths::skills_dir();
-    let canonical_commands = fs::canonicalize(&commands).unwrap_or(commands.clone());
-    let canonical_skills = fs::canonicalize(&skills).unwrap_or(skills.clone());
+    let canonical_commands = fs::canonicalize(&commands)
+        .with_context(|| format!("resolve {}", commands.display()))?;
+    let canonical_skills = fs::canonicalize(&skills)
+        .with_context(|| format!("resolve {}", skills.display()))?;
     let allowed = canonical.starts_with(&canonical_commands)
         || canonical.starts_with(&canonical_skills);
     if !allowed {
@@ -816,9 +824,17 @@ pub fn delete_skill(file_path: &str) -> AppResult<()> {
         let parent = canonical
             .parent()
             .ok_or_else(|| anyhow!("invalid skill path"))?;
-        // Safety rail: never let a bogus path talk us into deleting the
-        // commands or skills root itself.
-        if parent == canonical_commands || parent == canonical_skills {
+        // Safety rail: never let a bogus path (like a bare `SKILL.md`
+        // dropped straight into the commands/skills root or their
+        // `.disabled/` siblings) talk us into blowing away the whole
+        // directory and every skill inside it.
+        let disabled_commands = canonical_commands.join(".disabled");
+        let disabled_skills = canonical_skills.join(".disabled");
+        if parent == canonical_commands
+            || parent == canonical_skills
+            || parent == disabled_commands
+            || parent == disabled_skills
+        {
             return Err(anyhow!("refusing to delete root skills directory").into());
         }
         fs::remove_dir_all(parent)?;

@@ -881,7 +881,11 @@ function ConfirmDeleteModal({
   // Skills packaged as `<name>/SKILL.md` take their sibling files (scripts,
   // references, etc.) with them when we delete the folder, so call that out
   // explicitly. Otherwise it looks like just one file going away.
-  const isFolderSkill = skill.filePath.endsWith("/SKILL.md");
+  // Accept both separators so the warning still shows on Windows (the
+  // Rust side uses Path APIs, so the delete itself is unaffected).
+  const isFolderSkill =
+    skill.filePath.endsWith("/SKILL.md") ||
+    skill.filePath.endsWith("\\SKILL.md");
   return (
     <div className="modal-backdrop" onClick={onCancel}>
       <div
