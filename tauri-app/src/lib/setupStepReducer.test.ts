@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  initialSetupState, setupReducer, type SetupAction, type SetupState,
+  initialSetupState, setupReducer, installEnabled, type SetupAction, type SetupState,
 } from "./setupStepReducer";
 import type { InstallSchema } from "../types";
 
@@ -22,6 +22,12 @@ describe("setupReducer", () => {
     const next = setupReducer(initialSetupState, { type: "loaded", schema: SCHEMA });
     expect(next.phase).toBe("prereqsPending");
     expect(next.schema).toEqual(SCHEMA);
+  });
+
+  it("skips prereqsPending when schema has no prerequisites", () => {
+    const schemaNoPrereqs = { ...SCHEMA, prerequisites: [] };
+    const next = setupReducer(initialSetupState, { type: "loaded", schema: schemaNoPrereqs });
+    expect(next.phase).toBe("fieldsPending");
   });
 
   it("marks prereq satisfied and transitions to fieldsPending when all green", () => {
@@ -63,6 +69,3 @@ describe("setupReducer", () => {
     expect(retried.prereqStatus.node?.installed).toBe(true);
   });
 });
-
-// Re-exported for tests; this is the same predicate the component uses.
-import { installEnabled } from "./setupStepReducer";

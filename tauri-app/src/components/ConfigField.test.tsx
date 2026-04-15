@@ -45,4 +45,20 @@ describe("ConfigField", () => {
     fireEvent.click(screen.getAllByLabelText(/Remove path/i)[0]);
     expect(onChange).toHaveBeenCalledWith(["/b"]);
   });
+
+  it("renders a number input for type=number", () => {
+    const field: ConfigFieldType = {
+      name: "port", kind: "env", type: "number", label: "Port", required: false,
+    };
+    render(<ConfigField field={field} value="3000" onChange={() => {}} />);
+    expect(screen.getByLabelText(/Port/i)).toHaveAttribute("type", "number");
+  });
+
+  it("renders a url input for type=url", () => {
+    const field: ConfigFieldType = {
+      name: "endpoint", kind: "env", type: "url", label: "Endpoint", required: false,
+    };
+    render(<ConfigField field={field} value="" onChange={() => {}} />);
+    expect(screen.getByLabelText(/Endpoint/i)).toHaveAttribute("type", "url");
+  });
 });
