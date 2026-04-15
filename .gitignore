@@ -16,3 +16,8 @@ dmg-staging/
 *.p12
 *.key
 *.pem
+
+# uv sidecar binaries — too large (~50-65 MB each) for git without LFS.
+# Run tauri-app/src-tauri/binaries/download-uv.sh to fetch them locally
+# before building. VERSION.txt and download-uv.sh ARE committed.
+tauri-app/src-tauri/binaries/uv-*

@@ -59,6 +59,7 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "externalBin": ["binaries/uv"],
     "createUpdaterArtifacts": "v1Compatible",
     "category": "DeveloperTool",
     "shortDescription": "Manage MCP servers, hooks, agents, and skills for Claude Desktop and Claude Code.",
