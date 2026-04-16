@@ -1,6 +1,11 @@
 # Changelog
 
-## 0.3.0
+## 0.3.1
+
+> 0.3.0 was tagged but never published — the macOS universal build failed
+> at sidecar bundling because Tauri's `universal-apple-darwin` target
+> wants a single fat `uv-universal-apple-darwin` binary, and the download
+> script only produced per-arch files. 0.3.1 is 0.3.0 plus the lipo fix.
 
 ### Added
 - **One-click MCP auto-install from the marketplace** -- Supported catalog entries now detect runtime prerequisites (Node / uv / Docker), show a typed configuration form (string, secret, path, path array, URL, number), run bounded install steps with streaming progress, and write the final server config automatically. Retrying after an error preserves your form values and detected prerequisites.
@@ -13,6 +18,7 @@
 - **Marketplace Homepage / Repo buttons** now open in the OS default browser. Plain `<a target="_blank">` clicks were silently swallowed by the Tauri webview — routed through the opener plugin instead.
 - **MCP Servers view no longer scrolls the entire pane** when the list or editor grows. The list and snippet editor each own their internal scroll (matching every other view); the header, restart banner, and resize handle stay put.
 - **`cut-release.sh` now actually bumps `Cargo.toml`** -- the previous `0,/pat/` sed range was a GNU extension that BSD sed (macOS) accepted but silently ignored, leaving the crate version stuck at 0.2.4 through the 0.2.5 and 0.2.6 releases. Switched to a `[package]`-scoped range address.
+- **macOS universal release bundles** -- `download-uv.sh` now lipo's the per-arch uv binaries into `uv-universal-apple-darwin` when running on macOS, so Tauri's universal-target bundler finds the expected sidecar. (Also skipped on Linux/Windows runners that don't have lipo and don't need the universal binary.)
 
 ## 0.2.6
 
