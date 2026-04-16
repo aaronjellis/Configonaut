@@ -33,10 +33,11 @@ import type {
   CatalogServer,
   FeedEntry,
   FeedStatus,
-  RuntimeStatus,
+  CatalogRuntimeStatus,
   ServerTuple,
 } from "../types";
 import { MarketplaceTab } from "./MarketplaceTab";
+import { SetupStep } from "./SetupStep";
 import { useToast } from "./Toast";
 
 interface Props {
@@ -62,6 +63,11 @@ export function AddServerModal({
   const toast = useToast();
   const [tab, setTab] = useState<Tab>("marketplace");
 
+  // When set, the modal shows the guided SetupStep for that server id
+  // instead of the tabs. Used for catalog 1.1.0 entries with prerequisites
+  // or configFields. Null means "show tabs as usual".
+  const [setupServerId, setSetupServerId] = useState<string | null>(null);
+
   // Catalog state — shared across tabs so switching back and forth doesn't
   // re-fetch. Once loaded, the Paste JSON tab can still read it for the
   // "installed?" badge if we ever want to show one there.
@@ -69,7 +75,7 @@ export function AddServerModal({
   const [catalogError, setCatalogError] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [links, setLinks] = useState<Record<string, string>>({});
-  const [runtimeStatus, setRuntimeStatus] = useState<RuntimeStatus | null>(null);
+  const [runtimeStatus, setRuntimeStatus] = useState<CatalogRuntimeStatus | null>(null);
   const [feeds, setFeeds] = useState<FeedEntry[]>([]);
   const [feedStatuses, setFeedStatuses] = useState<FeedStatus[]>([]);
 
@@ -136,6 +142,19 @@ export function AddServerModal({
     customConfig: Record<string, unknown>,
     customName: string
   ) {
+    // New-style catalog entries (1.1.0+) with prerequisites or configFields
+    // route through the guided SetupStep. This gives the user a chance to
+    // satisfy runtime prerequisites and fill per-field configuration before
+    // the install fires.
+    const hasNewSchema =
+      (server.prerequisites && server.prerequisites.length > 0) ||
+      (server.configFields && server.configFields.length > 0);
+    if (hasNewSchema) {
+      setSetupServerId(server.id);
+      return;
+    }
+
+    // Legacy flow: install directly via installFromCatalog.
     // Servers with required env vars are parked inactive until the user
     // fills in the secrets. Everything else goes straight to active.
     const needsSetup = (server.envVars ?? []).some((v) => v.required);
@@ -160,30 +179,60 @@ export function AddServerModal({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="modal-header">
-          <div className="modal-tabs" role="tablist">
-            <button
-              role="tab"
-              aria-selected={tab === "marketplace"}
-              className={tab === "marketplace" ? "active" : ""}
-              onClick={() => setTab("marketplace")}
-            >
-              Marketplace
-            </button>
-            <button
-              role="tab"
-              aria-selected={tab === "paste"}
-              className={tab === "paste" ? "active" : ""}
-              onClick={() => setTab("paste")}
-            >
-              Add manually
-            </button>
-          </div>
-          <button className="ghost" onClick={onClose} aria-label="Close">
-            ✕
-          </button>
+          {setupServerId ? (
+            <>
+              <h2 className="modal-title">Install MCP Server</h2>
+              <button className="ghost" onClick={onClose} aria-label="Close">
+                ✕
+              </button>
+            </>
+          ) : (
+            <>
+              <div className="modal-tabs" role="tablist">
+                <button
+                  role="tab"
+                  aria-selected={tab === "marketplace"}
+                  className={tab === "marketplace" ? "active" : ""}
+                  onClick={() => setTab("marketplace")}
+                >
+                  Marketplace
+                </button>
+                <button
+                  role="tab"
+                  aria-selected={tab === "paste"}
+                  className={tab === "paste" ? "active" : ""}
+                  onClick={() => setTab("paste")}
+                >
+                  Add manually
+                </button>
+              </div>
+              <button className="ghost" onClick={onClose} aria-label="Close">
+                ✕
+              </button>
+            </>
+          )}
         </div>
 
-        {tab === "marketplace" ? (
+        {setupServerId ? (
+          <div className="modal-body">
+            <SetupStep
+              serverId={setupServerId}
+              onDone={() => {
+                // Reflect the newly-installed server in the parent list.
+                // The catalog id doubles as the installed name by convention,
+                // so we update the links map and notify the parent.
+                setLinks((prev) => ({
+                  ...prev,
+                  [setupServerId]: setupServerId,
+                }));
+                onCatalogInstalled(setupServerId);
+                setSetupServerId(null);
+                onClose();
+              }}
+              onCancel={() => setSetupServerId(null)}
+            />
+          </div>
+        ) : tab === "marketplace" ? (
           <MarketplaceTab
             catalog={catalog}
             catalogError={catalogError}

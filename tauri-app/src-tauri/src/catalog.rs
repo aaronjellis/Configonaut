@@ -118,6 +118,15 @@ pub struct CatalogServer {
     /// JSON — injected during the merge step so the UI can group by source.
     #[serde(default)]
     pub feed_origin: Option<String>,
+    /// Bounded DSL prerequisites — see installer module for handling.
+    #[serde(default)]
+    pub prerequisites: Vec<CatalogPrerequisite>,
+    /// Install steps run after prereqs are satisfied. Bounded DSL.
+    #[serde(default)]
+    pub install: Vec<InstallStep>,
+    /// Per-field configuration form schema. Supersedes `env_vars`.
+    #[serde(default, rename = "configFields")]
+    pub config_fields: Vec<ConfigField>,
 }
 
 impl CatalogServer {
@@ -213,6 +222,78 @@ impl CatalogConfig {
         }
         m
     }
+}
+
+// ---------------------------------------------------------------------------
+// Auto-install schema (catalog v1.1.0)
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum RuntimeName {
+    Node,
+    Uv,
+    Docker,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CatalogPrerequisite {
+    pub r#type: RuntimeName,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "camelCase")]
+pub enum InstallStep {
+    NpmWarmup { package: String },
+    UvxWarmup { package: String },
+    DockerPull { image: String },
+    None,
+    /// Forward-compat: any unknown `type` parses to this so old clients
+    /// don't crash on newer catalog feeds. Renderer treats it as "skip
+    /// install, write config, show banner".
+    ///
+    /// NOTE: deserialization-only. `#[serde(other)]` has no serialization
+    /// form — do not call `serde_json::to_value` on this variant.
+    #[serde(other)]
+    Unknown,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ConfigFieldKind {
+    Env,
+    Arg,
+    ArgSpread,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ConfigFieldType {
+    String,
+    Secret,
+    Path,
+    PathArray,
+    Url,
+    Number,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConfigField {
+    pub name: String,
+    pub kind: ConfigFieldKind,
+    pub r#type: ConfigFieldType,
+    pub label: String,
+    #[serde(default)]
+    pub description: Option<String>,
+    #[serde(default)]
+    pub required: bool,
+    #[serde(default)]
+    pub placeholder: Option<String>,
+    #[serde(default)]
+    pub default: Option<Value>,
+    #[serde(default)]
+    pub help_url: Option<String>,
 }
 
 // ---------------------------------------------------------------------------
@@ -828,4 +909,64 @@ pub fn missing_secrets(config_block: &Value, server: &CatalogServer) -> Vec<Stri
         }
     }
     missing
+}
+
+#[cfg(test)]
+mod prereq_install_tests {
+    use super::*;
+
+    #[test]
+    fn parses_prerequisites_and_install() {
+        let json = r#"{
+          "id": "filesystem",
+          "name": "Filesystem",
+          "description": "",
+          "category": "files",
+          "publisher": { "name": "anthropic", "type": "official" },
+          "config": { "command": "npx", "args": ["-y", "@x/y", "{{paths}}"] },
+          "prerequisites": [{ "type": "node" }],
+          "install": [{ "type": "npmWarmup", "package": "@x/y" }],
+          "configFields": [
+            { "name": "paths", "kind": "argSpread", "type": "pathArray",
+              "label": "Paths", "required": true }
+          ]
+        }"#;
+        let server: CatalogServer = serde_json::from_str(json).unwrap();
+        assert_eq!(server.prerequisites.len(), 1);
+        assert!(matches!(server.prerequisites[0].r#type, RuntimeName::Node));
+        assert_eq!(server.install.len(), 1);
+        assert!(matches!(&server.install[0],
+            InstallStep::NpmWarmup { package } if package == "@x/y"));
+        assert_eq!(server.config_fields.len(), 1);
+        let f = &server.config_fields[0];
+        assert_eq!(f.name, "paths");
+        assert!(matches!(f.kind, ConfigFieldKind::ArgSpread));
+        assert!(matches!(f.r#type, ConfigFieldType::PathArray));
+    }
+
+    #[test]
+    fn parses_minimal_server_without_new_fields() {
+        let json = r#"{
+          "id": "x", "name": "X", "description": "", "category": "c",
+          "publisher": { "name": "a", "type": "community" },
+          "config": { "url": "https://example.com/mcp" }
+        }"#;
+        let server: CatalogServer = serde_json::from_str(json).unwrap();
+        assert!(server.prerequisites.is_empty());
+        assert!(server.install.is_empty());
+        assert!(server.config_fields.is_empty());
+    }
+
+    #[test]
+    fn unknown_install_type_falls_back_to_unknown() {
+        let json = r#"{
+          "id": "x", "name": "X", "description": "", "category": "c",
+          "publisher": { "name": "a", "type": "community" },
+          "config": { "command": "x" },
+          "install": [{ "type": "futureType", "weird": "field" }]
+        }"#;
+        let server: CatalogServer = serde_json::from_str(json).unwrap();
+        assert_eq!(server.install.len(), 1);
+        assert!(matches!(server.install[0], InstallStep::Unknown));
+    }
 }

@@ -4,14 +4,20 @@
 // if the Rust side changes.
 
 import { invoke } from "@tauri-apps/api/core";
+import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import type {
   AgentEntry,
   AppMode,
   BackupFile,
   Catalog,
+  CatalogRuntimeStatus,
   FeedEntry,
   FeedStatus,
   HookRule,
+  InstallAction,
+  InstallProgress,
+  InstallSchema,
+  RuntimeName,
   RuntimeStatus,
   ServerListing,
   ServerSource,
@@ -235,6 +241,18 @@ export function updateHookRule(
   return invoke("update_hook_rule", { event, matcher, newJson });
 }
 
+export function createHook(
+  event: string,
+  matcher: string,
+  commands: string[]
+): Promise<void> {
+  return invoke("create_hook", { event, matcher, commands });
+}
+
+export function deleteHook(event: string, matcher: string): Promise<void> {
+  return invoke("delete_hook", { event, matcher });
+}
+
 // ---------- Agents ----------
 
 export function listAgents(): Promise<AgentEntry[]> {
@@ -270,6 +288,10 @@ export function createSkill(
   return invoke<string>("create_skill", { name, source });
 }
 
+export function deleteSkill(filePath: string): Promise<void> {
+  return invoke("delete_skill", { filePath });
+}
+
 // ---------- Shared (plugins + file I/O) ----------
 
 export function togglePlugin(pluginKey: string): Promise<void> {
@@ -289,6 +311,41 @@ export function writeClaudeFile(
 
 // ---------- Runtime detection ----------
 
-export function checkRuntime(): Promise<RuntimeStatus> {
-  return invoke<RuntimeStatus>("check_runtime");
+export async function checkRuntime(): Promise<CatalogRuntimeStatus> {
+  const [node, uv, docker] = await Promise.allSettled([
+    apiCheckRuntime("node"),
+    apiCheckRuntime("uv"),
+    apiCheckRuntime("docker"),
+  ]);
+  const ok = (r: PromiseSettledResult<RuntimeStatus>) =>
+    r.status === "fulfilled" ? r.value : null;
+  const nodeR = ok(node), uvR = ok(uv), dockerR = ok(docker);
+  return {
+    node:   nodeR?.installed ? (nodeR.version ?? "") : null,
+    python: null,
+    uv:     uvR?.installed   ? (uvR.version   ?? "") : null,
+    docker: dockerR?.installed ? (dockerR.version ?? "") : null,
+  };
+}
+
+// ---------- Auto-install ----------
+
+export const apiCheckRuntime = (name: RuntimeName) =>
+  invoke<RuntimeStatus>("check_runtime", { name });
+
+export const apiInstallRuntime = (name: RuntimeName) =>
+  invoke<InstallAction>("install_runtime", { name });
+
+export const apiInspectInstall = (serverId: string) =>
+  invoke<InstallSchema>("inspect_install", { serverId });
+
+export const apiInstallServer = (
+  serverId: string,
+  fieldValues: Record<string, unknown>,
+) => invoke<void>("install_server", { serverId, fieldValues });
+
+export function onInstallProgress(
+  handler: (p: InstallProgress) => void,
+): Promise<UnlistenFn> {
+  return listen<InstallProgress>("install-progress", (e) => handler(e.payload));
 }

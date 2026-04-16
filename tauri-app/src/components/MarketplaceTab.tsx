@@ -17,13 +17,15 @@
 // `installFromCatalog`, and collapses the row.
 
 import { useMemo, useState, type ReactNode } from "react";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import type {
   Catalog,
   CatalogCategory,
   CatalogServer,
   FeedEntry,
   FeedStatus,
-  RuntimeStatus,
+  CatalogRuntimeStatus,
+  RuntimeName,
 } from "../types";
 
 interface Props {
@@ -32,7 +34,7 @@ interface Props {
   isRefreshing: boolean;
   /// Map of installed-server-name → catalog-id for "Installed" badges.
   links: Record<string, string>;
-  runtimeStatus: RuntimeStatus | null;
+  runtimeStatus: CatalogRuntimeStatus | null;
   feeds: FeedEntry[];
   feedStatuses: FeedStatus[];
   onRefresh: () => void | Promise<void>;
@@ -630,7 +632,7 @@ interface ServerRowProps {
   server: CatalogServer;
   isSelected: boolean;
   isInstalled: boolean;
-  runtimeStatus: RuntimeStatus | null;
+  runtimeStatus: CatalogRuntimeStatus | null;
   editedJson: string;
   editError: string | null;
   busy: boolean;
@@ -652,14 +654,34 @@ const RUNTIME_DOWNLOADS: Record<string, string> = {
   Docker: "https://www.docker.com/products/docker-desktop/",
 };
 
-/// Check which of a server's requirements are missing from the user's machine.
+/// Check which of a server's prerequisites are missing from the user's machine.
+/// Uses the typed `prerequisites` catalog field when present; falls back to the
+/// legacy `requirements` string array for custom-feed entries that predate 1.1.0.
 function missingRequirements(
-  requirements: string[],
-  rt: RuntimeStatus | null
+  server: { requirements: string[]; prerequisites?: Array<{ type: RuntimeName }> },
+  rt: CatalogRuntimeStatus | null
 ): MissingRuntime[] {
-  if (!rt || requirements.length === 0) return [];
+  if (!rt) return [];
+
+  // Prefer the typed prerequisites from catalog schema 1.1.0+
+  if (server.prerequisites && server.prerequisites.length > 0) {
+    const missing: MissingRuntime[] = [];
+    for (const prereq of server.prerequisites) {
+      const key = prereq.type;
+      if (key === "node" && !rt.node)
+        missing.push({ label: "Node.js", downloadUrl: RUNTIME_DOWNLOADS["Node.js"] });
+      else if (key === "uv" && !rt.uv)
+        missing.push({ label: "uv", downloadUrl: RUNTIME_DOWNLOADS["uv"] });
+      else if (key === "docker" && !rt.docker)
+        missing.push({ label: "Docker", downloadUrl: RUNTIME_DOWNLOADS["Docker"] });
+    }
+    return missing;
+  }
+
+  // Legacy fallback: plain requirements string array
+  if (server.requirements.length === 0) return [];
   const missing: MissingRuntime[] = [];
-  for (const req of requirements) {
+  for (const req of server.requirements) {
     const key = req.toLowerCase();
     if (key === "node" && !rt.node)
       missing.push({ label: "Node.js", downloadUrl: RUNTIME_DOWNLOADS["Node.js"] });
@@ -746,7 +768,7 @@ function ServerRow({
           )}
 
           {(() => {
-            const missing = missingRequirements(server.requirements, runtimeStatus);
+            const missing = missingRequirements(server, runtimeStatus);
             if (missing.length === 0) return null;
             return (
               <div className="banner warning">
@@ -817,25 +839,30 @@ function ServerRow({
           {editError && <div className="banner error">{editError}</div>}
 
           <div className="detail-footer">
+            {/* Plain `<a target="_blank">` doesn't hand the URL to the OS
+                default browser from inside the Tauri webview — the click is
+                silently swallowed. Route through the opener plugin instead. */}
             {server.homepage && (
-              <a
+              <button
+                type="button"
                 className="link-chip"
-                href={server.homepage}
-                target="_blank"
-                rel="noreferrer noopener"
+                onClick={() => {
+                  void openUrl(server.homepage!);
+                }}
               >
                 Homepage
-              </a>
+              </button>
             )}
             {server.repository && (
-              <a
+              <button
+                type="button"
                 className="link-chip"
-                href={server.repository}
-                target="_blank"
-                rel="noreferrer noopener"
+                onClick={() => {
+                  void openUrl(server.repository!);
+                }}
               >
                 Repo
-              </a>
+              </button>
             )}
             {server.license && (
               <span className="license-chip">{server.license}</span>

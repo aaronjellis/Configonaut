@@ -33,6 +33,7 @@ tauri = { version = "2", features = ["macos-private-api"] }
 tauri-plugin-opener = "2"
 tauri-plugin-updater = "2"
 tauri-plugin-process = "2"
+tauri-plugin-shell = "2"
 
 # JSON: we preserve the original key order when writing config files so diffs
 # stay minimal, hence the preserve_order feature on serde_json.
@@ -58,3 +59,7 @@ walkdir = "2"
 
 # Regex for the SecretValidator placeholder heuristics (xxxx..., <TOKEN>, etc.)
 regex = "1"
+
+# Async runtime — needed for install_server (process spawning + stream reading).
+# Tauri already brings tokio transitively but we need explicit features.
+tokio = { version = "1", features = ["process", "io-util", "rt"] }

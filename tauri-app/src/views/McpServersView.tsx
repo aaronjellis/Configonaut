@@ -126,6 +126,10 @@ export function McpServersView({ mode, onMutated }: Props) {
   const [mcpTab, setMcpTab] = useState<McpTab>("user");
   const [projectSelection, setProjectSelection] =
     useState<ProjectSelection | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<{
+    entry: ServerEntry;
+    source: ServerSource;
+  } | null>(null);
 
   /// Height (in px) of the JSON editor pane. The user can drag the
   /// resize handle between the columns and the detail panel to grow or
@@ -309,11 +313,14 @@ export function McpServersView({ mode, onMutated }: Props) {
     }
   }
 
-  async function handleDelete(entry: ServerEntry, source: ServerSource) {
-    const ok = window.confirm(
-      `Permanently delete "${entry.name}"? This can't be undone.`
-    );
-    if (!ok) return;
+  function handleDelete(entry: ServerEntry, source: ServerSource) {
+    setPendingDelete({ entry, source });
+  }
+
+  async function confirmDelete() {
+    if (!pendingDelete) return;
+    const { entry, source } = pendingDelete;
+    setPendingDelete(null);
     try {
       await apiDeleteServer(mode, entry.name, source);
       if (source === "active") setNeedsRestart(true);
@@ -506,14 +513,14 @@ export function McpServersView({ mode, onMutated }: Props) {
 
   if (loadError) {
     return (
-      <div className="main-body">
+      <div className="main-body main-body--flex">
         <div className="banner error">Failed to load: {loadError}</div>
       </div>
     );
   }
   if (!listing) {
     return (
-      <div className="main-body">
+      <div className="main-body main-body--flex">
         <div className="empty">Loading…</div>
       </div>
     );
@@ -539,6 +546,11 @@ export function McpServersView({ mode, onMutated }: Props) {
           <div className="title-row">
             <h2>MCP Servers</h2>
             <span className="count-pill">{totalCount}</span>
+          </div>
+          <div className="section-description">
+            External tools and data sources Claude can read from or act on,
+            such as file systems, APIs, and databases. Each server plugs
+            in over the Model Context Protocol.
           </div>
           <div className="config-path" title={listing.configPath}>
             {displayPath(listing.configPath)}
@@ -582,7 +594,7 @@ export function McpServersView({ mode, onMutated }: Props) {
         </div>
       </header>
 
-      <div className="main-body">
+      <div className="main-body main-body--flex">
         {needsRestart && (
           <div className="banner">
             Restart Claude {mode === "desktop" ? "Desktop" : "Code"} to apply
@@ -840,6 +852,36 @@ export function McpServersView({ mode, onMutated }: Props) {
             }`}
           >
             <span className="name">{drag.name}</span>
+          </div>
+        </div>
+      )}
+
+      {pendingDelete && (
+        <div className="modal-backdrop" onClick={() => setPendingDelete(null)}>
+          <div
+            className="modal confirm-modal"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="modal-header">
+              <h3>Delete Server</h3>
+            </div>
+            <div className="modal-body">
+              <p>
+                Permanently delete <strong>"{pendingDelete.entry.name}"</strong>?
+                This can't be undone.
+              </p>
+            </div>
+            <div className="modal-footer">
+              <button
+                className="ghost"
+                onClick={() => setPendingDelete(null)}
+              >
+                Cancel
+              </button>
+              <button className="danger" onClick={confirmDelete}>
+                Delete
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -26,6 +26,7 @@ import {
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import {
   createSkill as apiCreateSkill,
+  deleteSkill as apiDeleteSkill,
   getCommandsDir,
   getSkillsDir,
   listSkills,
@@ -33,11 +34,15 @@ import {
   toggleSkill as apiToggleSkill,
   writeClaudeFile,
 } from "../api";
+import { ModeBanner } from "../components/ModeBanner";
 import { useToast } from "../components/Toast";
 import { displayPath } from "../lib/displayPath";
-import type { SkillEntry, SkillSource } from "../types";
+import type { AppMode, SkillEntry, SkillSource } from "../types";
 
 interface Props {
+  // Used purely to decide whether to show the ModeBanner. The underlying
+  // files don't change per mode (always `~/.claude/skills` / commands).
+  mode: AppMode;
   onMutated: () => void;
 }
 
@@ -73,7 +78,7 @@ Describe what this skill does and when it should activate.
 `;
 }
 
-export function SkillsView({ onMutated }: Props) {
+export function SkillsView({ mode, onMutated }: Props) {
   const toast = useToast();
   const [skills, setSkills] = useState<SkillEntry[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -88,6 +93,9 @@ export function SkillsView({ onMutated }: Props) {
   const [newName, setNewName] = useState("");
   const [newContent, setNewContent] = useState("");
   const [newType, setNewType] = useState<SkillSource>("command");
+
+  // Delete confirmation
+  const [confirmDelete, setConfirmDelete] = useState<SkillEntry | null>(null);
 
   const setStatus = useCallback((msg: string, isError = false) => {
     setStatusMessage(msg);
@@ -203,6 +211,20 @@ export function SkillsView({ onMutated }: Props) {
     }
   }
 
+  async function handleDelete(skill: SkillEntry) {
+    try {
+      await apiDeleteSkill(skill.filePath);
+      setStatus(`Deleted "${skill.name}".`);
+      toast.show(`Deleted "${skill.name}".`, "success");
+      if (selectedPath === skill.filePath) setSelectedPath(null);
+      setConfirmDelete(null);
+      onMutated();
+      await refresh();
+    } catch (e) {
+      setStatus(`Delete error: ${String(e)}`, true);
+    }
+  }
+
   async function handleCreate() {
     const name = newName.trim();
     if (!name) return;
@@ -294,8 +316,10 @@ export function SkillsView({ onMutated }: Props) {
               {skills.length}
             </span>
           </div>
-          <div className="config-path">
-            Custom commands and skills for Claude Code.
+          <div className="section-description">
+            Reusable playbooks and slash commands Claude can invoke, like
+            /review-pr or a PDF-editing workflow. Each is a markdown file
+            Claude loads on demand when the task calls for it.
           </div>
         </div>
         {/* Header action order across every view is: icon buttons on the
@@ -366,6 +390,7 @@ export function SkillsView({ onMutated }: Props) {
       </div>
 
       <div className="main-body main-body--flex">
+        <ModeBanner view="skills" mode={mode} />
         {error && <div className="banner error">{error}</div>}
 
         {skills.length === 0 ? (
@@ -409,6 +434,7 @@ export function SkillsView({ onMutated }: Props) {
           onChange={setEditingContent}
           onSave={handleSave}
           onToggle={() => handleToggle(selected)}
+          onDelete={() => setConfirmDelete(selected)}
           onClose={() => setSelectedPath(null)}
         />
       )}
@@ -427,6 +453,14 @@ export function SkillsView({ onMutated }: Props) {
             setNewName("");
             setNewContent("");
           }}
+        />
+      )}
+
+      {confirmDelete && (
+        <ConfirmDeleteModal
+          skill={confirmDelete}
+          onCancel={() => setConfirmDelete(null)}
+          onConfirm={() => handleDelete(confirmDelete)}
         />
       )}
     </>
@@ -545,6 +579,7 @@ function EditorModal({
   onChange,
   onSave,
   onToggle,
+  onDelete,
   onClose,
 }: {
   skill: SkillEntry;
@@ -552,6 +587,7 @@ function EditorModal({
   onChange: (v: string) => void;
   onSave: () => void;
   onToggle: () => void;
+  onDelete: () => void;
   onClose: () => void;
 }) {
   const color = sourceColor(skill.source);
@@ -633,13 +669,18 @@ function EditorModal({
 
         <div className="modal-footer modal-editor-footer">
           {skill.source !== "plugin" && (
-            <button
-              className={skill.isEnabled ? "danger" : ""}
-              onClick={onToggle}
-              style={skill.isEnabled ? undefined : { color: "var(--green)" }}
-            >
-              {skill.isEnabled ? "Disable" : "Enable"}
-            </button>
+            <>
+              <button className="danger" onClick={onDelete}>
+                Delete
+              </button>
+              <button
+                className={skill.isEnabled ? "danger" : ""}
+                onClick={onToggle}
+                style={skill.isEnabled ? undefined : { color: "var(--green)" }}
+              >
+                {skill.isEnabled ? "Disable" : "Enable"}
+              </button>
+            </>
           )}
           <span className="path-hint">{displayPath(skill.filePath)}</span>
           <span className="spacer" />
@@ -820,6 +861,61 @@ function NoResultsState({ query }: { query: string }) {
         </svg>
       </div>
       <p className="empty-blurb">No skills match "{query}"</p>
+    </div>
+  );
+}
+
+// ----------------------------------------------------------------------
+// Confirm delete modal
+// ----------------------------------------------------------------------
+
+function ConfirmDeleteModal({
+  skill,
+  onCancel,
+  onConfirm,
+}: {
+  skill: SkillEntry;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  // Skills packaged as `<name>/SKILL.md` take their sibling files (scripts,
+  // references, etc.) with them when we delete the folder, so call that out
+  // explicitly. Otherwise it looks like just one file going away.
+  // Accept both separators so the warning still shows on Windows (the
+  // Rust side uses Path APIs, so the delete itself is unaffected).
+  const isFolderSkill =
+    skill.filePath.endsWith("/SKILL.md") ||
+    skill.filePath.endsWith("\\SKILL.md");
+  return (
+    <div className="modal-backdrop" onClick={onCancel}>
+      <div
+        className="modal"
+        style={{ width: 440 }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="modal-header">
+          <h3>Delete {skill.source === "command" ? "Command" : "Skill"}?</h3>
+        </div>
+        <div className="modal-body">
+          <p style={{ margin: 0, color: "var(--text-secondary)", fontSize: 12 }}>
+            Permanently delete "<strong>{skill.name}</strong>"?
+            {isFolderSkill && (
+              <>
+                {" "}
+                The entire skill folder (including any scripts or references)
+                will be removed.
+              </>
+            )}
+            {" "}This can't be undone.
+          </p>
+        </div>
+        <div className="modal-footer">
+          <button onClick={onCancel}>Cancel</button>
+          <button className="danger" onClick={onConfirm}>
+            Delete
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

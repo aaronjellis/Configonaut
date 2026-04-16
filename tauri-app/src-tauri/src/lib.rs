@@ -13,8 +13,10 @@ mod catalog;
 mod claude_code;
 mod commands;
 mod config;
+mod installer;
 mod models;
 mod paths;
+pub mod sidecar;
 
 use tauri::menu::{MenuBuilder, MenuItem, SubmenuBuilder};
 use tauri::{Emitter, Manager};
@@ -30,6 +32,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_shell::init())
         .setup(|app| {
             // ── Native application menu ─────────────────────────────
             let about_item = MenuItem::with_id(
@@ -173,8 +176,11 @@ pub fn run() {
             commands::toggle_feed,
             commands::get_catalog_with_feeds,
             commands::refresh_all_feeds,
-            // Runtime detection
-            commands::check_runtime,
+            // Auto-install
+            installer::check_runtime,
+            installer::install_runtime,
+            installer::inspect_install,
+            installer::install_server,
             // Paths
             commands::get_config_path,
             commands::get_storage_dir,
@@ -187,6 +193,8 @@ pub fn run() {
             commands::get_hook_rule_json,
             commands::toggle_hook,
             commands::update_hook_rule,
+            commands::create_hook,
+            commands::delete_hook,
             // Agents
             commands::list_agents,
             commands::create_agent,
@@ -195,6 +203,7 @@ pub fn run() {
             commands::list_skills,
             commands::toggle_skill,
             commands::create_skill,
+            commands::delete_skill,
             // Shared: plugin toggle + raw file I/O
             commands::toggle_plugin,
             commands::read_claude_file,

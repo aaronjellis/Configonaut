@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.3.0
+
+### Added
+- **One-click MCP auto-install from the marketplace** -- Supported catalog entries now detect runtime prerequisites (Node / uv / Docker), show a typed configuration form (string, secret, path, path array, URL, number), run bounded install steps with streaming progress, and write the final server config automatically. Retrying after an error preserves your form values and detected prerequisites.
+- **Bundled `uv` 0.11.6 as a signed sidecar** -- Python-based MCP servers install end-to-end without a system `uv` install. Binary is SHA-256 verified at build time.
+- **Catalog schema v1.1** -- Optional `prerequisites`, `install`, and `configFields` per server. The install step DSL is bounded (`npmWarmup` / `uvxWarmup` / `dockerPull` / `none`) so unknown step types can never become arbitrary shell execution. Legacy catalog entries without these fields continue to work unchanged via the existing JSON-edit flow.
+- Forward-compat catch-all for unknown install step types — older clients won't crash on future catalog additions, they just fall through to the legacy path.
+- Manual smoke-test checklist at `docs/release-checklists/auto-install-smoke.md`.
+
+### Fixed
+- **Marketplace Homepage / Repo buttons** now open in the OS default browser. Plain `<a target="_blank">` clicks were silently swallowed by the Tauri webview — routed through the opener plugin instead.
+- **MCP Servers view no longer scrolls the entire pane** when the list or editor grows. The list and snippet editor each own their internal scroll (matching every other view); the header, restart banner, and resize handle stay put.
+- **`cut-release.sh` now actually bumps `Cargo.toml`** -- the previous `0,/pat/` sed range was a GNU extension that BSD sed (macOS) accepted but silently ignored, leaving the crate version stuck at 0.2.4 through the 0.2.5 and 0.2.6 releases. Switched to a `[package]`-scoped range address.
+
 ## 0.2.6
 
 ### Added

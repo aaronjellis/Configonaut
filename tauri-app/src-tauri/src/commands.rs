@@ -437,41 +437,6 @@ pub async fn refresh_all_feeds() -> AppResult<(catalog::Catalog, Vec<catalog::Fe
 }
 
 // ---------------------------------------------------------------------------
-// Runtime prerequisite detection
-// ---------------------------------------------------------------------------
-
-/// Probe the user's PATH for runtimes that stdio MCP servers depend on.
-/// Returns a struct with the detected version string for each runtime, or
-/// `None` if not found. This is intentionally fire-and-forget — we never
-/// block an install, just surface a warning.
-#[tauri::command]
-pub fn check_runtime() -> crate::models::RuntimeStatus {
-    use std::process::Command;
-
-    fn probe(cmd: &str, args: &[&str]) -> Option<String> {
-        Command::new(cmd)
-            .args(args)
-            .output()
-            .ok()
-            .and_then(|out| {
-                if out.status.success() {
-                    let raw = String::from_utf8_lossy(&out.stdout).trim().to_string();
-                    if raw.is_empty() { None } else { Some(raw) }
-                } else {
-                    None
-                }
-            })
-    }
-
-    crate::models::RuntimeStatus {
-        node: probe("node", &["--version"]),
-        python: probe("python3", &["--version"])
-            .or_else(|| probe("python", &["--version"])),
-        uv: probe("uv", &["--version"]),
-        docker: probe("docker", &["--version"]),
-    }
-}
-
 // ---------------------------------------------------------------------------
 // Paths (debug helpers used by the UI to display "editing → /path/to/file")
 // ---------------------------------------------------------------------------
@@ -769,6 +734,20 @@ pub fn update_hook_rule(
     claude_code::update_hook_rule(&event, &matcher, &new_json)
 }
 
+#[tauri::command]
+pub fn create_hook(
+    event: String,
+    matcher: String,
+    commands: Vec<String>,
+) -> AppResult<()> {
+    claude_code::create_hook(&event, &matcher, &commands)
+}
+
+#[tauri::command]
+pub fn delete_hook(event: String, matcher: String) -> AppResult<()> {
+    claude_code::delete_hook(&event, &matcher)
+}
+
 // ---------------------------------------------------------------------------
 // Agents
 // ---------------------------------------------------------------------------
@@ -809,6 +788,11 @@ pub fn toggle_skill(
 #[tauri::command]
 pub fn create_skill(name: String, source: SkillSource) -> AppResult<String> {
     claude_code::create_skill(&name, source)
+}
+
+#[tauri::command]
+pub fn delete_skill(file_path: String) -> AppResult<()> {
+    claude_code::delete_skill(&file_path)
 }
 
 // ---------------------------------------------------------------------------
