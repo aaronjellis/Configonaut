@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  initialSetupState, setupReducer, installEnabled, type SetupAction, type SetupState,
+  initialSetupState, setupReducer, installEnabled, type SetupState,
 } from "./setupStepReducer";
 import type { InstallSchema } from "../types";
 
