@@ -39,8 +39,13 @@ echo "Bumping to $VERSION..."
 sed -i '' "s/\"version\": \"[^\"]*\"/\"version\": \"$VERSION\"/" \
   "$ROOT/tauri-app/src-tauri/tauri.conf.json"
 
-# 2. Cargo.toml (only the package version, not dependency versions)
-sed -i '' "0,/^version = \".*\"/s/^version = \".*\"/version = \"$VERSION\"/" \
+# 2. Cargo.toml — only the [package] version, not dependency versions.
+# NOTE: `0,/pat/` is a GNU sed extension. BSD sed (macOS) silently accepts
+# it but does nothing, which is why 0.2.5 and 0.2.6 ships left this file
+# on 0.2.4. Scope the substitution to the [package] section via a range
+# address — portable and still ignores the dozen other `version = ` lines
+# in the dependencies block.
+sed -i '' -E "/^\[package\]/,/^\[/ s/^version = \".*\"/version = \"$VERSION\"/" \
   "$ROOT/tauri-app/src-tauri/Cargo.toml"
 
 # 3. package.json
