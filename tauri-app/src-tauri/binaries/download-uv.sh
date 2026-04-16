@@ -66,5 +66,18 @@ download_tar "uv-x86_64-apple-darwin"       "uv-x86_64-apple-darwin.tar.gz"
 download_zip "uv-x86_64-pc-windows-msvc.exe" "uv-x86_64-pc-windows-msvc.zip" "uv.exe"
 download_tar "uv-x86_64-unknown-linux-gnu"  "uv-x86_64-unknown-linux-gnu.tar.gz"
 
+# Tauri's universal macOS target (`--target universal-apple-darwin`) looks
+# for a single fat binary named `uv-universal-apple-darwin`, not the two
+# per-arch files. Build it with `lipo` when we're on a Mac (skip on Linux
+# CI — the Windows job doesn't need it and Linux runners don't have lipo).
+if command -v lipo &>/dev/null; then
+  echo "  -> uv-universal-apple-darwin (lipo arm64 + x86_64)"
+  lipo -create \
+    "${SCRIPT_DIR}/uv-aarch64-apple-darwin" \
+    "${SCRIPT_DIR}/uv-x86_64-apple-darwin" \
+    -output "${SCRIPT_DIR}/uv-universal-apple-darwin"
+  chmod +x "${SCRIPT_DIR}/uv-universal-apple-darwin"
+fi
+
 echo "Done. Binaries written to ${SCRIPT_DIR}/"
 ls -lh "${SCRIPT_DIR}"/uv-*
