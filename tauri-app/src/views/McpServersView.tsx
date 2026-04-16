@@ -513,14 +513,14 @@ export function McpServersView({ mode, onMutated }: Props) {
 
   if (loadError) {
     return (
-      <div className="main-body">
+      <div className="main-body main-body--flex">
         <div className="banner error">Failed to load: {loadError}</div>
       </div>
     );
   }
   if (!listing) {
     return (
-      <div className="main-body">
+      <div className="main-body main-body--flex">
         <div className="empty">Loading…</div>
       </div>
     );
@@ -594,7 +594,7 @@ export function McpServersView({ mode, onMutated }: Props) {
         </div>
       </header>
 
-      <div className="main-body">
+      <div className="main-body main-body--flex">
         {needsRestart && (
           <div className="banner">
             Restart Claude {mode === "desktop" ? "Desktop" : "Code"} to apply

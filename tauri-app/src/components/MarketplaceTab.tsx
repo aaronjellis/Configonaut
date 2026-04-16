@@ -17,6 +17,7 @@
 // `installFromCatalog`, and collapses the row.
 
 import { useMemo, useState, type ReactNode } from "react";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import type {
   Catalog,
   CatalogCategory,
@@ -838,25 +839,30 @@ function ServerRow({
           {editError && <div className="banner error">{editError}</div>}
 
           <div className="detail-footer">
+            {/* Plain `<a target="_blank">` doesn't hand the URL to the OS
+                default browser from inside the Tauri webview — the click is
+                silently swallowed. Route through the opener plugin instead. */}
             {server.homepage && (
-              <a
+              <button
+                type="button"
                 className="link-chip"
-                href={server.homepage}
-                target="_blank"
-                rel="noreferrer noopener"
+                onClick={() => {
+                  void openUrl(server.homepage!);
+                }}
               >
                 Homepage
-              </a>
+              </button>
             )}
             {server.repository && (
-              <a
+              <button
+                type="button"
                 className="link-chip"
-                href={server.repository}
-                target="_blank"
-                rel="noreferrer noopener"
+                onClick={() => {
+                  void openUrl(server.repository!);
+                }}
               >
                 Repo
-              </a>
+              </button>
             )}
             {server.license && (
               <span className="license-chip">{server.license}</span>

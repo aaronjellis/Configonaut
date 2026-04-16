@@ -2239,11 +2239,14 @@ body.is-dragging * {
 .detail-footer .link-chip {
   font-size: 9.5px;
   font-weight: 500;
+  font-family: inherit;
   color: var(--blue);
   text-decoration: none;
   padding: 3px 8px;
+  border: none;
   border-radius: 10px;
   background: rgba(0, 180, 255, 0.08);
+  cursor: pointer;
 }
 
 .detail-footer .link-chip:hover {
