@@ -3,10 +3,12 @@
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Map, Value};
 use std::collections::BTreeMap;
+use std::path::PathBuf;
 use std::process::{Command, Stdio};
 use tauri::AppHandle;
 use tauri::Emitter;
 use tokio::io::AsyncBufReadExt;
+use tokio::io::AsyncWriteExt;
 use tokio::process::Command as TokioCommand;
 
 use crate::catalog::{CatalogConfig, CatalogPrerequisite, CatalogServer, ConfigField,
@@ -29,6 +31,8 @@ pub enum InstallAction {
     Ready,
     /// Open this URL in the user's browser; runtime install happens externally.
     OpenUrl { url: String },
+    /// Configonaut can download and install this runtime in-app.
+    Download,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -120,15 +124,290 @@ pub fn parse_runtime_version(name: RuntimeName, raw: &str) -> Option<String> {
 }
 
 pub fn install_runtime_for(name: RuntimeName) -> InstallAction {
-    match runtime_install_url(name) {
-        None => InstallAction::Ready,
-        Some(url) => InstallAction::OpenUrl { url: url.to_string() },
+    match name {
+        RuntimeName::Uv => InstallAction::Ready,
+        RuntimeName::Node => InstallAction::Download,
+        RuntimeName::Docker => {
+            match runtime_install_url(name) {
+                None => InstallAction::Ready,
+                Some(url) => InstallAction::OpenUrl { url: url.to_string() },
+            }
+        }
     }
 }
 
 #[tauri::command]
 pub async fn install_runtime(name: RuntimeName) -> Result<InstallAction, String> {
     Ok(install_runtime_for(name))
+}
+
+// ---------------------------------------------------------------------------
+// Managed runtimes — Node.js download + install
+// ---------------------------------------------------------------------------
+
+pub fn managed_runtimes_dir() -> PathBuf {
+    crate::paths::storage_dir().join("runtimes")
+}
+
+pub fn managed_node_dir() -> PathBuf {
+    managed_runtimes_dir().join("node")
+}
+
+pub fn managed_node_bin() -> Option<PathBuf> {
+    let dir = managed_node_dir();
+    let bin = if cfg!(target_os = "windows") {
+        dir.join("node.exe")
+    } else {
+        dir.join("bin").join("node")
+    };
+    if bin.exists() { Some(bin) } else { None }
+}
+
+/// Returns the directory containing the managed node/npx binaries, if
+/// installed. Callers can prepend this to PATH so Claude finds npx.
+pub fn managed_node_bin_dir() -> Option<PathBuf> {
+    let dir = managed_node_dir();
+    let bin_dir = if cfg!(target_os = "windows") {
+        dir.clone()
+    } else {
+        dir.join("bin")
+    };
+    let node = if cfg!(target_os = "windows") {
+        bin_dir.join("node.exe")
+    } else {
+        bin_dir.join("node")
+    };
+    if node.exists() { Some(bin_dir) } else { None }
+}
+
+const RUNTIME_INSTALL_EVENT: &str = "runtime-install-progress";
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+pub enum RuntimeInstallProgress {
+    Downloading { percent: f64, downloaded_bytes: u64, total_bytes: u64 },
+    Extracting,
+    Verifying,
+    Done { version: String },
+    Error { message: String },
+}
+
+fn node_download_url(version: &str) -> String {
+    // Always use .tar.gz — Windows bsdtar doesn't support
+    // --strip-components on .zip archives, and Node publishes
+    // .tar.gz for all platforms including Windows.
+    let os = if cfg!(target_os = "macos") {
+        "darwin"
+    } else if cfg!(target_os = "windows") {
+        "win"
+    } else {
+        "linux"
+    };
+    let arch = if cfg!(target_arch = "aarch64") { "arm64" } else { "x64" };
+    format!("https://nodejs.org/dist/{version}/node-{version}-{os}-{arch}.tar.gz")
+}
+
+#[derive(Debug, Deserialize)]
+struct NodeVersionEntry {
+    version: String,
+    lts: serde_json::Value,
+}
+
+async fn fetch_latest_lts_version() -> Result<String, String> {
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(15))
+        .build()
+        .map_err(|e| format!("HTTP client error: {e}"))?;
+
+    let resp = client
+        .get("https://nodejs.org/dist/index.json")
+        .send()
+        .await
+        .map_err(|e| format!("Failed to fetch Node.js version list: {e}"))?;
+
+    if !resp.status().is_success() {
+        return Err(format!("nodejs.org returned HTTP {}", resp.status()));
+    }
+
+    let entries: Vec<NodeVersionEntry> = resp.json().await
+        .map_err(|e| format!("Failed to parse version list: {e}"))?;
+
+    entries
+        .iter()
+        .find(|e| e.lts.is_string())
+        .map(|e| e.version.clone())
+        .ok_or_else(|| "No LTS version found in Node.js release index".into())
+}
+
+static NODE_DOWNLOAD_IN_PROGRESS: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(false);
+
+struct DownloadGuard;
+impl Drop for DownloadGuard {
+    fn drop(&mut self) {
+        NODE_DOWNLOAD_IN_PROGRESS.store(false, std::sync::atomic::Ordering::SeqCst);
+    }
+}
+
+#[tauri::command]
+pub async fn download_node(app: AppHandle) -> Result<(), String> {
+    if NODE_DOWNLOAD_IN_PROGRESS.swap(true, std::sync::atomic::Ordering::SeqCst) {
+        return Err("A Node.js download is already in progress.".into());
+    }
+    let _guard = DownloadGuard;
+
+    let emit = |p: RuntimeInstallProgress| { app.emit(RUNTIME_INSTALL_EVENT, p).ok(); };
+
+    emit(RuntimeInstallProgress::Downloading {
+        percent: 0.0, downloaded_bytes: 0, total_bytes: 0,
+    });
+
+    let version = fetch_latest_lts_version().await?;
+    let url = node_download_url(&version);
+
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(300))
+        .build()
+        .map_err(|e| {
+            let msg = format!("HTTP client error: {e}");
+            emit(RuntimeInstallProgress::Error { message: msg.clone() });
+            msg
+        })?;
+
+    let resp = client.get(&url).send().await.map_err(|e| {
+        let msg = format!("Download failed: {e}");
+        emit(RuntimeInstallProgress::Error { message: msg.clone() });
+        msg
+    })?;
+
+    if !resp.status().is_success() {
+        let msg = format!("Download failed: HTTP {}", resp.status());
+        emit(RuntimeInstallProgress::Error { message: msg.clone() });
+        return Err(msg);
+    }
+
+    let total = resp.content_length().unwrap_or(0);
+    let dest_dir = managed_node_dir();
+    let archive_path = managed_runtimes_dir().join("node-download.tar.gz");
+
+    if let Some(parent) = archive_path.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| {
+            let msg = format!("Failed to create runtimes directory: {e}");
+            emit(RuntimeInstallProgress::Error { message: msg.clone() });
+            msg
+        })?;
+    }
+
+    // Stream the download with progress updates.
+    let mut file = tokio::fs::File::create(&archive_path).await.map_err(|e| {
+        let msg = format!("Failed to create archive file: {e}");
+        emit(RuntimeInstallProgress::Error { message: msg.clone() });
+        msg
+    })?;
+
+    let mut downloaded: u64 = 0;
+    let mut last_pct: u64 = 0;
+    let mut resp = resp;
+    while let Some(chunk) = resp.chunk().await.map_err(|e| {
+        let msg = format!("Download interrupted: {e}");
+        emit(RuntimeInstallProgress::Error { message: msg.clone() });
+        let _ = std::fs::remove_file(&archive_path);
+        msg
+    })? {
+        file.write_all(&chunk).await.map_err(|e| {
+            let msg = format!("Write error: {e}");
+            emit(RuntimeInstallProgress::Error { message: msg.clone() });
+            let _ = std::fs::remove_file(&archive_path);
+            msg
+        })?;
+        downloaded += chunk.len() as u64;
+        let pct = if total > 0 { (downloaded * 100) / total } else { 0 };
+        if pct != last_pct || downloaded == total {
+            last_pct = pct;
+            emit(RuntimeInstallProgress::Downloading {
+                percent: if total > 0 { (downloaded as f64 / total as f64) * 100.0 } else { 0.0 },
+                downloaded_bytes: downloaded,
+                total_bytes: total,
+            });
+        }
+    }
+    drop(file);
+
+    // Extract the archive.
+    emit(RuntimeInstallProgress::Extracting);
+
+    if dest_dir.exists() {
+        std::fs::remove_dir_all(&dest_dir).ok();
+    }
+    std::fs::create_dir_all(&dest_dir).map_err(|e| {
+        let msg = format!("Failed to create node directory: {e}");
+        emit(RuntimeInstallProgress::Error { message: msg.clone() });
+        msg
+    })?;
+
+    let archive_str = archive_path.to_string_lossy().to_string();
+    let dest_str = dest_dir.to_string_lossy().to_string();
+
+    let extract_status = TokioCommand::new("tar")
+        .args(["xzf", &archive_str, "-C", &dest_str, "--strip-components=1"])
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped())
+        .status()
+        .await;
+
+    match extract_status {
+        Ok(s) if s.success() => {}
+        Ok(s) => {
+            let msg = format!("Extraction failed (exit code {})", s.code().unwrap_or(-1));
+            emit(RuntimeInstallProgress::Error { message: msg.clone() });
+            let _ = std::fs::remove_dir_all(&dest_dir);
+            let _ = std::fs::remove_file(&archive_path);
+            return Err(msg);
+        }
+        Err(e) => {
+            let msg = format!("Failed to run tar: {e}");
+            emit(RuntimeInstallProgress::Error { message: msg.clone() });
+            let _ = std::fs::remove_dir_all(&dest_dir);
+            let _ = std::fs::remove_file(&archive_path);
+            return Err(msg);
+        }
+    }
+
+    // Clean up the archive.
+    let _ = std::fs::remove_file(&archive_path);
+
+    // Verify the install by running `node -v`.
+    emit(RuntimeInstallProgress::Verifying);
+
+    let node_bin = managed_node_bin().ok_or_else(|| {
+        let msg = "Node binary not found after extraction".to_string();
+        emit(RuntimeInstallProgress::Error { message: msg.clone() });
+        msg
+    })?;
+
+    let verify = TokioCommand::new(&node_bin).arg("-v").output().await;
+    match verify {
+        Ok(out) if out.status.success() => {
+            let raw = String::from_utf8_lossy(&out.stdout);
+            let ver = parse_runtime_version(RuntimeName::Node, &raw)
+                .unwrap_or_else(|| "unknown".into());
+            emit(RuntimeInstallProgress::Done { version: ver });
+            Ok(())
+        }
+        Ok(out) => {
+            let msg = format!(
+                "Node installed but verification failed (exit {})",
+                out.status.code().unwrap_or(-1)
+            );
+            emit(RuntimeInstallProgress::Error { message: msg.clone() });
+            Err(msg)
+        }
+        Err(e) => {
+            let msg = format!("Could not run installed node: {e}");
+            emit(RuntimeInstallProgress::Error { message: msg.clone() });
+            Err(msg)
+        }
+    }
 }
 
 #[tauri::command]
@@ -149,19 +428,29 @@ pub async fn check_runtime(app: AppHandle, name: RuntimeName) -> Result<RuntimeS
     let probe_status = Command::new(probe).args(&args).output();
     let installed = matches!(&probe_status, Ok(o) if o.status.success() && !o.stdout.is_empty());
 
-    if !installed {
-        return Ok(RuntimeStatus { installed: false, version: None, source: None });
+    if installed {
+        let (vprog, vargs) = version_command_for(name);
+        let version = Command::new(vprog).args(&vargs).output().ok().and_then(|o| {
+            let raw = String::from_utf8_lossy(&o.stdout);
+            let alt = String::from_utf8_lossy(&o.stderr);
+            let combined = if raw.trim().is_empty() { alt.into_owned() } else { raw.into_owned() };
+            parse_runtime_version(name, &combined)
+        });
+        return Ok(RuntimeStatus { installed: true, version, source: Some("system".into()) });
     }
 
-    let (vprog, vargs) = version_command_for(name);
-    let version = Command::new(vprog).args(&vargs).output().ok().and_then(|o| {
-        let raw = String::from_utf8_lossy(&o.stdout);
-        let alt = String::from_utf8_lossy(&o.stderr);
-        let combined = if raw.trim().is_empty() { alt.into_owned() } else { raw.into_owned() };
-        parse_runtime_version(name, &combined)
-    });
+    // System node not found — check for a Configonaut-managed install.
+    if matches!(name, RuntimeName::Node) {
+        if let Some(bin) = managed_node_bin() {
+            let version = Command::new(&bin).arg("-v").output().ok().and_then(|o| {
+                let raw = String::from_utf8_lossy(&o.stdout);
+                parse_runtime_version(RuntimeName::Node, &raw)
+            });
+            return Ok(RuntimeStatus { installed: true, version, source: Some("managed".into()) });
+        }
+    }
 
-    Ok(RuntimeStatus { installed: true, version, source: Some("system".into()) })
+    Ok(RuntimeStatus { installed: false, version: None, source: None })
 }
 
 /// Render the final config JSON for a server, substituting template
@@ -282,6 +571,7 @@ pub struct InstallSchema {
     pub config_fields: Vec<ConfigField>,
     pub install_step_count: usize,
     pub has_unknown_install_step: bool,
+    pub post_install_notes: Vec<crate::catalog::PostInstallNote>,
 }
 
 fn effective_config_fields(server: &CatalogServer) -> Vec<ConfigField> {
@@ -319,6 +609,7 @@ pub fn build_inspect_schema(server: &CatalogServer) -> InstallSchema {
         config_fields,
         install_step_count: server.install.len(),
         has_unknown_install_step: has_unknown,
+        post_install_notes: server.post_install_notes.clone(),
     }
 }
 
@@ -367,6 +658,67 @@ pub enum InstallProgress {
 }
 
 const PROGRESS_EVENT: &str = "install-progress";
+
+/// If the server uses `npx` (or `node`) as its command and only the
+/// Configonaut-managed Node is available, prepend the managed bin dir to
+/// PATH in the server config's `env` block so Claude Desktop/Code can
+/// find the binary when spawning the MCP process.
+pub fn inject_managed_node_path(config: &mut Map<String, Value>) {
+    if !config_needs_node(config) {
+        return;
+    }
+
+    // Only inject if there's no system node and we have a managed install.
+    let probe = if cfg!(target_os = "windows") { "where" } else { "which" };
+    let has_system = Command::new(probe)
+        .arg("node")
+        .output()
+        .map(|o| o.status.success() && !o.stdout.is_empty())
+        .unwrap_or(false);
+
+    if has_system {
+        return;
+    }
+
+    let Some(bin_dir) = managed_node_bin_dir() else { return };
+    let current_path = std::env::var("PATH").unwrap_or_default();
+    do_inject_node_path(config, &bin_dir.to_string_lossy(), &current_path);
+}
+
+fn config_needs_node(config: &Map<String, Value>) -> bool {
+    match config.get("command") {
+        Some(Value::String(cmd)) => {
+            matches!(cmd.as_str(), "npx" | "node" | "npx.cmd" | "node.exe")
+        }
+        _ => false,
+    }
+}
+
+/// Inner implementation, split out so tests can exercise it without
+/// filesystem or system-PATH side effects.
+fn do_inject_node_path(config: &mut Map<String, Value>, bin_dir: &str, current_path: &str) {
+    let env = config
+        .entry("env")
+        .or_insert_with(|| Value::Object(Map::new()));
+
+    if let Value::Object(env_map) = env {
+        let separator = if cfg!(target_os = "windows") { ";" } else { ":" };
+
+        if let Some(Value::String(existing)) = env_map.get("PATH") {
+            if !existing.contains(bin_dir) {
+                env_map.insert(
+                    "PATH".into(),
+                    Value::String(format!("{bin_dir}{separator}{existing}")),
+                );
+            }
+        } else {
+            env_map.insert(
+                "PATH".into(),
+                Value::String(format!("{bin_dir}{separator}{current_path}")),
+            );
+        }
+    }
+}
 
 #[tauri::command]
 pub async fn install_server(
@@ -458,6 +810,11 @@ pub async fn install_server(
         step: "configure".into(),
         label: "Writing configuration".into(),
     }).ok();
+
+    let mut rendered = rendered;
+    if let Value::Object(ref mut map) = rendered {
+        inject_managed_node_path(map);
+    }
 
     use crate::models::AppMode;
     crate::config::add_to_active(AppMode::Desktop, vec![(server.id.clone(), rendered)])
@@ -560,12 +917,9 @@ mod tests {
     }
 
     #[test]
-    fn install_runtime_node_returns_open_url() {
+    fn install_runtime_node_returns_download() {
         let action = install_runtime_for(RuntimeName::Node);
-        match action {
-            InstallAction::OpenUrl { url } => assert!(url.starts_with("https://nodejs.org")),
-            _ => panic!("expected OpenUrl"),
-        }
+        assert!(matches!(action, InstallAction::Download));
     }
 
     #[test]
@@ -705,6 +1059,7 @@ mod tests {
                 label: "K".into(), description: None, required: true,
                 placeholder: None, default: None, help_url: None,
             }],
+            post_install_notes: vec![],
         };
 
         let schema = build_inspect_schema(&server);
@@ -731,5 +1086,140 @@ mod tests {
         let rendered = render_config_block(&cfg, &schema, &values).unwrap();
         // The marker slot is dropped; only the static flags remain.
         assert_eq!(rendered["args"], serde_json::json!(["-y"]));
+    }
+
+    #[test]
+    fn node_download_url_contains_version_and_platform() {
+        let url = node_download_url("v22.13.1");
+        assert!(url.starts_with("https://nodejs.org/dist/v22.13.1/node-v22.13.1-"));
+        assert!(url.ends_with(".tar.gz"));
+        assert!(url.contains("-x64.") || url.contains("-arm64."));
+    }
+
+    #[test]
+    fn managed_runtimes_dir_is_under_storage() {
+        let dir = managed_runtimes_dir();
+        assert!(dir.ends_with("runtimes"));
+    }
+
+    #[test]
+    fn managed_node_dir_is_under_runtimes() {
+        let dir = managed_node_dir();
+        assert!(dir.ends_with("node"));
+        assert!(dir.starts_with(managed_runtimes_dir()));
+    }
+
+    #[test]
+    fn managed_node_bin_returns_none_when_not_installed() {
+        assert!(managed_node_bin().is_none());
+    }
+
+    #[test]
+    fn managed_node_bin_dir_returns_none_when_not_installed() {
+        assert!(managed_node_bin_dir().is_none());
+    }
+
+    #[test]
+    fn inject_managed_node_path_skips_non_node_commands() {
+        let mut config: Map<String, Value> = Map::new();
+        config.insert("command".into(), json!("uvx"));
+        inject_managed_node_path(&mut config);
+        assert!(config.get("env").is_none());
+    }
+
+    #[test]
+    fn inject_managed_node_path_skips_when_system_node_exists() {
+        let mut config: Map<String, Value> = Map::new();
+        config.insert("command".into(), json!("npx"));
+        inject_managed_node_path(&mut config);
+        if managed_node_bin_dir().is_none() {
+            let has_path = config.get("env")
+                .and_then(|e| e.as_object())
+                .and_then(|m| m.get("PATH"))
+                .is_some();
+            assert!(!has_path);
+        }
+    }
+
+    #[test]
+    fn config_needs_node_recognizes_all_variants() {
+        for cmd in ["npx", "node", "npx.cmd", "node.exe"] {
+            let mut config: Map<String, Value> = Map::new();
+            config.insert("command".into(), json!(cmd));
+            assert!(config_needs_node(&config), "should match: {cmd}");
+        }
+        for cmd in ["uvx", "docker", "python"] {
+            let mut config: Map<String, Value> = Map::new();
+            config.insert("command".into(), json!(cmd));
+            assert!(!config_needs_node(&config), "should not match: {cmd}");
+        }
+    }
+
+    #[test]
+    fn do_inject_node_path_prepends_bin_dir() {
+        let mut config: Map<String, Value> = Map::new();
+        config.insert("command".into(), json!("npx"));
+        do_inject_node_path(&mut config, "/managed/node/bin", "/usr/local/bin:/usr/bin");
+        let path = config["env"]["PATH"].as_str().unwrap();
+        assert!(path.starts_with("/managed/node/bin"));
+        assert!(path.contains("/usr/local/bin"));
+        assert!(path.contains("/usr/bin"));
+    }
+
+    #[test]
+    fn do_inject_node_path_prepends_to_existing_path_entry() {
+        let mut config: Map<String, Value> = Map::new();
+        config.insert("command".into(), json!("npx"));
+        let mut env = Map::new();
+        env.insert("PATH".into(), json!("/custom/bin:/other/bin"));
+        config.insert("env".into(), Value::Object(env));
+
+        do_inject_node_path(&mut config, "/managed/node/bin", "/system/path");
+
+        let path = config["env"]["PATH"].as_str().unwrap();
+        assert!(path.starts_with("/managed/node/bin"));
+        assert!(path.contains("/custom/bin"));
+        assert!(path.contains("/other/bin"));
+        // Should NOT contain the system path — the existing entry is used.
+        assert!(!path.contains("/system/path"));
+    }
+
+    #[test]
+    fn do_inject_node_path_skips_if_already_present() {
+        let mut config: Map<String, Value> = Map::new();
+        config.insert("command".into(), json!("npx"));
+        let mut env = Map::new();
+        env.insert("PATH".into(), json!("/managed/node/bin:/usr/bin"));
+        config.insert("env".into(), Value::Object(env));
+
+        do_inject_node_path(&mut config, "/managed/node/bin", "/whatever");
+
+        let path = config["env"]["PATH"].as_str().unwrap();
+        // Should be unchanged — bin_dir is already present.
+        assert_eq!(path, "/managed/node/bin:/usr/bin");
+    }
+
+    #[test]
+    fn do_inject_node_path_preserves_existing_env_vars() {
+        let mut config: Map<String, Value> = Map::new();
+        config.insert("command".into(), json!("npx"));
+        let mut env = Map::new();
+        env.insert("API_KEY".into(), json!("secret123"));
+        config.insert("env".into(), Value::Object(env));
+
+        do_inject_node_path(&mut config, "/managed/bin", "/usr/bin");
+
+        assert_eq!(config["env"]["API_KEY"], json!("secret123"));
+        assert!(config["env"]["PATH"].as_str().unwrap().contains("/managed/bin"));
+    }
+
+    #[test]
+    fn download_guard_resets_flag() {
+        // Simulate the guard's drop behavior.
+        NODE_DOWNLOAD_IN_PROGRESS.store(true, std::sync::atomic::Ordering::SeqCst);
+        {
+            let _guard = DownloadGuard;
+        }
+        assert!(!NODE_DOWNLOAD_IN_PROGRESS.load(std::sync::atomic::Ordering::SeqCst));
     }
 }

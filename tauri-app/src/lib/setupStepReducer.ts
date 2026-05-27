@@ -45,12 +45,26 @@ export function setupReducer(state: SetupState, action: SetupAction): SetupState
   switch (action.type) {
     case "load":
       return { ...state, phase: "loading" };
-    case "loaded":
+    case "loaded": {
+      const hasPrereqs = action.schema.prerequisites.length > 0;
+      // Seed fieldValues with any schema-provided defaults so required
+      // fields with sensible defaults don't strand the Install button in
+      // "fieldsPending" purgatory waiting for the user to manually
+      // re-type a value the catalog already supplied.
+      const seededValues: Record<string, unknown> = { ...state.fieldValues };
+      for (const f of action.schema.configFields) {
+        if (seededValues[f.name] === undefined && f.default !== undefined && f.default !== null) {
+          seededValues[f.name] = f.default;
+        }
+      }
+      const fieldsReady = validateFields(action.schema, seededValues).valid;
       return {
         ...state,
-        phase: action.schema.prerequisites.length > 0 ? "prereqsPending" : "fieldsPending",
+        phase: hasPrereqs ? "prereqsPending" : fieldsReady ? "ready" : "fieldsPending",
         schema: action.schema,
+        fieldValues: seededValues,
       };
+    }
     case "prereqStatus": {
       const next = { ...state.prereqStatus, [action.runtime]: action.status };
       const allGreen = (state.schema?.prerequisites ?? []).every(

@@ -11,6 +11,7 @@ const SCHEMA: InstallSchema = {
   }],
   installStepCount: 1,
   hasUnknownInstallStep: false,
+  postInstallNotes: [],
 };
 
 describe("setupReducer", () => {
@@ -51,6 +52,41 @@ describe("setupReducer", () => {
 
     s = setupReducer(s, { type: "fieldChange", name: "paths", value: ["/a"] });
     expect(installEnabled(s)).toBe(true);
+  });
+
+  it("seeds field defaults into fieldValues at load time", () => {
+    const schemaWithDefault: InstallSchema = {
+      prerequisites: [],
+      configFields: [{
+        name: "port", kind: "arg", type: "string", label: "Port",
+        required: true, default: "3000",
+      }],
+      installStepCount: 0,
+      hasUnknownInstallStep: false,
+      postInstallNotes: [],
+    };
+    const next = setupReducer(initialSetupState, { type: "loaded", schema: schemaWithDefault });
+    // Default should be seeded, and required-field validation should pass.
+    expect(next.fieldValues.port).toBe("3000");
+    expect(next.phase).toBe("ready");
+    expect(installEnabled(next)).toBe(true);
+  });
+
+  it("does not overwrite existing fieldValues with schema defaults", () => {
+    const schemaWithDefault: InstallSchema = {
+      prerequisites: [],
+      configFields: [{
+        name: "port", kind: "arg", type: "string", label: "Port",
+        required: true, default: "3000",
+      }],
+      installStepCount: 0,
+      hasUnknownInstallStep: false,
+      postInstallNotes: [],
+    };
+    // Pre-populate fieldValues (e.g. retry scenario).
+    const seeded: SetupState = { ...initialSetupState, fieldValues: { port: "8080" } };
+    const next = setupReducer(seeded, { type: "loaded", schema: schemaWithDefault });
+    expect(next.fieldValues.port).toBe("8080");
   });
 
   it("retry after error preserves prereqs and field values", () => {

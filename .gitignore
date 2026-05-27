@@ -21,3 +21,8 @@ dmg-staging/
 # Run tauri-app/src-tauri/binaries/download-uv.sh to fetch them locally
 # before building. VERSION.txt and download-uv.sh ARE committed.
 tauri-app/src-tauri/binaries/uv-*
+
+# Local tooling scratchpads — not part of the build.
+# `_bmad` entries are symlinks to a sibling project, so no trailing slash.
+_bmad
+docs/superpowers/

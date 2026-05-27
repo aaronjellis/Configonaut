@@ -127,6 +127,10 @@ pub struct CatalogServer {
     /// Per-field configuration form schema. Supersedes `env_vars`.
     #[serde(default, rename = "configFields")]
     pub config_fields: Vec<ConfigField>,
+    /// Structured notes shown to the user after a successful install.
+    /// Each note is a step the user needs to complete outside of Configonaut.
+    #[serde(default, rename = "postInstallNotes")]
+    pub post_install_notes: Vec<PostInstallNote>,
 }
 
 impl CatalogServer {
@@ -256,6 +260,15 @@ pub enum InstallStep {
     /// form — do not call `serde_json::to_value` on this variant.
     #[serde(other)]
     Unknown,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PostInstallNote {
+    pub title: String,
+    pub body: String,
+    #[serde(default)]
+    pub url: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -701,7 +714,7 @@ pub fn load_catalog_links(mode: AppMode) -> AppResult<Map<String, Value>> {
     }
 }
 
-fn save_catalog_links(mode: AppMode, links: &Map<String, Value>) -> AppResult<()> {
+pub fn save_catalog_links(mode: AppMode, links: &Map<String, Value>) -> AppResult<()> {
     let path = paths::catalog_links_file(mode);
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)?;
@@ -780,7 +793,9 @@ pub fn install_from_catalog(
 
     let unique_name = resolve_unique_name(mode, &base_name)?;
 
-    let config_map = custom_config.unwrap_or_else(|| server.config.to_config_dict());
+    let mut config_map = custom_config.unwrap_or_else(|| server.config.to_config_dict());
+    adapt_config_for_windows(&mut config_map);
+    crate::installer::inject_managed_node_path(&mut config_map);
     let entries = vec![(unique_name.clone(), Value::Object(config_map))];
 
     match target {
@@ -790,6 +805,40 @@ pub fn install_from_catalog(
 
     record_catalog_link(mode, &unique_name, &server.id)?;
     Ok(unique_name)
+}
+
+/// On Windows, `npx`, `uvx`, and `python` are installed as `.cmd` batch
+/// shims that `child_process.spawn()` can't execute directly. Claude
+/// Desktop and Claude Code both spawn MCP server commands without a
+/// shell, so the config must wrap these in `cmd /c`. This is a no-op on
+/// macOS and Linux.
+fn adapt_config_for_windows(config: &mut Map<String, Value>) {
+    if !cfg!(target_os = "windows") {
+        return;
+    }
+    do_adapt_config_for_windows(config);
+}
+
+/// Inner implementation, always applied — split out so tests can exercise
+/// it on any platform.
+fn do_adapt_config_for_windows(config: &mut Map<String, Value>) {
+    const NEEDS_WRAP: &[&str] = &["npx", "uvx", "python", "python3", "pip", "pip3"];
+
+    let Some(Value::String(cmd)) = config.get("command") else { return };
+    if !NEEDS_WRAP.contains(&cmd.as_str()) {
+        return;
+    }
+
+    let original_cmd = cmd.clone();
+    let mut new_args = vec![
+        Value::String("/c".into()),
+        Value::String(original_cmd),
+    ];
+    if let Some(Value::Array(existing)) = config.get("args") {
+        new_args.extend(existing.iter().cloned());
+    }
+    config.insert("command".into(), Value::String("cmd".into()));
+    config.insert("args".into(), Value::Array(new_args));
 }
 
 // ---------------------------------------------------------------------------
@@ -968,5 +1017,68 @@ mod prereq_install_tests {
         let server: CatalogServer = serde_json::from_str(json).unwrap();
         assert_eq!(server.install.len(), 1);
         assert!(matches!(server.install[0], InstallStep::Unknown));
+    }
+
+    // -- do_adapt_config_for_windows --
+
+    #[test]
+    fn windows_adapt_wraps_npx() {
+        let mut config: Map<String, Value> = serde_json::from_value(serde_json::json!({
+            "command": "npx",
+            "args": ["-y", "@modelcontextprotocol/server-filesystem", "/path"]
+        })).unwrap();
+        do_adapt_config_for_windows(&mut config);
+        assert_eq!(config["command"], "cmd");
+        let args = config["args"].as_array().unwrap();
+        assert_eq!(args[0], "/c");
+        assert_eq!(args[1], "npx");
+        assert_eq!(args[2], "-y");
+    }
+
+    #[test]
+    fn windows_adapt_wraps_uvx() {
+        let mut config: Map<String, Value> = serde_json::from_value(serde_json::json!({
+            "command": "uvx",
+            "args": ["mcp-server-fetch"]
+        })).unwrap();
+        do_adapt_config_for_windows(&mut config);
+        assert_eq!(config["command"], "cmd");
+        let args = config["args"].as_array().unwrap();
+        assert_eq!(args[0], "/c");
+        assert_eq!(args[1], "uvx");
+        assert_eq!(args[2], "mcp-server-fetch");
+    }
+
+    #[test]
+    fn windows_adapt_skips_non_shim_commands() {
+        let mut config: Map<String, Value> = serde_json::from_value(serde_json::json!({
+            "command": "docker",
+            "args": ["run", "-i", "some-image"]
+        })).unwrap();
+        do_adapt_config_for_windows(&mut config);
+        assert_eq!(config["command"], "docker");
+    }
+
+    #[test]
+    fn windows_adapt_skips_url_configs() {
+        let mut config: Map<String, Value> = serde_json::from_value(serde_json::json!({
+            "url": "https://example.com/mcp"
+        })).unwrap();
+        do_adapt_config_for_windows(&mut config);
+        assert!(config.get("command").is_none());
+        assert_eq!(config["url"], "https://example.com/mcp");
+    }
+
+    #[test]
+    fn windows_adapt_handles_no_args() {
+        let mut config: Map<String, Value> = serde_json::from_value(serde_json::json!({
+            "command": "npx"
+        })).unwrap();
+        do_adapt_config_for_windows(&mut config);
+        assert_eq!(config["command"], "cmd");
+        let args = config["args"].as_array().unwrap();
+        assert_eq!(args.len(), 2);
+        assert_eq!(args[0], "/c");
+        assert_eq!(args[1], "npx");
     }
 }

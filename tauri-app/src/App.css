@@ -1260,6 +1260,23 @@ body.is-dragging * {
 .detail-header .title {
   font-weight: 600;
   font-size: 13px;
+  cursor: default;
+}
+.detail-header .title[title] {
+  cursor: text;
+}
+
+.detail-header .rename-input {
+  font-weight: 600;
+  font-size: 13px;
+  font-family: inherit;
+  background: var(--input-bg, rgba(255,255,255,0.06));
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  color: var(--text-primary);
+  padding: 2px 6px;
+  outline: none;
+  min-width: 120px;
 }
 
 .detail-header .source-tag {
@@ -3493,9 +3510,28 @@ button.update-btn-secondary:hover:not(:disabled) {
   margin: 0 0 8px;
 }
 
+.prereq-intro { margin-bottom: 10px; }
+.prereq-intro-heading {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+  margin: 0 0 2px;
+}
+.prereq-intro-sub {
+  font-size: 12px;
+  color: var(--text-tertiary);
+  margin: 0;
+}
+.prereq-explainer {
+  font-size: 12px;
+  color: var(--text-tertiary);
+  margin: 4px 0 0;
+  line-height: 1.4;
+}
+
 .prereq-row {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 10px;
   padding: 8px 10px;
   border: 1px solid var(--card-border);
@@ -3504,10 +3540,44 @@ button.update-btn-secondary:hover:not(:disabled) {
 }
 .prereq-row--ok { border-color: #16a34a44; background: #16a34a0d; }
 .prereq-row--missing { border-color: #d9770633; }
-.prereq-icon { width: 14px; text-align: center; font-size: 12px; }
+.prereq-icon { width: 14px; text-align: center; font-size: 12px; padding-top: 2px; }
+.prereq-content { flex: 1; min-width: 0; }
+.prereq-header { display: flex; align-items: center; gap: 10px; }
 .prereq-label { flex: 1; font-size: 13px; }
 .prereq-version { color: var(--text-tertiary); font-family: var(--mono); font-size: 11px; }
-.prereq-actions { display: flex; gap: 8px; }
+.prereq-source { color: var(--text-tertiary); font-size: 11px; }
+.prereq-actions { display: flex; gap: 8px; flex-shrink: 0; }
+.prereq-install-btn { padding: 2px 10px !important; font-size: 12px !important; }
+.prereq-progress { margin-top: 6px; }
+.prereq-progress-bar {
+  height: 6px;
+  background: var(--card-border);
+  border-radius: 3px;
+  overflow: hidden;
+  margin-bottom: 4px;
+}
+.prereq-progress-fill {
+  height: 100%;
+  background: var(--accent, #6366f1);
+  border-radius: 3px;
+  transition: width 0.2s ease;
+}
+.prereq-progress-text {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.prereq-progress-spinner {
+  display: inline-block;
+  animation: spin 1s linear infinite;
+}
+.prereq-download-error {
+  margin-top: 4px;
+  font-size: 11px;
+  color: #dc2626;
+}
 
 .config-field {
   display: flex;
@@ -3580,6 +3650,71 @@ button.update-btn-secondary:hover:not(:disabled) {
   gap: 8px;
   border-top: 1px solid var(--card-border);
   padding-top: 12px;
+}
+
+/* Post-install notes (next steps after successful install) */
+.post-install h3 {
+  margin: 0 0 4px;
+  font-size: 1rem;
+  color: var(--accent-green);
+}
+.post-install-sub {
+  margin: 0 0 12px;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+}
+.post-install-notes {
+  list-style: none;
+  counter-reset: step;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.post-install-note {
+  counter-increment: step;
+  position: relative;
+  padding-left: 32px;
+}
+.post-install-note::before {
+  content: counter(step);
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.post-install-note strong {
+  display: block;
+  font-size: 0.9rem;
+  margin-bottom: 2px;
+}
+.post-install-note p {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+.post-install-note .link-btn {
+  background: none;
+  border: none;
+  color: var(--accent);
+  font-size: 0.8rem;
+  padding: 2px 0;
+  cursor: pointer;
+  text-decoration: underline;
+}
+.post-install-note .link-btn:hover {
+  color: var(--accent-hover);
 }
 
 @keyframes spin { from { transform: rotate(0); } to { transform: rotate(360deg); } }

@@ -155,6 +155,7 @@ pub fn run() {
             commands::add_servers_to_stored,
             commands::move_server_to_stored,
             commands::move_server_to_active,
+            commands::rename_server,
             commands::delete_server,
             commands::update_server_config,
             // Backups
@@ -179,6 +180,7 @@ pub fn run() {
             // Auto-install
             installer::check_runtime,
             installer::install_runtime,
+            installer::download_node,
             installer::inspect_install,
             installer::install_server,
             // Paths

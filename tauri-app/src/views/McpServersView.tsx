@@ -44,6 +44,7 @@ import {
   listServers,
   moveServerToActive,
   moveServerToStored,
+  renameServer,
   restartClaudeDesktop,
   updateServerConfig,
 } from "../api";
@@ -130,6 +131,17 @@ export function McpServersView({ mode, onMutated }: Props) {
     entry: ServerEntry;
     source: ServerSource;
   } | null>(null);
+  const [pendingRemoteWarn, setPendingRemoteWarn] = useState<{
+    entry: ServerEntry;
+    source: ServerSource;
+  } | null>(null);
+  const [renaming, setRenaming] = useState(false);
+  const [renameValue, setRenameValue] = useState("");
+  /// Guard against double-commit: pressing Enter triggers commitRename,
+  /// which sets renaming=false and unmounts the input — but unmounting
+  /// the input fires onBlur, which would call commitRename a second time.
+  /// The ref short-circuits the second call before it issues another IPC.
+  const renameCommittedRef = useRef(false);
 
   /// Height (in px) of the JSON editor pane. The user can drag the
   /// resize handle between the columns and the detail panel to grow or
@@ -204,6 +216,7 @@ export function McpServersView({ mode, onMutated }: Props) {
       setEditedJson(selectedEntry.configJson);
       setEditError(null);
     }
+    setRenaming(false);
   }, [selectedEntry]);
 
   /// Realtime shape-check — shown as a warning, not a blocker. Users can
@@ -289,6 +302,22 @@ export function McpServersView({ mode, onMutated }: Props) {
   // ---------- Mutations ----------
 
   async function handleMove(entry: ServerEntry, source: ServerSource) {
+    // Warn when turning on a url-based server in Desktop mode.
+    if (source === "stored" && mode === "desktop") {
+      try {
+        const parsed = JSON.parse(entry.configJson);
+        if (typeof parsed === "object" && parsed !== null && typeof parsed.url === "string") {
+          setPendingRemoteWarn({ entry, source });
+          return;
+        }
+      } catch {
+        // Unparseable config — let the normal flow handle the error.
+      }
+    }
+    await doMove(entry, source);
+  }
+
+  async function doMove(entry: ServerEntry, source: ServerSource) {
     try {
       if (source === "active") {
         await moveServerToStored(mode, entry.name);
@@ -387,6 +416,39 @@ export function McpServersView({ mode, onMutated }: Props) {
     if (selectedEntry) {
       setEditedJson(selectedEntry.configJson);
       setEditError(null);
+    }
+  }
+
+  function startRename() {
+    if (!selection || !selectedEntry || isProjectSelected) return;
+    renameCommittedRef.current = false;
+    setRenaming(true);
+    setRenameValue(selectedEntry.name);
+  }
+
+  async function commitRename() {
+    if (!selection) return;
+    // Guard against the Enter→blur double-fire (see ref declaration).
+    if (renameCommittedRef.current) return;
+    renameCommittedRef.current = true;
+
+    const newName = renameValue.trim();
+    setRenaming(false);
+    if (!newName || newName === selection.name) return;
+    try {
+      await renameServer(mode, selection.name, newName, selection.source);
+      if (selection.source === "active") setNeedsRestart(true);
+      // Refresh BEFORE moving the selection so `selectedEntry` resolves
+      // against the new listing on the same render — otherwise the
+      // detail panel transiently shows a null selection and the editedJson
+      // sync effect can blank the editor.
+      onMutated();
+      await refresh();
+      setSelection({ source: selection.source, name: newName });
+      setStatus(`Renamed to "${newName}".`);
+      toast.show(`Renamed to "${newName}".`, "success");
+    } catch (e) {
+      toast.show(String(e), "error");
     }
   }
 
@@ -732,10 +794,29 @@ export function McpServersView({ mode, onMutated }: Props) {
           >
             <div className="detail-header">
               <div>
-                <span className="title">
-                  {selectedEntry ? selectedEntry.name : "Select a server"}
-                </span>
-                {selection && (
+                {renaming ? (
+                  <input
+                    className="rename-input"
+                    value={renameValue}
+                    onChange={(e) => setRenameValue(e.currentTarget.value)}
+                    onBlur={commitRename}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") commitRename();
+                      if (e.key === "Escape") setRenaming(false);
+                    }}
+                    autoFocus
+                    spellCheck={false}
+                  />
+                ) : (
+                  <span
+                    className="title"
+                    onDoubleClick={startRename}
+                    title={selectedEntry && !isProjectSelected ? "Double-click to rename" : undefined}
+                  >
+                    {selectedEntry ? selectedEntry.name : "Select a server"}
+                  </span>
+                )}
+                {selection && !renaming && (
                   <span className="source-tag">
                     {selection.source === "active" ? "ACTIVE" : "INACTIVE"}
                   </span>
@@ -880,6 +961,49 @@ export function McpServersView({ mode, onMutated }: Props) {
               </button>
               <button className="danger" onClick={confirmDelete}>
                 Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {pendingRemoteWarn && (
+        <div className="modal-backdrop" onClick={() => setPendingRemoteWarn(null)}>
+          <div
+            className="modal confirm-modal"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="modal-header">
+              <h3>Remote Server Warning</h3>
+            </div>
+            <div className="modal-body">
+              <p>
+                <strong>"{pendingRemoteWarn.entry.name}"</strong> uses a{" "}
+                <code>url</code> field (remote transport). Claude Desktop has a
+                known issue where <code>url</code>-based entries can cause it to
+                remove all your MCP servers on restart.
+              </p>
+              <p>
+                Consider adding remote servers through Claude Desktop's
+                Settings &rarr; Integrations instead.
+              </p>
+            </div>
+            <div className="modal-footer">
+              <button
+                className="ghost"
+                onClick={() => setPendingRemoteWarn(null)}
+              >
+                Cancel
+              </button>
+              <button
+                className="danger"
+                onClick={async () => {
+                  const { entry, source } = pendingRemoteWarn;
+                  setPendingRemoteWarn(null);
+                  await doMove(entry, source);
+                }}
+              >
+                Turn On Anyway
               </button>
             </div>
           </div>

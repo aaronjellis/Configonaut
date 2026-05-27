@@ -50,6 +50,48 @@ pub fn list_servers(mode: AppMode) -> AppResult<ServerListing> {
 /// In addition to shape-checking, we also validate each parsed entry has
 /// at least one of `command`/`url` so a bare `{"foo": {}}` can't sneak
 /// through as a "server" that Claude will error on at startup.
+/// Pre-process a raw paste to handle common non-JSON fragments. Mirrors
+/// the TypeScript `normalizePasteInput` in `lib/validateServerJson.ts`.
+fn normalize_paste_input(raw: &str) -> String {
+    // Compile each regex once at first use — Regex::new is expensive and
+    // this function runs on every paste. The patterns are static, so
+    // OnceLock is the right tool.
+    use std::sync::OnceLock;
+    static TRAILING_COMMA: OnceLock<regex::Regex> = OnceLock::new();
+    static BARE_KEY: OnceLock<regex::Regex> = OnceLock::new();
+    static TRAILING_END: OnceLock<regex::Regex> = OnceLock::new();
+    let trailing_comma = TRAILING_COMMA
+        .get_or_init(|| regex::Regex::new(r",(\s*[}\]])").expect("trailing-comma regex"));
+    let bare_key = BARE_KEY
+        .get_or_init(|| regex::Regex::new(r#"^\s*"[^"]+"\s*:"#).expect("bare-key regex"));
+    let trailing_end = TRAILING_END
+        .get_or_init(|| regex::Regex::new(r",\s*$").expect("trailing-end regex"));
+
+    let s = raw.trim();
+    if s.is_empty() {
+        return s.to_string();
+    }
+
+    // Already valid JSON? Return as-is.
+    if serde_json::from_str::<Value>(s).is_ok() {
+        return s.to_string();
+    }
+
+    // Strip trailing commas before closing braces/brackets.
+    let s = trailing_comma.replace_all(s, "$1");
+
+    // If it starts with `"someKey":`, wrap in `{ }`.
+    if bare_key.is_match(&s) {
+        // Strip a trailing comma at the very end (after the last `}`)
+        let s = trailing_end.replace(&s, "");
+        let wrapped = format!("{{ {} }}", s);
+        // One more pass to catch trailing commas introduced by wrapping.
+        return trailing_comma.replace_all(&wrapped, "$1").into_owned();
+    }
+
+    s.into_owned()
+}
+
 #[tauri::command]
 pub fn parse_server_input(
     raw_json: String,
@@ -59,7 +101,8 @@ pub fn parse_server_input(
     if trimmed.is_empty() {
         return Err(anyhow::anyhow!("Nothing to parse.").into());
     }
-    let parsed: Value = serde_json::from_str(trimmed).map_err(|_| {
+    let normalized = normalize_paste_input(trimmed);
+    let parsed: Value = serde_json::from_str(&normalized).map_err(|_| {
         anyhow::anyhow!(
             "Invalid JSON. Check for trailing commas, missing quotes, or extra braces."
         )
@@ -232,6 +275,16 @@ fn stored_server_missing_secrets(
     };
 
     Ok(catalog::missing_secrets(&config_value, server))
+}
+
+#[tauri::command]
+pub fn rename_server(
+    mode: AppMode,
+    old_name: String,
+    new_name: String,
+    source: ServerSource,
+) -> AppResult<()> {
+    config::rename_server(mode, &old_name, &new_name, source)
 }
 
 #[tauri::command]
@@ -932,5 +985,41 @@ mod tests {
         let err = validate_server_entries(&entries).unwrap_err();
         assert!(err.to_string().contains("\"a\""));
         assert!(err.to_string().contains("\"b\""));
+    }
+
+    // -- normalize_paste_input --
+
+    #[test]
+    fn normalize_valid_json_unchanged() {
+        let input = r#"{"command": "npx"}"#;
+        assert_eq!(normalize_paste_input(input), input);
+    }
+
+    #[test]
+    fn normalize_wraps_bare_key_value() {
+        let input = r#""click-insights": { "command": "npx", "args": ["-y", "mcp-remote"] }"#;
+        let result = normalize_paste_input(input);
+        let parsed: Value = serde_json::from_str(&result).unwrap();
+        assert!(parsed.get("click-insights").is_some());
+    }
+
+    #[test]
+    fn normalize_strips_trailing_comma() {
+        let input = r#""server": { "command": "npx", },"#;
+        let result = normalize_paste_input(input);
+        let parsed: Value = serde_json::from_str(&result).unwrap();
+        assert!(parsed.get("server").is_some());
+    }
+
+    #[test]
+    fn parse_bare_fragment() {
+        let input = r#""click-insights": {
+            "command": "npx",
+            "args": ["-y", "mcp-remote", "http://10.100.1.150:3002/mcp", "--allow-http"]
+        }"#;
+        let result = parse_server_input(input.to_string(), None).unwrap();
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].0, "click-insights");
+        assert_eq!(result[0].1["command"], "npx");
     }
 }
