@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.4.0
+
+### Added
+- **In-app Node.js installer** -- Catalog servers that require Node now offer a one-click "Install" button right in the prerequisites row. Configonaut downloads the latest LTS tarball straight from nodejs.org into the app's storage dir, extracts via system tar, verifies via `node -v`, and shows a real-time progress bar with percentage + bytes-transferred. No system Node required to use npx-based MCP servers. Marked with a "managed by Configonaut" badge once installed.
+- **Post-install notes** -- Catalog entries can declare `postInstallNotes: [{ title, body, url? }]` to surface out-of-band setup steps the app can't automate (e.g. running `sf org login web` to authorize a Salesforce org). The Setup flow now ends in a numbered "Next Steps" screen for these entries instead of silently closing.
+- **Rename servers from the detail panel** -- Double-click a server name in the MCP view to rename it inline. Enter commits, Escape cancels. Backend re-keys the entry in either active or stored, cross-checks both maps to prevent collisions, and updates the catalog-links sidecar so marketplace linkage survives.
+- **Bare-fragment JSON pastes** -- The "Paste JSON" tab now accepts `"server-name": { ... }` fragments, full `{ "mcpServers": { ... } }` wrappers, and snippets with trailing commas. Server names are auto-extracted from the JSON key when possible.
+- **Official Salesforce DX MCP** -- New catalog entry for `@salesforce/mcp` from Salesforce CLI team, with post-install notes walking through sf CLI install and org authorization.
+
+### Changed
+- **GitHub MCP switched from docker to npx** -- Catalog entry now uses `@github/github-mcp-server` via npx instead of the docker image. Drops the docker prerequisite; users only need Node.
+- **Atlassian MCP URL updated** -- Atlassian retired the `/v1/sse` endpoint in favor of `/v1/mcp`.
+- **Field defaults are now seeded at load time** -- Setup form now pre-populates `field.default` values into the form state on schema load, so required fields with sensible defaults don't strand the Install button until the user manually re-types each one.
+
+### Fixed
+- **Remote-server warning in Desktop mode** -- Turning on a stored server with a `url` field now shows a confirmation modal. Claude Desktop has a known issue where url-based MCP entries can cause it to wipe all configured servers on restart; the warning surfaces that risk before the user proceeds.
+- **Setup install events fire exactly once** -- The install progress event listener now handles log streaming only; the Tauri command's return value owns the `done` / `error` signals. Eliminates a path where both the listener and the invoke return dispatched `installDone`.
+- **Listener cleanup race in Setup** -- Async listener registration now uses a `cancelled` flag pattern so unmounting the component before `onInstallProgress.then(...)` resolves doesn't leave a stale listener attached.
+- **Rename double-commit guard** -- Pressing Enter while renaming a server no longer fires the rename IPC twice (Enter → commitRename → setRenaming(false) → input unmount → blur → commitRename again). A ref short-circuits the second call.
+- **Windows `npx` / `uvx` spawning** -- Server configs now wrap `npx`, `uvx`, `python`, `pip`, and their numbered variants in `cmd /c` on Windows. Node's `child_process.spawn` can't execute `.cmd` shims directly, and Claude Desktop / Claude Code spawn MCP server commands without a shell, so the wrapping is needed for these to actually run.
+
 ## 0.3.1
 
 > 0.3.0 was tagged but never published — the macOS universal build failed
