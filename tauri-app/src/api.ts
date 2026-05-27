@@ -17,6 +17,7 @@ import type {
   InstallAction,
   InstallProgress,
   InstallSchema,
+  RuntimeInstallProgress,
   RuntimeName,
   RuntimeStatus,
   ServerListing,
@@ -68,6 +69,15 @@ export function moveServerToActive(
   name: string
 ): Promise<string> {
   return invoke("move_server_to_active", { mode, name });
+}
+
+export function renameServer(
+  mode: AppMode,
+  oldName: string,
+  newName: string,
+  source: ServerSource
+): Promise<void> {
+  return invoke("rename_server", { mode, oldName, newName, source });
 }
 
 export function deleteServer(
@@ -348,4 +358,13 @@ export function onInstallProgress(
   handler: (p: InstallProgress) => void,
 ): Promise<UnlistenFn> {
   return listen<InstallProgress>("install-progress", (e) => handler(e.payload));
+}
+
+export const apiDownloadNode = () =>
+  invoke<void>("download_node");
+
+export function onRuntimeInstallProgress(
+  handler: (p: RuntimeInstallProgress) => void,
+): Promise<UnlistenFn> {
+  return listen<RuntimeInstallProgress>("runtime-install-progress", (e) => handler(e.payload));
 }

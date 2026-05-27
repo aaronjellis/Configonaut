@@ -181,12 +181,13 @@ export type InstallStep =
 export interface RuntimeStatus {
   installed: boolean;
   version: string | null;
-  source: "system" | "sidecar" | null;
+  source: "system" | "sidecar" | "managed" | null;
 }
 
 export type InstallAction =
   | { action: "ready" }
-  | { action: "openUrl"; url: string };
+  | { action: "openUrl"; url: string }
+  | { action: "download" };
 
 export type ConfigFieldKind = "env" | "arg" | "argSpread";
 export type ConfigFieldType =
@@ -210,14 +211,28 @@ export interface PrerequisiteEntry {
   installUrl: string | null;
 }
 
+export interface PostInstallNote {
+  title: string;
+  body: string;
+  url?: string | null;
+}
+
 export interface InstallSchema {
   prerequisites: PrerequisiteEntry[];
   configFields: ConfigField[];
   installStepCount: number;
   hasUnknownInstallStep: boolean;
+  postInstallNotes: PostInstallNote[];
 }
 
 export type InstallProgress =
   | { kind: "step"; step: "check" | "install" | "configure" | "done"; label: string }
   | { kind: "log"; line: string }
   | { kind: "error"; step: string; message: string; canRetry: boolean };
+
+export type RuntimeInstallProgress =
+  | { kind: "downloading"; percent: number; downloadedBytes: number; totalBytes: number }
+  | { kind: "extracting" }
+  | { kind: "verifying" }
+  | { kind: "done"; version: string }
+  | { kind: "error"; message: string };
