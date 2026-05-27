@@ -278,6 +278,16 @@ fn stored_server_missing_secrets(
 }
 
 #[tauri::command]
+pub fn rename_server(
+    mode: AppMode,
+    old_name: String,
+    new_name: String,
+    source: ServerSource,
+) -> AppResult<()> {
+    config::rename_server(mode, &old_name, &new_name, source)
+}
+
+#[tauri::command]
 pub fn delete_server(
     mode: AppMode,
     name: String,

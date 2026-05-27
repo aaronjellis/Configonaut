@@ -714,7 +714,7 @@ pub fn load_catalog_links(mode: AppMode) -> AppResult<Map<String, Value>> {
     }
 }
 
-fn save_catalog_links(mode: AppMode, links: &Map<String, Value>) -> AppResult<()> {
+pub fn save_catalog_links(mode: AppMode, links: &Map<String, Value>) -> AppResult<()> {
     let path = paths::catalog_links_file(mode);
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)?;

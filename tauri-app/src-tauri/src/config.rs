@@ -209,6 +209,64 @@ pub fn delete_server(
     Ok(())
 }
 
+/// Rename a server: change its key in the relevant config map.
+/// The config body stays the same, only the key changes.
+pub fn rename_server(
+    mode: AppMode,
+    old_name: &str,
+    new_name: &str,
+    source: ServerSource,
+) -> AppResult<()> {
+    if old_name == new_name {
+        return Ok(());
+    }
+    let new_name_trimmed = new_name.trim();
+    if new_name_trimmed.is_empty() {
+        return Err(anyhow!("server name cannot be empty").into());
+    }
+
+    // Collision check spans BOTH sources — `list_servers` dedups by hiding
+    // stored entries shadowed by active ones, so allowing a same-name
+    // collision across sources would silently hide one of them in the UI.
+    let config_path = paths::config_file(mode);
+    let active_map = load_mcp_servers_from_config(&config_path)?;
+    let stored_map = load_stored_map(mode)?;
+    if active_map.contains_key(new_name_trimmed) || stored_map.contains_key(new_name_trimmed) {
+        return Err(anyhow!("a server named \"{new_name_trimmed}\" already exists").into());
+    }
+
+    match source {
+        ServerSource::Active => {
+            let mut root = load_config_root(&config_path)?;
+            let mcp = ensure_mcp_map(&mut root);
+            let Some(config) = mcp.shift_remove(old_name) else {
+                return Err(anyhow!("server \"{old_name}\" not found").into());
+            };
+            mcp.insert(new_name_trimmed.to_string(), config);
+            backup_config(mode)?;
+            save_config_root(&config_path, &root)?;
+        }
+        ServerSource::Stored => {
+            let mut stored = stored_map;
+            let Some(config) = stored.shift_remove(old_name) else {
+                return Err(anyhow!("server \"{old_name}\" not found").into());
+            };
+            stored.insert(new_name_trimmed.to_string(), config);
+            save_stored_map(mode, &stored)?;
+        }
+    }
+
+    // Update catalog links if the old name was linked to a catalog entry.
+    if let Ok(mut links) = crate::catalog::load_catalog_links(mode) {
+        if let Some(catalog_id) = links.shift_remove(old_name) {
+            links.insert(new_name_trimmed.to_string(), catalog_id);
+            let _ = crate::catalog::save_catalog_links(mode, &links);
+        }
+    }
+
+    Ok(())
+}
+
 /// Replace the JSON config for a single server in place.
 /// Auto-unwraps `{ "mcpServers": { ... } }` wrappers that users commonly paste.
 pub fn update_server_config(
