@@ -174,7 +174,7 @@ function App() {
         mode={mode}
         onModeChange={setMode}
         badges={badges}
-        version="0.3.1"
+        version="0.4.0"
       />
       <main className="main">{body}</main>
       {showUpdateModal && pendingUpdate && (
@@ -185,7 +185,7 @@ function App() {
       )}
       {showAbout && (
         <AboutModal
-          version="0.3.1"
+          version="0.4.0"
           onCheckForUpdates={handleCheckForUpdates}
           onDismiss={() => setShowAbout(false)}
         />
