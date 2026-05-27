@@ -430,21 +430,17 @@
       "popularity": 10,
       "transport": "stdio",
       "config": {
-        "command": "docker",
+        "command": "npx",
         "args": [
-          "run",
-          "-i",
-          "--rm",
-          "-e",
-          "GITHUB_PERSONAL_ACCESS_TOKEN",
-          "ghcr.io/github/github-mcp-server"
+          "-y",
+          "@github/github-mcp-server"
         ],
         "env": {
           "GITHUB_PERSONAL_ACCESS_TOKEN": ""
         }
       },
       "requirements": [
-        "docker"
+        "node"
       ],
       "envVars": [
         {
@@ -458,13 +454,13 @@
       ],
       "prerequisites": [
         {
-          "type": "docker"
+          "type": "node"
         }
       ],
       "install": [
         {
-          "type": "dockerPull",
-          "image": "ghcr.io/github/github-mcp-server"
+          "type": "npmWarmup",
+          "package": "@github/github-mcp-server"
         }
       ],
       "configFields": [
@@ -472,7 +468,7 @@
           "name": "GITHUB_PERSONAL_ACCESS_TOKEN",
           "kind": "env",
           "type": "secret",
-          "label": "Github Personal Access Token",
+          "label": "GitHub Personal Access Token",
           "description": "Fine-grained or classic PAT with required repo scopes.",
           "required": true,
           "placeholder": "ghp_...",
@@ -667,7 +663,7 @@
       "popularity": 8,
       "transport": "remote",
       "config": {
-        "url": "https://mcp.atlassian.com/v1/sse"
+        "url": "https://mcp.atlassian.com/v1/mcp"
       },
       "prerequisites": [],
       "install": [
@@ -3622,6 +3618,80 @@
           "description": "Salesforce instance URL (optional for User_Password).",
           "required": false,
           "placeholder": "https://login.salesforce.com"
+        }
+      ]
+    },
+    {
+      "id": "salesforce-dx",
+      "name": "Salesforce DX (Official)",
+      "description": "Official Salesforce CLI MCP — 60+ tools for org management, metadata, Apex, SOQL, data, and testing via the sf CLI.",
+      "category": "crm",
+      "tags": [
+        "salesforce",
+        "crm",
+        "devops",
+        "apex",
+        "soql"
+      ],
+      "publisher": {
+        "name": "Salesforce",
+        "type": "vendor",
+        "verified": true
+      },
+      "homepage": "https://github.com/salesforcecli/mcp",
+      "repository": "https://github.com/salesforcecli/mcp",
+      "license": "BSD-3-Clause",
+      "popularity": 7,
+      "transport": "stdio",
+      "config": {
+        "command": "npx",
+        "args": [
+          "-y",
+          "@salesforce/mcp",
+          "--orgs",
+          "{{orgs}}"
+        ]
+      },
+      "requirements": [
+        "node"
+      ],
+      "envVars": [],
+      "prerequisites": [
+        {
+          "type": "node"
+        }
+      ],
+      "install": [
+        {
+          "type": "npmWarmup",
+          "package": "@salesforce/mcp"
+        }
+      ],
+      "configFields": [
+        {
+          "name": "orgs",
+          "kind": "arg",
+          "type": "string",
+          "label": "Target Org Alias",
+          "description": "Alias or username of the Salesforce org to connect to. Must be pre-authorized with 'sf org login web'.",
+          "required": true,
+          "placeholder": "my-sandbox"
+        }
+      ],
+      "postInstallNotes": [
+        {
+          "title": "Install the Salesforce CLI",
+          "body": "The @salesforce/mcp package requires the Salesforce CLI (sf) to be installed on your system.",
+          "url": "https://developer.salesforce.com/tools/salesforcecli"
+        },
+        {
+          "title": "Authorize your org",
+          "body": "Open a terminal and run: sf org login web --alias my-sandbox --instance-url https://login.salesforce.com. This opens a browser for OAuth login. Use the same alias you entered above.",
+          "url": "https://developer.salesforce.com/docs/atlas.en-us.sfdx_dev.meta/sfdx_dev/sfdx_dev_auth_web_flow.htm"
+        },
+        {
+          "title": "Restart Claude",
+          "body": "After authorizing, restart Claude Desktop or Claude Code so it picks up the new MCP server."
         }
       ]
     },
