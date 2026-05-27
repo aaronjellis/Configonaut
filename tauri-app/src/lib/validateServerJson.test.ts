@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { validateServerConfigJson, validatePasteInput } from "./validateServerJson";
+import {
+  extractServerNames,
+  normalizePasteInput,
+  validateServerConfigJson,
+  validatePasteInput,
+} from "./validateServerJson";
 
 // ---------------------------------------------------------------------------
 // validateServerConfigJson
@@ -135,5 +140,94 @@ describe("validatePasteInput", () => {
     expect(
       validatePasteInput(JSON.stringify({ foo: "string", bar: 42 }), "")
     ).toBe("No valid server configs found.");
+  });
+
+  // Case 4: bare fragment — "name": { ... } without outer braces
+  it("accepts a bare fragment like '\"name\": { \"command\": ... }'", () => {
+    const fragment = `"click-insights": {
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "http://10.100.1.150:3002/mcp", "--allow-http"]
+    }`;
+    expect(validatePasteInput(fragment, "")).toBeNull();
+  });
+
+  it("accepts a bare fragment with trailing comma", () => {
+    const fragment = `"my-server": {
+      "command": "npx",
+      "args": ["-y", "some-package"]
+    },`;
+    expect(validatePasteInput(fragment, "")).toBeNull();
+  });
+
+  it("accepts multiple bare fragments", () => {
+    const fragment = `"server-a": { "command": "npx", "args": [] },
+    "server-b": { "url": "http://localhost:8080" }`;
+    expect(validatePasteInput(fragment, "")).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// normalizePasteInput
+// ---------------------------------------------------------------------------
+
+describe("normalizePasteInput", () => {
+  it("returns valid JSON unchanged", () => {
+    const json = JSON.stringify({ command: "npx" });
+    expect(normalizePasteInput(json)).toBe(json);
+  });
+
+  it("wraps a bare key-value pair in braces", () => {
+    const fragment = `"my-server": { "command": "npx" }`;
+    const result = normalizePasteInput(fragment);
+    expect(() => JSON.parse(result)).not.toThrow();
+    const parsed = JSON.parse(result);
+    expect(parsed["my-server"]).toBeDefined();
+    expect(parsed["my-server"].command).toBe("npx");
+  });
+
+  it("strips trailing commas", () => {
+    const fragment = `"server": { "command": "npx", },`;
+    const result = normalizePasteInput(fragment);
+    expect(() => JSON.parse(result)).not.toThrow();
+  });
+
+  it("returns empty string for empty input", () => {
+    expect(normalizePasteInput("")).toBe("");
+    expect(normalizePasteInput("   ")).toBe("");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// extractServerNames
+// ---------------------------------------------------------------------------
+
+describe("extractServerNames", () => {
+  it("extracts names from mcpServers wrapper", () => {
+    const json = JSON.stringify({
+      mcpServers: { github: { command: "npx" }, gitlab: { url: "http://x" } },
+    });
+    expect(extractServerNames(json)).toEqual(["github", "gitlab"]);
+  });
+
+  it("extracts names from bare map", () => {
+    const json = JSON.stringify({
+      "click-insights": { command: "npx", args: [] },
+    });
+    expect(extractServerNames(json)).toEqual(["click-insights"]);
+  });
+
+  it("extracts names from bare fragment", () => {
+    const fragment = `"click-insights": { "command": "npx", "args": [] }`;
+    expect(extractServerNames(fragment)).toEqual(["click-insights"]);
+  });
+
+  it("returns empty for single server body", () => {
+    const json = JSON.stringify({ command: "npx" });
+    expect(extractServerNames(json)).toEqual([]);
+  });
+
+  it("returns empty for invalid input", () => {
+    expect(extractServerNames("not json at all")).toEqual([]);
+    expect(extractServerNames("")).toEqual([]);
   });
 });

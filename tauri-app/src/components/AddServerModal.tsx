@@ -26,7 +26,12 @@ import {
   removeFeed,
   toggleFeed,
 } from "../api";
-import { validatePasteInput } from "../lib/validateServerJson";
+import {
+  extractServerNames,
+  hasRemoteEntries,
+  normalizePasteInput,
+  validatePasteInput,
+} from "../lib/validateServerJson";
 import type {
   AppMode,
   Catalog,
@@ -137,7 +142,27 @@ export function AddServerModal({
     }
   }, [feedStatuses, toast]);
 
+  // Pending catalog install that needs user confirmation (remote + Desktop).
+  const [pendingCatalogInstall, setPendingCatalogInstall] = useState<{
+    server: CatalogServer;
+    customConfig: Record<string, unknown>;
+    customName: string;
+  } | null>(null);
+
   async function handleMarketplaceInstall(
+    server: CatalogServer,
+    customConfig: Record<string, unknown>,
+    customName: string
+  ) {
+    // Warn if installing a remote server in Desktop mode.
+    if (mode === "desktop" && server.transport === "remote") {
+      setPendingCatalogInstall({ server, customConfig, customName });
+      return;
+    }
+    await doMarketplaceInstall(server, customConfig, customName);
+  }
+
+  async function doMarketplaceInstall(
     server: CatalogServer,
     customConfig: Record<string, unknown>,
     customName: string
@@ -213,7 +238,41 @@ export function AddServerModal({
           )}
         </div>
 
-        {setupServerId ? (
+        {pendingCatalogInstall ? (
+          <>
+            <div className="modal-body">
+              <div className="banner warning">
+                <strong>Remote server in Desktop mode</strong>
+                <p style={{ margin: "8px 0 0" }}>
+                  <strong>{pendingCatalogInstall.server.name}</strong> is a
+                  remote MCP server. Claude Desktop has a known issue where{" "}
+                  <code>url</code>-based entries can cause it to remove all
+                  your MCP servers on restart. Consider adding remote servers
+                  through Claude Desktop's Settings &rarr; Integrations instead.
+                </p>
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button
+                className="ghost"
+                onClick={() => setPendingCatalogInstall(null)}
+              >
+                Go Back
+              </button>
+              <button
+                className="danger"
+                onClick={async () => {
+                  const { server, customConfig, customName } =
+                    pendingCatalogInstall;
+                  setPendingCatalogInstall(null);
+                  await doMarketplaceInstall(server, customConfig, customName);
+                }}
+              >
+                Install Anyway
+              </button>
+            </div>
+          </>
+        ) : setupServerId ? (
           <div className="modal-body">
             <SetupStep
               serverId={setupServerId}
@@ -286,7 +345,7 @@ export function AddServerModal({
             }}
           />
         ) : (
-          <PasteTab onClose={onClose} onCommit={onCommit} />
+          <PasteTab mode={mode} onClose={onClose} onCommit={onCommit} />
         )}
       </div>
     </div>
@@ -298,15 +357,22 @@ export function AddServerModal({
 // ---------------------------------------------------------------------------
 
 interface PasteProps {
+  mode: AppMode;
   onClose: () => void;
   onCommit: (entries: ServerTuple[], target: "active" | "stored") => void;
 }
 
-function PasteTab({ onClose, onCommit }: PasteProps) {
+function PasteTab({ mode, onClose, onCommit }: PasteProps) {
   const [raw, setRaw] = useState("");
   const [name, setName] = useState("");
+  const [nameAutoFilled, setNameAutoFilled] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // Pending submission that needs user confirmation (e.g. remote server in Desktop mode).
+  const [pendingConfirm, setPendingConfirm] = useState<{
+    entries: ServerTuple[];
+    target: "active" | "stored";
+  } | null>(null);
 
   // Realtime mirror of the Rust `parse_server_input` rules. We hide the error
   // while the textarea is empty so a fresh modal doesn't scream at the user,
@@ -317,6 +383,20 @@ function PasteTab({ onClose, onCommit }: PasteProps) {
     return validatePasteInput(raw, name);
   }, [raw, name]);
 
+  // Auto-extract server name(s) from pasted JSON. When the input is a bare
+  // map like `"click-insights": { ... }`, we can pull the name out and
+  // populate the field automatically — no need for the user to type it.
+  const detectedNames = useMemo(() => extractServerNames(raw), [raw]);
+
+  // Auto-fill the name field when we detect exactly one server name and the
+  // user hasn't manually edited the name.
+  useEffect(() => {
+    if (detectedNames.length === 1 && (name === "" || nameAutoFilled)) {
+      setName(detectedNames[0]);
+      setNameAutoFilled(true);
+    }
+  }, [detectedNames, name, nameAutoFilled]);
+
   // Banner precedence: realtime parse errors win over save-time backend
   // errors, since any backend failure is stale the moment the user edits.
   const displayedError = pasteError ?? saveError;
@@ -325,9 +405,16 @@ function PasteTab({ onClose, onCommit }: PasteProps) {
     setSaveError(null);
     setBusy(true);
     try {
-      const entries = await parseServerInput(raw, name || undefined);
+      const normalized = normalizePasteInput(raw);
+      const entries = await parseServerInput(normalized, name || undefined);
       if (entries.length === 0) {
         throw new Error("no servers found in input");
+      }
+      // Warn if adding remote (url-based) servers to Desktop mode config.
+      if (mode === "desktop" && target === "active" && hasRemoteEntries(entries)) {
+        setPendingConfirm({ entries, target });
+        setBusy(false);
+        return;
       }
       onCommit(entries, target);
       onClose();
@@ -340,28 +427,94 @@ function PasteTab({ onClose, onCommit }: PasteProps) {
 
   const canSubmit = !busy && !pasteError && raw.trim().length > 0;
 
+  // Show the name field only when the input looks like a single server body
+  // (no name embedded in the JSON). For bare maps and mcpServers wrappers,
+  // the name is in the JSON itself.
+  const needsName = useMemo(() => {
+    const trimmed = raw.trim();
+    if (!trimmed) return true;
+    const normalized = normalizePasteInput(trimmed);
+    try {
+      const parsed = JSON.parse(normalized);
+      if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+        return true;
+      }
+      return "command" in parsed || "url" in parsed || "type" in parsed;
+    } catch {
+      return true;
+    }
+  }, [raw]);
+
+  if (pendingConfirm) {
+    return (
+      <>
+        <div className="modal-body">
+          <div className="banner warning">
+            <strong>Remote server in Desktop mode</strong>
+            <p style={{ margin: "8px 0 0" }}>
+              Claude Desktop has a known issue where <code>url</code>-based
+              server entries can cause it to remove all your MCP servers on
+              restart. Consider adding remote servers through Claude Desktop's
+              Settings &rarr; Integrations instead.
+            </p>
+          </div>
+        </div>
+        <div className="modal-footer">
+          <button
+            className="ghost"
+            onClick={() => setPendingConfirm(null)}
+          >
+            Go Back
+          </button>
+          <button
+            className="danger"
+            onClick={() => {
+              onCommit(pendingConfirm.entries, pendingConfirm.target);
+              onClose();
+            }}
+          >
+            Install Anyway
+          </button>
+        </div>
+      </>
+    );
+  }
+
   return (
     <>
       <div className="modal-body">
-        <label htmlFor="server-name">
-          Name (only needed for a single server body)
-        </label>
-        <input
-          id="server-name"
-          value={name}
-          onChange={(e) => setName(e.currentTarget.value)}
-          placeholder="e.g. filesystem"
-        />
+        {needsName && (
+          <>
+            <label htmlFor="server-name">
+              Name
+            </label>
+            <input
+              id="server-name"
+              value={name}
+              onChange={(e) => {
+                setName(e.currentTarget.value);
+                setNameAutoFilled(false);
+              }}
+              placeholder="e.g. filesystem"
+            />
+          </>
+        )}
 
         <label htmlFor="server-json">JSON</label>
         <textarea
           id="server-json"
           value={raw}
           onChange={(e) => setRaw(e.currentTarget.value)}
-          placeholder={`{\n  "mcpServers": {\n    "filesystem": {\n      "command": "npx",\n      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/path"]\n    }\n  }\n}`}
+          placeholder={`Paste any format:\n\n  "server-name": { "command": "npx", ... }\n\n  { "mcpServers": { "name": { ... } } }\n\n  { "command": "npx", "args": [...] }`}
           spellCheck={false}
           className={pasteError ? "invalid" : ""}
         />
+
+        {detectedNames.length > 0 && !pasteError && (
+          <div className="banner success">
+            Detected: {detectedNames.join(", ")}
+          </div>
+        )}
 
         {displayedError && (
           <div className="banner error">{displayedError}</div>
