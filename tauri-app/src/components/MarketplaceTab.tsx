@@ -777,9 +777,19 @@ function ServerRow({
                   <span key={m.label}>
                     {i > 0 && ", "}
                     {m.downloadUrl ? (
-                      <a href={m.downloadUrl} target="_blank" rel="noreferrer noopener">
+                      // Plain <a target="_blank"> clicks are silently swallowed
+                      // by Tauri's webview — route through the opener plugin
+                      // instead, same fix we made for Homepage/Repo in 0.3.1.
+                      <button
+                        type="button"
+                        className="link-button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          void openUrl(m.downloadUrl!);
+                        }}
+                      >
                         {m.label}
-                      </a>
+                      </button>
                     ) : (
                       m.label
                     )}
@@ -787,9 +797,13 @@ function ServerRow({
                 ))}
                 {" "}— this server requires{" "}
                 {missing.length === 1 ? "it" : "them"} to run.
-                You can still install it, but it won't start until{" "}
-                {missing.length === 1 ? "it's" : "they're"} available on
-                your PATH.
+                {missing.some((m) => m.label === "Node.js") && (
+                  <> Click <strong>Install</strong> below — Configonaut can set up Node.js for you.</>
+                )}
+                {!missing.some((m) => m.label === "Node.js") && (
+                  <> You can still install it, but it won't start until{" "}
+                  {missing.length === 1 ? "it's" : "they're"} available on your PATH.</>
+                )}
               </div>
             );
           })()}
