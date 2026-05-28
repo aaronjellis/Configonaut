@@ -41,6 +41,11 @@ export function BackupsView({ mode, onMutated }: Props) {
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [diff, setDiff] = useState<DiffSummary | null>(null);
+  // Tauri's webview makes `window.confirm` a no-op (returns falsy), so
+  // we drive confirm dialogs through in-app state instead — same pattern
+  // McpServersView uses for delete + remote-warn.
+  const [pendingRestore, setPendingRestore] = useState<BackupFile | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<BackupFile | null>(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -120,12 +125,10 @@ export function BackupsView({ mode, onMutated }: Props) {
     };
   }, [selectedPath, backups, mode]);
 
-  async function handleRestore(b: BackupFile) {
-    const ok = window.confirm(
-      `Restore backup from ${formatDate(b.createdAt)}?\n\n` +
-        `Your current config will be backed up first.`
-    );
-    if (!ok) return;
+  async function confirmRestore() {
+    const b = pendingRestore;
+    if (!b) return;
+    setPendingRestore(null);
     try {
       await restoreBackup(mode, b.path);
       toast.show(`Restored backup from ${formatDate(b.createdAt)}.`, "success");
@@ -137,9 +140,10 @@ export function BackupsView({ mode, onMutated }: Props) {
     }
   }
 
-  async function handleDelete(b: BackupFile) {
-    const ok = window.confirm(`Delete backup ${b.fileName}?`);
-    if (!ok) return;
+  async function confirmDelete() {
+    const b = pendingDelete;
+    if (!b) return;
+    setPendingDelete(null);
     try {
       await deleteBackup(b.path);
       if (selectedPath === b.path) {
@@ -200,6 +204,56 @@ export function BackupsView({ mode, onMutated }: Props) {
         </div>
       </header>
 
+      {pendingRestore && (
+        <div className="modal-backdrop" onClick={() => setPendingRestore(null)}>
+          <div className="modal confirm-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>Restore Backup</h3>
+            </div>
+            <div className="modal-body">
+              <p>
+                Restore backup from <strong>{formatDate(pendingRestore.createdAt)}</strong>?
+              </p>
+              <p className="muted" style={{ fontSize: 13 }}>
+                Your current config will be backed up first.
+              </p>
+            </div>
+            <div className="modal-footer">
+              <button className="ghost" onClick={() => setPendingRestore(null)}>
+                Cancel
+              </button>
+              <button className="primary" onClick={confirmRestore}>
+                Restore
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {pendingDelete && (
+        <div className="modal-backdrop" onClick={() => setPendingDelete(null)}>
+          <div className="modal confirm-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>Delete Backup</h3>
+            </div>
+            <div className="modal-body">
+              <p>
+                Permanently delete <strong>{pendingDelete.fileName}</strong>?
+                This can't be undone.
+              </p>
+            </div>
+            <div className="modal-footer">
+              <button className="ghost" onClick={() => setPendingDelete(null)}>
+                Cancel
+              </button>
+              <button className="danger" onClick={confirmDelete}>
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="main-body main-body--flex">
         {error && <div className="banner error">{error}</div>}
 
@@ -239,7 +293,7 @@ export function BackupsView({ mode, onMutated }: Props) {
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          handleRestore(b);
+                          setPendingRestore(b);
                         }}
                       >
                         Restore
@@ -248,7 +302,7 @@ export function BackupsView({ mode, onMutated }: Props) {
                         className="danger"
                         onClick={(e) => {
                           e.stopPropagation();
-                          handleDelete(b);
+                          setPendingDelete(b);
                         }}
                       >
                         Delete

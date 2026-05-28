@@ -751,10 +751,26 @@ pub async fn install_server(
             continue;
         }
 
-        let mut child = TokioCommand::new(program)
-            .args(&args)
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
+        let mut command = TokioCommand::new(program);
+        command.args(&args).stdout(Stdio::piped()).stderr(Stdio::piped());
+
+        // npx is the only program we manage ourselves — if the user just
+        // installed Node via the in-app downloader, the managed bin dir
+        // is NOT on the Tauri process's inherited PATH, so a bare
+        // `TokioCommand::new("npx")` would ENOENT. Mirror the same path
+        // injection inject_managed_node_path does for server configs.
+        if program == "npx" || program == "node" {
+            if let Some(bin_dir) = managed_node_bin_dir() {
+                let sep = if cfg!(target_os = "windows") { ";" } else { ":" };
+                let current_path = std::env::var("PATH").unwrap_or_default();
+                let bin_dir_str = bin_dir.to_string_lossy();
+                if !current_path.split(sep).any(|p| p == bin_dir_str) {
+                    command.env("PATH", format!("{bin_dir_str}{sep}{current_path}"));
+                }
+            }
+        }
+
+        let mut child = command
             .spawn()
             .map_err(|e| {
                 let msg = format!("Could not start {program}: {e}");
