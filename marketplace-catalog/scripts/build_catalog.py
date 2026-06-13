@@ -863,6 +863,24 @@ SERVERS = [
                 help_url="https://developers.intercom.com/building-apps/docs/authentication-types")
         ],
     },
+    {
+        "id": "xquik",
+        "name": "Xquik",
+        "description": "Search X/Twitter data, monitor accounts, and use Xquik API tools.",
+        "category": "communication",
+        "tags": ["x", "twitter", "social", "monitoring"],
+        "publisher": {"name": "Xquik", "type": "vendor", "verified": False},
+        "homepage": "https://docs.xquik.com/mcp/overview",
+        "repository": "https://github.com/Xquik-dev/x-twitter-scraper",
+        "license": "MIT",
+        "popularity": 5,
+        "config": http("https://xquik.com/mcp", headers={"x-api-key": "<XQUIK_API_KEY>"}),
+        "envVars": [
+            env("XQUIK_API_KEY", "Xquik API key.",
+                placeholder="xq_...",
+                help_url="https://docs.xquik.com/mcp/overview")
+        ],
+    },
 
     # --- PRODUCTIVITY ---
     {

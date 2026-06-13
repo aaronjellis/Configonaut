@@ -2539,6 +2539,62 @@
       ]
     },
     {
+      "id": "xquik",
+      "name": "Xquik",
+      "description": "Search X/Twitter data, monitor accounts, and use Xquik API tools.",
+      "category": "communication",
+      "tags": [
+        "x",
+        "twitter",
+        "social",
+        "monitoring"
+      ],
+      "publisher": {
+        "name": "Xquik",
+        "type": "vendor",
+        "verified": false
+      },
+      "homepage": "https://docs.xquik.com/mcp/overview",
+      "repository": "https://github.com/Xquik-dev/x-twitter-scraper",
+      "license": "MIT",
+      "popularity": 5,
+      "transport": "remote",
+      "config": {
+        "url": "https://xquik.com/mcp",
+        "headers": {
+          "x-api-key": "<XQUIK_API_KEY>"
+        }
+      },
+      "envVars": [
+        {
+          "name": "XQUIK_API_KEY",
+          "description": "Xquik API key.",
+          "required": true,
+          "secret": true,
+          "placeholder": "xq_...",
+          "helpUrl": "https://docs.xquik.com/mcp/overview"
+        }
+      ],
+      "prerequisites": [],
+      "install": [
+        {
+          "type": "none"
+        }
+      ],
+      "configFields": [
+        {
+          "name": "XQUIK_API_KEY",
+          "kind": "env",
+          "type": "secret",
+          "label": "Xquik API Key",
+          "description": "Xquik API key.",
+          "required": true,
+          "placeholder": "xq_...",
+          "helpUrl": "https://docs.xquik.com/mcp/overview"
+        }
+      ]
+    },
+    {
       "id": "notion",
       "name": "Notion",
       "description": "Read and manage Notion pages, databases, and blocks.",
