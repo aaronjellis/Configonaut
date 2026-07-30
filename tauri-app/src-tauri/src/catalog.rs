@@ -948,9 +948,10 @@ pub fn missing_secrets(config_block: &Value, server: &CatalogServer) -> Vec<Stri
                     missing.push(name.clone());
                     continue;
                 }
-                // Also flag if the haystack still literally contains `<NAME>`.
+                // Also flag supported template forms that remain unresolved.
                 if haystack.contains(&format!("<{name}>"))
                     || haystack.contains(&format!("${{{name}}}"))
+                    || haystack.contains(&format!("{{{{{name}}}}}"))
                 {
                     missing.push(name.clone());
                 }
@@ -1004,6 +1005,28 @@ mod prereq_install_tests {
         assert!(server.prerequisites.is_empty());
         assert!(server.install.is_empty());
         assert!(server.config_fields.is_empty());
+    }
+
+    #[test]
+    fn remote_handlebar_secret_marker_is_missing() {
+        let json = r#"{
+          "id": "remote", "name": "Remote", "description": "", "category": "c",
+          "publisher": { "name": "vendor", "type": "vendor" },
+          "config": {
+            "url": "https://example.com/mcp",
+            "headers": { "Authorization": "Bearer {{API_KEY}}" }
+          },
+          "envVars": [
+            { "name": "API_KEY", "required": true, "secret": true }
+          ]
+        }"#;
+        let server: CatalogServer = serde_json::from_str(json).unwrap();
+        let config = serde_json::json!({
+            "url": "https://example.com/mcp",
+            "headers": { "Authorization": "Bearer {{API_KEY}}" }
+        });
+
+        assert_eq!(missing_secrets(&config, &server), vec!["API_KEY"]);
     }
 
     #[test]

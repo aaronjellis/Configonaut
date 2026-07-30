@@ -8,8 +8,8 @@ Run from the repo root:
 import json
 import re
 import sys
-import urllib.request
 import urllib.error
+import urllib.request
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -92,8 +92,14 @@ def check_packages(catalog: dict) -> None:
         elif cmd == "uvx":
             pkg = next((a for a in args if not a.startswith("-")), None)
             if pkg:
-                check_pypi(s["id"], pkg)
+                check_pypi(s["id"], pypi_project_name(pkg))
         # docker and http left alone — no generic reachability test.
+
+
+def pypi_project_name(package_spec: str) -> str:
+    """Return the distribution name from a uv package specification."""
+    project_name = package_spec.split("@", 1)[0]
+    return project_name.split("[", 1)[0]
 
 
 def check_npm(sid: str, pkg: str) -> None:

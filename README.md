@@ -51,3 +51,5 @@ The bundled `.app` (macOS) or `.msi` / `.exe` (Windows) will be in `tauri-app/sr
 ## License
 
 MIT
+
+Xquik is an independent third-party service. Not affiliated with X Corp. "Twitter" and "X" are trademarks of X Corp.
