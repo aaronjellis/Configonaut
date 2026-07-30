@@ -874,11 +874,14 @@ SERVERS = [
         "repository": "https://github.com/Xquik-dev/x-twitter-scraper",
         "license": "MIT",
         "popularity": 5,
-        "config": http("https://xquik.com/mcp", headers={"x-api-key": "<XQUIK_API_KEY>"}),
+        "config": http(
+            "https://xquik.com/mcp",
+            headers={"Authorization": "Bearer {{XQUIK_API_KEY}}"},
+        ),
         "envVars": [
             env("XQUIK_API_KEY", "Xquik API key.",
                 placeholder="xq_...",
-                help_url="https://docs.xquik.com/mcp/overview")
+                help_url="https://dashboard.xquik.com/en/account?tab=api-keys")
         ],
     },
 

@@ -12,7 +12,7 @@ use tokio::io::AsyncWriteExt;
 use tokio::process::Command as TokioCommand;
 
 use crate::catalog::{CatalogConfig, CatalogPrerequisite, CatalogServer, ConfigField,
-                     ConfigFieldKind, ConfigFieldType, InstallStep, RuntimeName};
+                     ConfigFieldKind, ConfigFieldType, InstallStep, RuntimeName, Transport};
 use crate::sidecar;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -495,28 +495,32 @@ pub fn render_config_block(
         out.insert("args".into(), Value::Array(rendered));
     }
 
-    let mut env: Map<String, Value> = cfg.env.clone().unwrap_or_default();
-    for (k, v) in env.clone() {
-        if let Value::String(s) = v {
-            env.insert(k, json!(substitute_substrings(&s, schema, values)));
-        }
-    }
-    for f in schema {
-        if matches!(f.kind, ConfigFieldKind::Env) {
-            if let Some(v) = values.get(&f.name) {
-                env.insert(f.name.clone(), v.clone());
+    if matches!(cfg.transport(), Transport::Stdio) {
+        let mut env = cfg
+            .env
+            .as_ref()
+            .map(|env| substitute_map_strings(env, schema, values))
+            .unwrap_or_default();
+        for f in schema {
+            if matches!(f.kind, ConfigFieldKind::Env) {
+                if let Some(v) = values.get(&f.name) {
+                    env.insert(f.name.clone(), v.clone());
+                }
             }
         }
-    }
-    if !env.is_empty() {
-        out.insert("env".into(), Value::Object(env));
+        if !env.is_empty() {
+            out.insert("env".into(), Value::Object(env));
+        }
     }
 
     if let Some(url) = &cfg.url {
         out.insert("url".into(), json!(substitute_substrings(url, schema, values)));
     }
     if let Some(headers) = &cfg.headers {
-        out.insert("headers".into(), Value::Object(headers.clone()));
+        out.insert(
+            "headers".into(),
+            Value::Object(substitute_map_strings(headers, schema, values)),
+        );
     }
 
     Ok(Value::Object(out))
@@ -550,6 +554,22 @@ fn substitute_substrings(
         out = out.replace(&marker, &replacement);
     }
     out
+}
+
+fn substitute_map_strings(
+    raw: &Map<String, Value>,
+    schema: &[ConfigField],
+    values: &BTreeMap<String, Value>,
+) -> Map<String, Value> {
+    raw.iter()
+        .map(|(key, value)| {
+            let rendered = match value {
+                Value::String(text) => Value::String(substitute_substrings(text, schema, values)),
+                _ => value.clone(),
+            };
+            (key.clone(), rendered)
+        })
+        .collect()
 }
 
 // ---------------------------------------------------------------------------
@@ -957,6 +977,37 @@ mod tests {
         let values = fields(&[("api_key", json!("sk-test-123"))]);
         let rendered = render_config_block(&cfg, &schema, &values).unwrap();
         assert_eq!(rendered["env"]["API_KEY"], json!("Bearer sk-test-123"));
+    }
+
+    #[test]
+    fn render_substitutes_remote_header_without_copying_secret_to_env() {
+        use crate::catalog::{CatalogConfig, ConfigField, ConfigFieldKind, ConfigFieldType};
+        let cfg = CatalogConfig {
+            command: None,
+            args: None,
+            env: None,
+            url: Some("https://example.com/mcp".into()),
+            headers: Some(serde_json::Map::from_iter([(
+                "Authorization".to_string(),
+                json!("Bearer {{API_KEY}}"),
+            )])),
+        };
+        let schema = vec![ConfigField {
+            name: "API_KEY".into(),
+            kind: ConfigFieldKind::Env,
+            r#type: ConfigFieldType::Secret,
+            label: "API key".into(),
+            description: None, required: true, placeholder: None, default: None, help_url: None,
+        }];
+        let values = fields(&[("API_KEY", json!("secret-value"))]);
+
+        let rendered = render_config_block(&cfg, &schema, &values).unwrap();
+
+        assert_eq!(
+            rendered["headers"]["Authorization"],
+            json!("Bearer secret-value"),
+        );
+        assert!(rendered.get("env").is_none());
     }
 
     #[test]

@@ -2562,7 +2562,7 @@
       "config": {
         "url": "https://xquik.com/mcp",
         "headers": {
-          "x-api-key": "<XQUIK_API_KEY>"
+          "Authorization": "Bearer {{XQUIK_API_KEY}}"
         }
       },
       "envVars": [
@@ -2572,7 +2572,7 @@
           "required": true,
           "secret": true,
           "placeholder": "xq_...",
-          "helpUrl": "https://docs.xquik.com/mcp/overview"
+          "helpUrl": "https://dashboard.xquik.com/en/account?tab=api-keys"
         }
       ],
       "prerequisites": [],
@@ -2590,7 +2590,7 @@
           "description": "Xquik API key.",
           "required": true,
           "placeholder": "xq_...",
-          "helpUrl": "https://docs.xquik.com/mcp/overview"
+          "helpUrl": "https://dashboard.xquik.com/en/account?tab=api-keys"
         }
       ]
     },
