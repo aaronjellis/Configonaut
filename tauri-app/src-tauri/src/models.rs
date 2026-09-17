@@ -15,9 +15,10 @@ use serde::{Deserialize, Serialize};
 /// Which Claude config the user is currently editing. Persisted to a simple
 /// preferences file by the frontend — the backend is stateless and takes this
 /// as a parameter on every command.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum AppMode {
+    #[default]
     Desktop,
     Cli,
 }
@@ -28,12 +29,6 @@ impl AppMode {
             AppMode::Desktop => "desktop",
             AppMode::Cli => "cli",
         }
-    }
-}
-
-impl Default for AppMode {
-    fn default() -> Self {
-        AppMode::Desktop
     }
 }
 
@@ -187,22 +182,6 @@ pub struct SkillEntry {
     pub plugin_key: String,
     pub file_path: String,
     pub is_enabled: bool,
-}
-
-// ---------------------------------------------------------------------------
-// Runtime prerequisite detection
-// ---------------------------------------------------------------------------
-
-/// Result of probing the user's PATH for runtimes that stdio MCP servers
-/// depend on. Each field is `Some("v20.11.0")` if the tool is found, or
-/// `None` if `which` / version check fails.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct RuntimeStatus {
-    pub node: Option<String>,
-    pub python: Option<String>,
-    pub uv: Option<String>,
-    pub docker: Option<String>,
 }
 
 // ---------------------------------------------------------------------------
