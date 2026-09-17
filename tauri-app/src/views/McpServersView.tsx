@@ -232,13 +232,25 @@ export function McpServersView({ mode, onMutated }: Props) {
 
   const isProjectSelected = projectSelection !== null;
 
+  const selectedKey = selection ? `${selection.source}::${selection.name}` : null;
+  const projectKey = projectSelection
+    ? `${projectSelection.projectPath}::${projectSelection.name}`
+    : null;
+  const selectedConfigJson = selectedEntry?.configJson ?? null;
+  // Bumped by the ↻ Reload button to force a re-sync even when neither the
+  // selection nor the on-disk JSON has changed.
+  const [reloadNonce, setReloadNonce] = useState(0);
   useEffect(() => {
-    if (selectedEntry) {
-      setEditedJson(selectedEntry.configJson);
+    if (selectedConfigJson !== null) {
+      setEditedJson(selectedConfigJson);
       setEditError(null);
     }
     setRenaming(false);
-  }, [selectedEntry]);
+    // Re-sync only when the *selection* changes, the user hits Reload, or the
+    // on-disk config for the selected server actually changed (e.g. after
+    // Save/rename) — not merely because refresh() rebuilt the listing.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedKey, projectKey, selectedConfigJson, reloadNonce]);
 
   /// Realtime shape-check — shown as a warning, not a blocker. Users can
   /// save configs that don't match the standard command/url pattern (e.g.
@@ -642,7 +654,14 @@ export function McpServersView({ mode, onMutated }: Props) {
         {/* Icons left, primary CTA anchored to the far right — keeps
             "+ Add Server" in the same pixel position across every view. */}
         <div className="header-actions">
-          <button className="icon" onClick={refresh} title="Reload">
+          <button
+            className="icon"
+            onClick={() => {
+              refresh();
+              setReloadNonce((n) => n + 1);
+            }}
+            title="Reload"
+          >
             ↻
           </button>
           <button
@@ -861,7 +880,12 @@ export function McpServersView({ mode, onMutated }: Props) {
                     onBlur={commitRename}
                     onKeyDown={(e) => {
                       if (e.key === "Enter") commitRename();
-                      if (e.key === "Escape") setRenaming(false);
+                      if (e.key === "Escape") {
+                        // Mark committed so the blur fired by unmounting
+                        // the input doesn't turn a cancel into a rename.
+                        renameCommittedRef.current = true;
+                        setRenaming(false);
+                      }
                     }}
                     autoFocus
                     spellCheck={false}

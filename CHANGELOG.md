@@ -14,6 +14,10 @@
 - **Remote servers get a `type` in CLI mode** -- Claude Code skips `url`-only entries, so `http` (or `sse`) is filled in when writing to `~/.claude.json`.
 
 ### Fixed
+- **Escape cancels a server rename** instead of committing the typed name.
+- **Unsaved hook, agent, skill, and MCP server edits survive Enable/Disable and background refreshes** -- toggling or refreshing no longer reloads the editor from disk out from under an in-progress edit. The ↻ Reload button now re-reads the open editor's contents, where before it only refreshed the list.
+- **About, release-notes and help links open in the browser without risking the app frame** -- they're rendered as buttons instead of `<a href>` links, so middle-click or the context menu's "Open Link" can no longer navigate the Tauri window away from the app.
+- **Feed remove/toggle failures show a toast** instead of failing silently; a failed catalog refresh after a successful change is reported separately as a warning.
 - **CLI-mode backups and restores touch only `mcpServers`** -- restoring a backup of `~/.claude.json` used to overwrite the whole file, rolling back the OAuth account, project trust decisions, and caches that Claude Code owns. Backups taken in CLI mode now contain just the servers, and restoring an older full-file backup only replaces the servers.
 - **Content Security Policy enabled** for the app's webviews, and the webview no longer holds any shell permission (the bundled `uv` sidecar is only ever invoked from Rust). Previously the webview had no CSP and could run the sidecar with arbitrary arguments.
 - **Guided Setup installs into the current mode** -- the auto-install flow always wrote to Claude Desktop's config, even in CLI mode. It now targets the active mode, wraps `npx`/`uvx` for Windows, picks a unique name on collision, records the catalog link (so the "Installed" badge and secret checks work), and can install servers from custom feeds. On Windows the managed Node.js PATH is now injected before the `cmd /c` wrap, so servers installed after the in-app Node download can start.

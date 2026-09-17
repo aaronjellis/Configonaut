@@ -87,6 +87,10 @@ export function AgentsView({ mode, onMutated }: Props) {
   // Delete confirmation
   const [confirmDelete, setConfirmDelete] = useState<AgentEntry | null>(null);
 
+  // Bumped by the ↻ Reload button to force the file-content effect below to
+  // re-run even when the selected file's identity hasn't changed.
+  const [reloadNonce, setReloadNonce] = useState(0);
+
   const setStatus = useCallback((msg: string, isError = false) => {
     setStatusMessage(msg);
     setStatusIsError(isError);
@@ -114,15 +118,17 @@ export function AgentsView({ mode, onMutated }: Props) {
     () => (selectedPath ? agents.find((a) => a.filePath === selectedPath) ?? null : null),
     [selectedPath, agents]
   );
+  const selectedFilePath = selected?.filePath ?? null;
 
-  // Load content when selection changes
+  // Load content when the selected *file* changes, not when the agents
+  // array is replaced by a refresh (which would discard unsaved edits).
   useEffect(() => {
-    if (!selected) {
+    if (selectedFilePath === null) {
       setEditingContent("");
       return;
     }
     let cancelled = false;
-    readClaudeFile(selected.filePath)
+    readClaudeFile(selectedFilePath)
       .then((content) => {
         if (cancelled) return;
         setEditingContent(content);
@@ -134,7 +140,7 @@ export function AgentsView({ mode, onMutated }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [selected]);
+  }, [selectedFilePath, reloadNonce]);
 
   // Filtered + grouped agents
   const filtered = useMemo(() => {
@@ -317,7 +323,14 @@ export function AgentsView({ mode, onMutated }: Props) {
             keeps the "+ New X" button in the same pixel position across
             every view. */}
         <div className="header-actions">
-          <button className="icon" onClick={refresh} title="Reload">
+          <button
+            className="icon"
+            onClick={() => {
+              refresh();
+              setReloadNonce((n) => n + 1);
+            }}
+            title="Reload"
+          >
             ↻
           </button>
           <button className="gradient-btn gradient-btn--blue" onClick={openNewAgentPanel}>

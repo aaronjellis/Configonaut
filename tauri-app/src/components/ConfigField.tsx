@@ -67,7 +67,7 @@ function PathArrayField({
           <button
             type="button"
             aria-label="Remove path"
-            className="link-button"
+            className="path-row-remove"
             onClick={() => remove(i)}
           >
             ×

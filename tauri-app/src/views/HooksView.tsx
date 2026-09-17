@@ -111,6 +111,9 @@ export function HooksView({ mode, onMutated }: Props) {
   const [statusIsError, setStatusIsError] = useState(false);
   const [settingsPath, setSettingsPath] = useState<string>("~/.claude/settings.json");
   const [storageDir, setStorageDir] = useState<string>("");
+  // Bumped by the ↻ Reload button to force the JSON-fetch effect below to
+  // re-run even when the selected rule's identity hasn't changed.
+  const [reloadNonce, setReloadNonce] = useState(0);
 
   const [detailHeight, setDetailHeight] = useState<number>(() => {
     const stored = localStorage.getItem(DETAIL_HEIGHT_KEY);
@@ -166,16 +169,20 @@ export function HooksView({ mode, onMutated }: Props) {
   const selected = selectedId
     ? hooks.find((h) => h.id === selectedId) ?? null
     : null;
+  const selectedEvent = selected?.event ?? null;
+  const selectedMatcher = selected?.matcher ?? null;
 
-  // When the selection changes, pull the raw JSON for the editor.
+  // Pull the raw JSON when the *identity* of the selection changes. A
+  // refresh after Enable/Disable replaces the hooks array with new objects
+  // for the same rules; keying on the object would wipe unsaved edits.
   useEffect(() => {
-    if (!selected) {
+    if (selectedEvent === null || selectedMatcher === null) {
       setEditedJson("");
       setEditError(null);
       return;
     }
     let cancelled = false;
-    getHookRuleJson(selected.event, selected.matcher)
+    getHookRuleJson(selectedEvent, selectedMatcher)
       .then((json) => {
         if (cancelled) return;
         setEditedJson(json);
@@ -189,7 +196,7 @@ export function HooksView({ mode, onMutated }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [selected]);
+  }, [selectedEvent, selectedMatcher, reloadNonce]);
 
   async function handleToggle(rule: HookRule) {
     try {
@@ -330,7 +337,14 @@ export function HooksView({ mode, onMutated }: Props) {
           </div>
         </div>
         <div className="header-actions">
-          <button className="icon" onClick={refresh} title="Reload">
+          <button
+            className="icon"
+            onClick={() => {
+              refresh();
+              setReloadNonce((n) => n + 1);
+            }}
+            title="Reload"
+          >
             ↻
           </button>
           <button

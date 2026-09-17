@@ -70,6 +70,10 @@ export function SkillsView({ mode, onMutated }: Props) {
   // Delete confirmation
   const [confirmDelete, setConfirmDelete] = useState<SkillEntry | null>(null);
 
+  // Bumped by the ↻ Reload button to force the file-content effect below to
+  // re-run even when the selected file's identity hasn't changed.
+  const [reloadNonce, setReloadNonce] = useState(0);
+
   const setStatus = useCallback((msg: string, isError = false) => {
     setStatusMessage(msg);
     setStatusIsError(isError);
@@ -96,14 +100,17 @@ export function SkillsView({ mode, onMutated }: Props) {
     () => (selectedPath ? skills.find((s) => s.filePath === selectedPath) ?? null : null),
     [selectedPath, skills]
   );
+  const selectedFilePath = selected?.filePath ?? null;
 
+  // Load content when the selected *file* changes, not when the skills
+  // array is replaced by a refresh (which would discard unsaved edits).
   useEffect(() => {
-    if (!selected) {
+    if (selectedFilePath === null) {
       setEditingContent("");
       return;
     }
     let cancelled = false;
-    readClaudeFile(selected.filePath)
+    readClaudeFile(selectedFilePath)
       .then((content) => {
         if (cancelled) return;
         setEditingContent(content);
@@ -115,7 +122,7 @@ export function SkillsView({ mode, onMutated }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [selected]);
+  }, [selectedFilePath, reloadNonce]);
 
   const filtered = useMemo(() => {
     if (!searchText.trim()) return skills;
@@ -292,7 +299,14 @@ export function SkillsView({ mode, onMutated }: Props) {
             primary action in the same pixel position page-to-page so the
             user's eye doesn't have to hunt when switching views. */}
         <div className="header-actions">
-          <button className="icon" onClick={refresh} title="Reload">
+          <button
+            className="icon"
+            onClick={() => {
+              refresh();
+              setReloadNonce((n) => n + 1);
+            }}
+            title="Reload"
+          >
             ↻
           </button>
           <button

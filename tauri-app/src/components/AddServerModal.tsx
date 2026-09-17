@@ -311,32 +311,58 @@ export function AddServerModal({
               }
             }}
             onInstall={handleMarketplaceInstall}
+            // Add failures are surfaced inline by AddFeedModal, so they're
+            // left unguarded here. The post-add refresh below is a separate
+            // step, though, and its failure is reported via toast rather
+            // than being mistaken for an add failure.
             onAddFeed={async (label, url) => {
               await addFeed(label, url);
               setFeeds(await listFeeds());
               // Refresh to fetch the new feed's catalog.
               setIsRefreshing(true);
               try {
-                const [fresh, statuses] = await refreshAllFeeds();
-                setCatalog(fresh);
-                setFeedStatuses(statuses);
+                try {
+                  const [fresh, statuses] = await refreshAllFeeds();
+                  setCatalog(fresh);
+                  setFeedStatuses(statuses);
+                } catch (e) {
+                  toast.show(`Feed added, but the catalog didn't refresh: ${String(e)}`, "warning");
+                }
               } finally {
                 setIsRefreshing(false);
               }
             }}
             onRemoveFeed={async (feedId) => {
-              await removeFeed(feedId);
-              setFeeds(await listFeeds());
-              const [fresh, statuses] = await refreshAllFeeds();
-              setCatalog(fresh);
-              setFeedStatuses(statuses);
+              try {
+                await removeFeed(feedId);
+              } catch (e) {
+                toast.show(`Couldn't remove feed: ${String(e)}`, "error");
+                return;
+              }
+              try {
+                setFeeds(await listFeeds());
+                const [fresh, statuses] = await refreshAllFeeds();
+                setCatalog(fresh);
+                setFeedStatuses(statuses);
+              } catch (e) {
+                toast.show(`Feed removed, but the catalog didn't refresh: ${String(e)}`, "warning");
+              }
             }}
             onToggleFeed={async (feedId, enabled) => {
-              await toggleFeed(feedId, enabled);
-              setFeeds(await listFeeds());
-              const [fresh, statuses] = await refreshAllFeeds();
-              setCatalog(fresh);
-              setFeedStatuses(statuses);
+              try {
+                await toggleFeed(feedId, enabled);
+              } catch (e) {
+                toast.show(`Couldn't update feed: ${String(e)}`, "error");
+                return;
+              }
+              try {
+                setFeeds(await listFeeds());
+                const [fresh, statuses] = await refreshAllFeeds();
+                setCatalog(fresh);
+                setFeedStatuses(statuses);
+              } catch (e) {
+                toast.show(`Feed updated, but the catalog didn't refresh: ${String(e)}`, "warning");
+              }
             }}
           />
         ) : (
