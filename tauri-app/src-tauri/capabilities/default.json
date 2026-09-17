@@ -1,19 +1,15 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Capability for the main window",
-  "windows": ["main"],
+  "description": "Capability for the main window. The uv sidecar is invoked only from Rust (sidecar.rs), which does not go through this scope, so the webview gets no shell permission at all.",
+  "windows": [
+    "main"
+  ],
   "permissions": [
     "core:default",
     "core:window:allow-start-dragging",
     "opener:default",
     "updater:default",
-    "process:default",
-    {
-      "identifier": "shell:allow-execute",
-      "allow": [
-        { "name": "binaries/uv", "sidecar": true, "args": true }
-      ]
-    }
+    "process:default"
   ]
 }
