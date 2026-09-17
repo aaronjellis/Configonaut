@@ -311,6 +311,9 @@ export function AddServerModal({
               }
             }}
             onInstall={handleMarketplaceInstall}
+            // Deliberately unguarded: AddFeedModal renders its own inline
+            // error for add failures, so there's no separate toast to show
+            // here (a refresh failure below is still reported).
             onAddFeed={async (label, url) => {
               await addFeed(label, url);
               setFeeds(await listFeeds());
@@ -327,23 +330,33 @@ export function AddServerModal({
             onRemoveFeed={async (feedId) => {
               try {
                 await removeFeed(feedId);
+              } catch (e) {
+                toast.show(`Couldn't remove feed: ${String(e)}`, "error");
+                return;
+              }
+              try {
                 setFeeds(await listFeeds());
                 const [fresh, statuses] = await refreshAllFeeds();
                 setCatalog(fresh);
                 setFeedStatuses(statuses);
               } catch (e) {
-                toast.show(`Couldn't remove feed: ${String(e)}`, "error");
+                toast.show(`Feed removed, but the catalog didn't refresh: ${String(e)}`, "warning");
               }
             }}
             onToggleFeed={async (feedId, enabled) => {
               try {
                 await toggleFeed(feedId, enabled);
+              } catch (e) {
+                toast.show(`Couldn't update feed: ${String(e)}`, "error");
+                return;
+              }
+              try {
                 setFeeds(await listFeeds());
                 const [fresh, statuses] = await refreshAllFeeds();
                 setCatalog(fresh);
                 setFeedStatuses(statuses);
               } catch (e) {
-                toast.show(`Couldn't update feed: ${String(e)}`, "error");
+                toast.show(`Feed updated, but the catalog didn't refresh: ${String(e)}`, "warning");
               }
             }}
           />
