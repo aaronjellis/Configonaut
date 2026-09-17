@@ -17,7 +17,7 @@
 //   │ Defined in ~/.claude/settings.json  N on, M off │
 //   └──────────────────────────────────────────────┘
 //
-// Empty state shows the five hook types with short descriptions in a
+// Empty state shows the four hook types with short descriptions in a
 // glass card. Clicking a row toggles the editor panel open/closed; the
 // resize handle only shows when the panel is open.
 
@@ -58,7 +58,9 @@ const DETAIL_MIN_HEIGHT = 180;
 const LIST_MIN_HEIGHT = 160;
 
 // Hook events Claude Code fires, per code.claude.com/docs/en/hooks
-// (checked 2026-09-17). Order: most common first.
+// (checked 2026-09-17). Roughly most-common first. If the runtime doesn't
+// recognize a name the hook is simply never triggered (no harm, no error),
+// so a stale entry here is low-risk — but re-sync when Claude Code adds events.
 const HOOK_EVENTS = [
   { name: "PreToolUse", desc: "Before Claude uses a tool (can block it)" },
   { name: "PostToolUse", desc: "After a tool completes" },

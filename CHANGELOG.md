@@ -1,5 +1,21 @@
 # Changelog
 
+## Unreleased
+
+> Rename this section to the version number when cutting a release —
+> `.github/workflows/release.yml` uses the first `## ` section as the notes.
+
+### Added
+- **All current hook events** in the New Hook picker (33 events, from PreToolUse to TeammateIdle), instead of eight.
+- **Non-command hooks are listed** -- prompt, agent, http, and mcp_tool handlers now show in the Hooks view with a summary instead of being hidden.
+
+### Changed
+- **Remote servers get a `type` in CLI mode** -- Claude Code skips `url`-only entries, so `http` (or `sse`) is filled in when writing to `~/.claude.json`.
+
+### Fixed
+- **Disabling a hook actually disables it** -- Claude Code has no per-rule disable flag, so the old `disabled: true` marker left hooks running. Disabled rules now move to Configonaut's `disabled_hooks.json` and are restored verbatim on re-enable. Existing flagged rules are migrated on first launch.
+- **Deleting a hook removes stale disabled copies** so the rule can't resurface as "disabled".
+
 ## 0.4.0
 
 ### Added
