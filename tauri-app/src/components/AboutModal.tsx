@@ -1,7 +1,7 @@
 // Custom About modal with app info and a "Check for Updates" button.
 
 import { useState } from "react";
-import { openUrl } from "@tauri-apps/plugin-opener";
+import { ExternalLink } from "./ExternalLink";
 
 interface Props {
   version: string;
@@ -43,16 +43,12 @@ export function AboutModal({ version, onCheckForUpdates, onDismiss }: Props) {
           >
             {checking ? "Checking\u2026" : "Check for Updates"}
           </button>
-          <a
-            className="about-link"
+          <ExternalLink
+            className="about-link link-button"
             href="https://github.com/aaronjellis/Configonaut"
-            onClick={(e) => {
-              e.preventDefault();
-              void openUrl("https://github.com/aaronjellis/Configonaut");
-            }}
           >
             GitHub
-          </a>
+          </ExternalLink>
         </div>
       </div>
     </div>

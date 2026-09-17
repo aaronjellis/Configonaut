@@ -18,6 +18,7 @@
 
 import { useMemo, useState, type ReactNode } from "react";
 import { openUrl } from "@tauri-apps/plugin-opener";
+import { ExternalLink } from "./ExternalLink";
 import type {
   Catalog,
   CatalogCategory,
@@ -821,16 +822,7 @@ function ServerRow({
                       <span className="env-var-desc">— {env.description}</span>
                     )}
                     {env.helpUrl && (
-                      <a
-                        href={env.helpUrl}
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          void openUrl(env.helpUrl!);
-                        }}
-                      >
-                        ↗
-                      </a>
+                      <ExternalLink href={env.helpUrl}>↗</ExternalLink>
                     )}
                   </div>
                 ))}

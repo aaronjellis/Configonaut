@@ -3491,6 +3491,25 @@ button.update-btn-secondary:hover:not(:disabled) {
   color: var(--green);
 }
 
+/* Text-styled buttons used for inline actions/links (e.g. release-note
+   links rendered via ExternalLink, "+ Add path", "Re-check"). Reset the
+   default `button` box model so they read as text, not as a boxed button. */
+.link-button {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: var(--green);
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.link-button:hover:not(:disabled) {
+  background: none;
+  border-color: transparent;
+  text-decoration: underline;
+}
+
 /* ─── Setup step ─────────────────────────────────────────── */
 .setup-step {
   display: flex;
