@@ -43,18 +43,18 @@ serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }
 
 # Cross-platform path discovery (home dir, AppData, ~/.config, etc.)
-dirs = "5"
+dirs = "6"
 
 # Timestamps for backup filenames and "last modified" displays.
 chrono = { version = "0.4", features = ["serde"] }
 
 # Ergonomic error handling inside commands.
 anyhow = "1"
-thiserror = "1"
+thiserror = "2"
 
 # Reqwest for the remote catalog fetch. rustls keeps Windows builds simple
 # (no OpenSSL toolchain required).
-reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json", "blocking"] }
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
 
 # Filesystem helpers.
 walkdir = "2"
