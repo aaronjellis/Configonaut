@@ -124,7 +124,8 @@ pub fn add_to_active(
     let config_path = paths::config_file(mode);
     let mut root = load_config_root(&config_path)?;
     let mcp = ensure_mcp_map(&mut root);
-    for (name, config) in entries {
+    for (name, mut config) in entries {
+        normalize_server_for_mode(mode, &mut config);
         mcp.insert(name, config);
     }
     backup_config(mode)?;
@@ -169,9 +170,10 @@ pub fn move_to_stored(mode: AppMode, name: &str) -> AppResult<()> {
 /// live Claude config.
 pub fn move_to_active(mode: AppMode, name: &str) -> AppResult<()> {
     let mut stored = load_stored_map(mode)?;
-    let Some(config) = stored.shift_remove(name) else {
+    let Some(mut config) = stored.shift_remove(name) else {
         return Err(anyhow!("server {name} is not in the stored list").into());
     };
+    normalize_server_for_mode(mode, &mut config);
 
     let config_path = paths::config_file(mode);
     let mut root = load_config_root(&config_path)?;
@@ -280,7 +282,10 @@ pub fn update_server_config(
 
     // Unwrap `{ "mcpServers": { "name": { ... } } }` if the user pasted the
     // full Claude config snippet instead of just the server body.
-    let unwrapped = unwrap_mcp_wrapper(&new_value, name);
+    let mut unwrapped = unwrap_mcp_wrapper(&new_value, name);
+    if source == ServerSource::Active {
+        normalize_server_for_mode(mode, &mut unwrapped);
+    }
 
     match source {
         ServerSource::Active => {
@@ -319,6 +324,33 @@ fn unwrap_mcp_wrapper(value: &Value, name: &str) -> Value {
         }
     }
     value.clone()
+}
+
+// ---------------------------------------------------------------------------
+// Mode-specific normalization
+// ---------------------------------------------------------------------------
+
+/// Claude Code reads an `mcpServers` entry with no `type` as stdio, so a
+/// `url`-only entry is a configuration error and the server is skipped at
+/// startup. Fill in the transport when we can infer it. Claude Desktop
+/// doesn't support `url` entries at all, so we leave Desktop configs
+/// untouched (the UI already warns about that case).
+pub fn normalize_server_for_mode(mode: AppMode, config: &mut Value) {
+    if mode != AppMode::Cli {
+        return;
+    }
+    let Value::Object(map) = config else { return };
+    if matches!(map.get("type"), Some(Value::String(s)) if !s.trim().is_empty()) {
+        return;
+    }
+    let Some(Value::String(url)) = map.get("url") else { return };
+    let path = url.split(['?', '#']).next().unwrap_or(url);
+    let kind = if path.trim_end_matches('/').to_ascii_lowercase().ends_with("/sse") {
+        "sse"
+    } else {
+        "http"
+    };
+    map.insert("type".to_string(), Value::String(kind.to_string()));
 }
 
 // ---------------------------------------------------------------------------
@@ -688,5 +720,59 @@ mod tests {
     #[test]
     fn pretty_json_empty_object() {
         assert_eq!(pretty_json(&json!({})), "{}");
+    }
+
+    // -- normalize_server_for_mode --
+
+    #[test]
+    fn normalize_adds_http_type_for_url_in_cli_mode() {
+        let mut v = json!({ "url": "https://mcp.example.com/mcp" });
+        normalize_server_for_mode(AppMode::Cli, &mut v);
+        assert_eq!(v["type"], "http");
+    }
+
+    #[test]
+    fn normalize_adds_sse_type_when_url_ends_with_sse() {
+        let mut v = json!({ "url": "https://mcp.atlassian.com/v1/sse" });
+        normalize_server_for_mode(AppMode::Cli, &mut v);
+        assert_eq!(v["type"], "sse");
+    }
+
+    #[test]
+    fn normalize_keeps_existing_type() {
+        let mut v = json!({ "type": "ws", "url": "wss://x.example/socket" });
+        normalize_server_for_mode(AppMode::Cli, &mut v);
+        assert_eq!(v["type"], "ws");
+    }
+
+    #[test]
+    fn normalize_leaves_stdio_alone() {
+        let mut v = json!({ "command": "npx", "args": ["-y", "foo"] });
+        normalize_server_for_mode(AppMode::Cli, &mut v);
+        assert!(v.get("type").is_none());
+    }
+
+    #[test]
+    fn normalize_is_noop_in_desktop_mode() {
+        let mut v = json!({ "url": "https://mcp.example.com/mcp" });
+        normalize_server_for_mode(AppMode::Desktop, &mut v);
+        assert!(v.get("type").is_none());
+    }
+
+    #[test]
+    fn normalize_replaces_null_or_empty_type() {
+        let mut v = json!({ "type": null, "url": "https://x/mcp" });
+        normalize_server_for_mode(AppMode::Cli, &mut v);
+        assert_eq!(v["type"], "http");
+        let mut v = json!({ "type": "", "url": "https://x/sse" });
+        normalize_server_for_mode(AppMode::Cli, &mut v);
+        assert_eq!(v["type"], "sse");
+    }
+
+    #[test]
+    fn normalize_detects_sse_with_query_and_case() {
+        let mut v = json!({ "url": "https://x/SSE?key=abc#frag" });
+        normalize_server_for_mode(AppMode::Cli, &mut v);
+        assert_eq!(v["type"], "sse");
     }
 }
