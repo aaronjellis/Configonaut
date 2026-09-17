@@ -459,7 +459,7 @@ pub fn render_config_block(
     cfg: &CatalogConfig,
     schema: &[ConfigField],
     values: &BTreeMap<String, Value>,
-) -> Result<Value, String> {
+) -> Result<Map<String, Value>, String> {
     for f in schema {
         if f.required && !values.contains_key(&f.name) {
             return Err(format!("Missing required field: {}", f.name));
@@ -519,7 +519,7 @@ pub fn render_config_block(
         out.insert("headers".into(), Value::Object(headers.clone()));
     }
 
-    Ok(Value::Object(out))
+    Ok(out)
 }
 
 fn schema_field_for_marker<'a>(s: &str, schema: &'a [ConfigField]) -> Option<&'a ConfigField> {
@@ -615,7 +615,7 @@ pub fn build_inspect_schema(server: &CatalogServer) -> InstallSchema {
 
 #[tauri::command]
 pub async fn inspect_install(server_id: String) -> Result<InstallSchema, String> {
-    let catalog = crate::catalog::bootstrap_catalog()
+    let (catalog, _) = crate::catalog::bootstrap_catalog_with_feeds()
         .map_err(|e| format!("Failed to read catalog: {e}"))?;
     let server = catalog.servers.iter().find(|s| s.id == server_id)
         .ok_or_else(|| format!("Server '{server_id}' not found in catalog."))?;
@@ -687,9 +687,18 @@ pub fn inject_managed_node_path(config: &mut Map<String, Value>) {
 
 fn config_needs_node(config: &Map<String, Value>) -> bool {
     match config.get("command") {
-        Some(Value::String(cmd)) => {
-            matches!(cmd.as_str(), "npx" | "node" | "npx.cmd" | "node.exe")
-        }
+        Some(Value::String(cmd)) if matches!(cmd.as_str(), "npx" | "node" | "npx.cmd" | "node.exe") => true,
+        // Defense in depth: see through a `cmd /c <program> ...` wrapper
+        // (what adapt_config_for_windows produces) in case this ever runs
+        // after the Windows adapter instead of before it.
+        Some(Value::String(cmd)) if cmd == "cmd" => match config.get("args") {
+            Some(Value::Array(args)) => args
+                .get(1)
+                .and_then(Value::as_str)
+                .map(|inner| matches!(inner, "npx" | "node" | "npx.cmd" | "node.exe"))
+                .unwrap_or(false),
+            _ => false,
+        },
         _ => false,
     }
 }
@@ -723,10 +732,11 @@ fn do_inject_node_path(config: &mut Map<String, Value>, bin_dir: &str, current_p
 #[tauri::command]
 pub async fn install_server(
     app: tauri::AppHandle,
+    mode: crate::models::AppMode,
     server_id: String,
     field_values: BTreeMap<String, Value>,
-) -> Result<(), String> {
-    let catalog = crate::catalog::bootstrap_catalog()
+) -> Result<String, String> {
+    let (catalog, _) = crate::catalog::bootstrap_catalog_with_feeds()
         .map_err(|e| format!("Failed to read catalog: {e}"))?;
     let server = catalog.servers.iter().find(|s| s.id == server_id)
         .ok_or_else(|| format!("Server '{server_id}' not found in catalog."))?
@@ -821,27 +831,30 @@ pub async fn install_server(
         }
     }
 
-    // Write to Claude config using existing config API.
+    // Write to Claude config — now literally shares finalize_install with
+    // install_from_catalog, instead of just following the same path.
     app.emit(PROGRESS_EVENT, InstallProgress::Step {
         step: "configure".into(),
         label: "Writing configuration".into(),
     }).ok();
 
-    let mut rendered = rendered;
-    if let Value::Object(ref mut map) = rendered {
-        inject_managed_node_path(map);
-    }
-
-    use crate::models::AppMode;
-    crate::config::add_to_active(AppMode::Desktop, vec![(server.id.clone(), rendered)])
-        .map_err(|e| e.to_string())?;
+    // Always active: render_config_block already rejects missing required
+    // fields, so there is nothing left to park as "stored" here.
+    let name = crate::catalog::finalize_install(
+        mode,
+        &server.id,
+        rendered,
+        &server.id,
+        crate::models::ServerSource::Active,
+    )
+    .map_err(|e| e.to_string())?;
 
     app.emit(PROGRESS_EVENT, InstallProgress::Step {
         step: "done".into(),
         label: "Done".into(),
     }).ok();
 
-    Ok(())
+    Ok(name)
 }
 
 #[cfg(test)]
@@ -1227,6 +1240,29 @@ mod tests {
 
         assert_eq!(config["env"]["API_KEY"], json!("secret123"));
         assert!(config["env"]["PATH"].as_str().unwrap().contains("/managed/bin"));
+    }
+
+    #[test]
+    fn config_needs_node_sees_through_cmd_wrapper() {
+        let mut config = Map::new();
+        config.insert("command".into(), json!("cmd"));
+        config.insert("args".into(), json!(["/c", "npx", "-y", "pkg"]));
+        assert!(config_needs_node(&config));
+        config.insert("args".into(), json!(["/c", "docker", "run"]));
+        assert!(!config_needs_node(&config));
+    }
+
+    #[test]
+    fn windows_adapt_after_inject_keeps_env_path() {
+        // The composed order finalize_install uses: inject, then wrap.
+        let mut config = Map::new();
+        config.insert("command".into(), json!("npx"));
+        config.insert("args".into(), json!(["-y", "pkg"]));
+        do_inject_node_path(&mut config, "/managed/bin", "/usr/bin");
+        crate::catalog::do_adapt_config_for_windows(&mut config);
+        assert_eq!(config["command"], "cmd");
+        assert_eq!(config["args"][1], "npx");
+        assert!(config["env"]["PATH"].as_str().unwrap().starts_with("/managed/bin"));
     }
 
     #[test]

@@ -275,16 +275,11 @@ export function AddServerModal({
         ) : setupServerId ? (
           <div className="modal-body">
             <SetupStep
+              mode={mode}
               serverId={setupServerId}
-              onDone={() => {
-                // Reflect the newly-installed server in the parent list.
-                // The catalog id doubles as the installed name by convention,
-                // so we update the links map and notify the parent.
-                setLinks((prev) => ({
-                  ...prev,
-                  [setupServerId]: setupServerId,
-                }));
-                onCatalogInstalled(setupServerId);
+              onDone={(installedName) => {
+                setLinks((prev) => ({ ...prev, [installedName]: setupServerId }));
+                onCatalogInstalled(installedName);
                 setSetupServerId(null);
                 onClose();
               }}

@@ -7,18 +7,21 @@ import {
 import {
   initialSetupState, installEnabled, setupReducer, validateFields,
 } from "../lib/setupStepReducer";
-import type { RuntimeInstallProgress, RuntimeName } from "../types";
+import type { AppMode, RuntimeInstallProgress, RuntimeName } from "../types";
 import { ConfigField } from "./ConfigField";
 import { InstallProgress } from "./InstallProgress";
 import { PrerequisiteRow } from "./PrerequisiteRow";
 
 interface Props {
+  mode: AppMode;
   serverId: string;
-  onDone: () => void;
+  /// Receives the name the server was installed under (may differ from
+  /// serverId when a collision was resolved with a -2 / -3 suffix).
+  onDone: (installedName: string) => void;
   onCancel: () => void;
 }
 
-export function SetupStep({ serverId, onDone, onCancel }: Props) {
+export function SetupStep({ mode, serverId, onDone, onCancel }: Props) {
   const [state, dispatch] = useReducer(setupReducer, initialSetupState);
   const [runtimeProgress, setRuntimeProgress] = useState<Record<RuntimeName, RuntimeInstallProgress | null>>({
     node: null, uv: null, docker: null,
@@ -93,10 +96,10 @@ export function SetupStep({ serverId, onDone, onCancel }: Props) {
   const handleInstall = async () => {
     dispatch({ type: "installStarted" });
     try {
-      await apiInstallServer(serverId, state.fieldValues);
-      dispatch({ type: "installDone" });
+      const name = await apiInstallServer(mode, serverId, state.fieldValues);
+      dispatch({ type: "installDone", installedName: name });
       if (!state.schema?.postInstallNotes?.length) {
-        onDone();
+        onDone(name);
       }
     } catch (err) {
       dispatch({ type: "installError", message: String(err), canRetry: true });
@@ -131,7 +134,7 @@ export function SetupStep({ serverId, onDone, onCancel }: Props) {
           </ol>
         </div>
         <div className="setup-actions">
-          <button className="primary" onClick={onDone}>Done</button>
+          <button className="primary" onClick={() => onDone(state.installedName ?? serverId)}>Done</button>
         </div>
       </div>
     );

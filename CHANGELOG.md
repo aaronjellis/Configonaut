@@ -14,6 +14,7 @@
 - **Remote servers get a `type` in CLI mode** -- Claude Code skips `url`-only entries, so `http` (or `sse`) is filled in when writing to `~/.claude.json`.
 
 ### Fixed
+- **Guided Setup installs into the current mode** -- the auto-install flow always wrote to Claude Desktop's config, even in CLI mode. It now targets the active mode, wraps `npx`/`uvx` for Windows, picks a unique name on collision, records the catalog link (so the "Installed" badge and secret checks work), and can install servers from custom feeds. On Windows the managed Node.js PATH is now injected before the `cmd /c` wrap, so servers installed after the in-app Node download can start.
 - **Disabling a hook actually disables it** -- Claude Code has no per-rule disable flag, so the old `disabled: true` marker left hooks running. Disabled rules now move to Configonaut's `disabled_hooks.json` and are restored verbatim on re-enable. Existing flagged rules are migrated on first launch.
 - **Deleting a hook removes stale disabled copies** so the rule can't resurface as "disabled".
 - **New skills are created as `~/.claude/skills/<name>/SKILL.md`** -- the only layout Claude Code loads. Flat `<name>.md` files created by earlier versions are still listed; the app now refuses to create a skill whose legacy file already exists.
