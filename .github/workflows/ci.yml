@@ -1,0 +1,61 @@
+# Runs on every push to main and every pull request. The release workflow
+# (release.yml) is separate and only fires on tags.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: tauri-app
+    steps:
+      - uses: actions/checkout@v5
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - run: bunx tsc --noEmit
+      - run: bun run test
+      - run: bun run build
+
+  rust:
+    # macOS has no extra system dependencies for a Tauri build; Linux
+    # would need webkit2gtk and friends.
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: tauri-app/src-tauri
+      - uses: oven-sh/setup-bun@v2
+      - name: Build frontend (tauri::generate_context! embeds ../dist)
+        working-directory: tauri-app
+        run: bun install --frozen-lockfile && bun run build
+      - name: Download uv sidecar (tauri-build requires externalBin to exist)
+        run: bash tauri-app/src-tauri/binaries/download-uv.sh
+      - name: Test
+        working-directory: tauri-app/src-tauri
+        run: cargo test
+      - name: Clippy
+        working-directory: tauri-app/src-tauri
+        run: cargo clippy --all-targets -- -D warnings
+
+  catalog:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Embedded baseline matches marketplace-catalog/catalog.json
+        shell: bash
+        run: |
+          diff <(jq -S . marketplace-catalog/catalog.json) \
+               <(jq -S . tauri-app/src-tauri/resources/catalog-baseline.json)
