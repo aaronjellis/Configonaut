@@ -40,6 +40,7 @@ pub enum InstallErrorKind {
     Network,
     DockerDaemonDown,
     DiskFull,
+    RestrictedEnv,
     Interrupted,
     Generic(i32),
 }
@@ -61,6 +62,9 @@ pub fn classify_install_error(stderr: &str, exit_code: i32) -> InstallErrorKind 
     if s.contains("no space left on device") {
         return InstallErrorKind::DiskFull;
     }
+    if s.contains("failed to replace env in config") {
+        return InstallErrorKind::RestrictedEnv;
+    }
     if exit_code == 130 || s.contains("interrupted") || s.contains("signal") {
         return InstallErrorKind::Interrupted;
     }
@@ -73,6 +77,7 @@ impl InstallErrorKind {
             Self::Network => "Couldn't reach the registry. Check your connection and retry.".into(),
             Self::DockerDaemonDown => "Docker is installed but the daemon isn't running. Start Docker Desktop and retry.".into(),
             Self::DiskFull => "Out of disk space during install.".into(),
+            Self::RestrictedEnv => "npm's config references an environment variable (for example an auth token in .npmrc) that Configonaut does not pass to install steps. Run the server's install manually once, or remove the variable reference from .npmrc.".into(),
             Self::Interrupted => "Install was interrupted.".into(),
             Self::Generic(code) => format!("Install failed (exit code {code}). See log below."),
         }
@@ -725,7 +730,13 @@ pub async fn inspect_install(server_id: String) -> Result<InstallSchema, String>
 pub fn warmup_command_for(step: &InstallStep) -> (&'static str, Vec<String>) {
     match step {
         InstallStep::NpmWarmup { package } => {
-            ("npx", vec!["-y".into(), package.clone(), "--help".into()])
+            // Windows `Command` only appends `.exe` when searching PATH, and
+            // npx ships as `npx.cmd`; spawning the `.cmd` by name directly
+            // lets Rust apply its batch-file argument escaping (the
+            // CVE-2024-24576 fix), whereas wrapping in `cmd /c` would
+            // require rejecting shell metacharacters too.
+            let program = if cfg!(target_os = "windows") { "npx.cmd" } else { "npx" };
+            (program, vec!["-y".into(), package.clone(), "--help".into()])
         }
         InstallStep::UvxWarmup { package } => {
             ("uvx", vec![package.clone(), "--help".into()])
@@ -733,6 +744,55 @@ pub fn warmup_command_for(step: &InstallStep) -> (&'static str, Vec<String>) {
         InstallStep::DockerPull { image } => ("docker", vec!["pull".into(), image.clone()]),
         InstallStep::None | InstallStep::Unknown => ("true", vec![]),
     }
+}
+
+/// Environment keys forwarded to warmup children. Everything else (cloud
+/// credentials, tokens exported in the user's shell) stays out of a process
+/// that runs code chosen by a catalog feed. This is defence in depth against
+/// shell-exported secrets, not a sandbox: the child still runs as the user.
+/// On Windows env keys are case-insensitive, so one spelling per key suffices.
+pub(crate) const WARMUP_ENV_PASSTHROUGH: &[&str] = &[
+    // Core
+    "PATH", "HOME", "LOGNAME", "LANG", "LC_CTYPE", "TMPDIR", "TEMP", "TMP",
+    // Windows
+    "USERPROFILE", "USERNAME", "HOMEDRIVE", "HOMEPATH", "APPDATA", "LOCALAPPDATA",
+    "ProgramData", "ProgramFiles", "SystemRoot", "SystemDrive", "windir",
+    "ComSpec", "PATHEXT",
+    // Linux XDG dirs (uv honors these)
+    "XDG_CACHE_HOME", "XDG_CONFIG_HOME", "XDG_DATA_HOME",
+    // Docker: DOCKER_HOST is useless without its context/TLS companions
+    "DOCKER_HOST", "DOCKER_CONTEXT", "DOCKER_CONFIG", "DOCKER_TLS_VERIFY", "DOCKER_CERT_PATH",
+    // Proxies and corporate CAs
+    "HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "http_proxy", "https_proxy", "no_proxy",
+    "SSL_CERT_FILE", "SSL_CLIENT_CERT", "NODE_EXTRA_CA_CERTS", "UV_NATIVE_TLS",
+    // Tool caches / registries (non-secret)
+    "UV_CACHE_DIR", "UV_TOOL_DIR", "UV_PYTHON_INSTALL_DIR", "UV_HTTP_TIMEOUT",
+    "npm_config_cache", "npm_config_registry", "NPM_CONFIG_REGISTRY",
+];
+
+pub(crate) fn warmup_env() -> Vec<(String, std::ffi::OsString)> {
+    WARMUP_ENV_PASSTHROUGH
+        .iter()
+        .filter_map(|k| std::env::var_os(k).map(|v| (k.to_string(), v)))
+        .collect()
+}
+
+/// A package or image name must never be able to act as a flag to npx /
+/// uvx / docker, and must be a single plain token (it is echoed into UI
+/// log lines).
+pub(crate) fn validate_install_step(step: &InstallStep) -> Result<(), String> {
+    let (what, target) = match step {
+        InstallStep::NpmWarmup { package } | InstallStep::UvxWarmup { package } => ("package", package),
+        InstallStep::DockerPull { image } => ("image", image),
+        InstallStep::None | InstallStep::Unknown => return Ok(()),
+    };
+    let t = target.trim();
+    if t.is_empty() || t.starts_with('-') || t.chars().any(|c| c.is_whitespace() || c.is_control()) {
+        return Err(format!(
+            "This server's install step was rejected: the {what} name {target:?} looks like a command-line flag or contains whitespace. The catalog feed may be untrustworthy."
+        ));
+    }
+    Ok(())
 }
 
 fn label_for(step: &InstallStep) -> String {
@@ -838,6 +898,19 @@ pub async fn install_server(
         .ok_or_else(|| format!("Server '{server_id}' not found in catalog."))?
         .clone();
 
+    // Refuse the whole install up front: validating inside the loop would
+    // let earlier (valid-looking) steps run before a hostile one is caught.
+    for step in &server.install {
+        if let Err(msg) = validate_install_step(step) {
+            app.emit(PROGRESS_EVENT, InstallProgress::Error {
+                step: "check".into(),
+                message: msg.clone(),
+                can_retry: false,
+            }).ok();
+            return Err(msg);
+        }
+    }
+
     app.emit(PROGRESS_EVENT, InstallProgress::Step {
         step: "configure".into(),
         label: "Validating configuration".into(),
@@ -858,14 +931,19 @@ pub async fn install_server(
         }
 
         let mut command = TokioCommand::new(program);
-        command.args(&args).stdout(Stdio::piped()).stderr(Stdio::piped());
+        command
+            .args(&args)
+            .env_clear()
+            .envs(warmup_env())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
 
         // npx is the only program we manage ourselves — if the user just
         // installed Node via the in-app downloader, the managed bin dir
         // is NOT on the Tauri process's inherited PATH, so a bare
         // `TokioCommand::new("npx")` would ENOENT. Mirror the same path
         // injection inject_managed_node_path does for server configs.
-        if program == "npx" || program == "node" {
+        if matches!(program, "npx" | "npx.cmd" | "node") {
             if let Some(bin_dir) = managed_node_bin_dir() {
                 let sep = if cfg!(target_os = "windows") { ";" } else { ":" };
                 let current_path = std::env::var("PATH").unwrap_or_default();
@@ -976,6 +1054,12 @@ mod tests {
     }
 
     #[test]
+    fn classify_restricted_env() {
+        let kind = classify_install_error("npm error Failed to replace env in config: ${AUTH_TOKEN}", 1);
+        assert_eq!(kind, InstallErrorKind::RestrictedEnv);
+    }
+
+    #[test]
     fn classify_interrupted_by_exit_code() {
         let kind = classify_install_error("", 130);
         assert_eq!(kind, InstallErrorKind::Interrupted);
@@ -1000,6 +1084,7 @@ mod tests {
             InstallErrorKind::Network,
             InstallErrorKind::DockerDaemonDown,
             InstallErrorKind::DiskFull,
+            InstallErrorKind::RestrictedEnv,
             InstallErrorKind::Interrupted,
             InstallErrorKind::Generic(7),
         ] {
@@ -1142,7 +1227,7 @@ mod tests {
         let (program, args) = warmup_command_for(&InstallStep::NpmWarmup {
             package: "@scope/foo".into(),
         });
-        assert_eq!(program, "npx");
+        assert!(program == "npx" || program == "npx.cmd");
         assert_eq!(args, vec!["-y", "@scope/foo", "--help"]);
     }
 
@@ -1413,5 +1498,23 @@ bbbb  node-v22.13.1-darwin-arm64.tar.xz
             let _guard = DownloadGuard;
         }
         assert!(!NODE_DOWNLOAD_IN_PROGRESS.load(std::sync::atomic::Ordering::SeqCst));
+    }
+
+    #[test]
+    fn validate_install_step_rejects_flag_shaped_targets() {
+        assert!(validate_install_step(&InstallStep::NpmWarmup { package: "--registry=https://evil".into() }).is_err());
+        assert!(validate_install_step(&InstallStep::UvxWarmup { package: "".into() }).is_err());
+        assert!(validate_install_step(&InstallStep::DockerPull { image: "-x".into() }).is_err());
+        assert!(validate_install_step(&InstallStep::NpmWarmup { package: "@scope/pkg".into() }).is_ok());
+        assert!(validate_install_step(&InstallStep::None).is_ok());
+        assert!(validate_install_step(&InstallStep::NpmWarmup { package: " -x".into() }).is_err());
+        assert!(validate_install_step(&InstallStep::NpmWarmup { package: "a b".into() }).is_err());
+    }
+
+    #[test]
+    fn warmup_env_only_passes_allowlisted_keys() {
+        let env = warmup_env();
+        assert!(env.iter().all(|(k, _)| WARMUP_ENV_PASSTHROUGH.contains(&k.as_str())));
+        assert!(env.iter().any(|(k, _)| k == "PATH"));
     }
 }

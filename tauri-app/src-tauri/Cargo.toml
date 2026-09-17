@@ -4,6 +4,8 @@ version = "0.4.0"
 description = "Configonaut — MCP server, hook, and skill manager for Claude Desktop and Claude Code."
 authors = ["aaronjellis"]
 edition = "2021"
+# ≥ 1.77.2 for batch-file argument escaping on Windows (CVE-2024-24576); 1.85 for edition-2021 let-else/is_some_and usage.
+rust-version = "1.85"
 
 # The `_lib` suffix keeps the lib name unique from the bin name on Windows.
 [lib]

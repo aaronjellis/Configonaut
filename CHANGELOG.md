@@ -21,6 +21,7 @@
 - **Plugins are discovered from `installed_plugins.json`** -- every installed plugin from any marketplace now appears in Agents and Skills, and Enable/Disable uses the real `<plugin>@<marketplace>` key. Previously the app scanned the official marketplace's source clone, which listed uninstalled plugins and missed everything else.
 - **Every write to `~/.claude/settings.json` is now preceded by a timestamped backup** under Configonaut's storage directory (30 kept).
 - **The in-app Node.js download is verified against nodejs.org's SHASUMS256.txt** before extraction. A mismatch discards the archive and reports an error instead of running the binary.
+- **Install steps from catalog feeds are sandboxed a little harder** -- package and image names that look like command-line flags are refused, and the `npx` / `uvx` / `docker` warmup processes now receive only an allowlisted environment (PATH, HOME, proxy and cache settings) instead of the whole shell environment. Every step is checked before any of them runs. On Windows the npm warmup now spawns `npx.cmd` directly (it previously failed to start). If your `.npmrc` references an environment variable such as an auth token, the warmup now explains why it can't run instead of failing generically.
 
 ## 0.4.0
 
