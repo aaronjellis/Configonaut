@@ -8,6 +8,7 @@
 ### Added
 - **All current hook events** in the New Hook picker (33 events, from PreToolUse to TeammateIdle), instead of eight.
 - **Non-command hooks are listed** -- prompt, agent, http, and mcp_tool handlers now show in the Hooks view with a summary instead of being hidden.
+- **Migrate leftover servers from settings.json** -- versions before 0.2.4 wrote MCP servers to `~/.claude/settings.json`, which Claude Code ignores. CLI mode now shows a banner with a one-click move into `~/.claude.json`. Entries whose name already exists (active or stored) are left alone and reported, and the original block is archived under Configonaut's storage directory before it is removed.
 
 ### Changed
 - **Remote servers get a `type` in CLI mode** -- Claude Code skips `url`-only entries, so `http` (or `sse`) is filled in when writing to `~/.claude.json`.

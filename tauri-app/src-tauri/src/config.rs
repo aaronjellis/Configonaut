@@ -340,7 +340,20 @@ pub fn normalize_server_for_mode(mode: AppMode, config: &mut Value) {
         return;
     }
     let Value::Object(map) = config else { return };
+    // Configonaut ≤ 0.2.3 wrote a `transport` key. Always drop it so the
+    // entry carries one declaration; use it as `type` when no type is set.
+    let legacy_transport = match map.shift_remove("transport") {
+        Some(Value::String(t)) => {
+            let t = t.trim().to_ascii_lowercase();
+            matches!(t.as_str(), "http" | "sse" | "stdio" | "ws").then_some(t)
+        }
+        _ => None,
+    };
     if matches!(map.get("type"), Some(Value::String(s)) if !s.trim().is_empty()) {
+        return;
+    }
+    if let Some(t) = legacy_transport {
+        map.insert("type".to_string(), Value::String(t));
         return;
     }
     let Some(Value::String(url)) = map.get("url") else { return };
@@ -774,5 +787,21 @@ mod tests {
         let mut v = json!({ "url": "https://x/SSE?key=abc#frag" });
         normalize_server_for_mode(AppMode::Cli, &mut v);
         assert_eq!(v["type"], "sse");
+    }
+
+    #[test]
+    fn normalize_uses_legacy_transport_key_and_drops_it() {
+        let mut v = json!({ "transport": "sse", "url": "https://x.example/mcp" });
+        normalize_server_for_mode(AppMode::Cli, &mut v);
+        assert_eq!(v["type"], "sse");
+        assert!(v.get("transport").is_none());
+        let mut v = json!({ "transport": "bogus", "url": "https://x.example/sse" });
+        normalize_server_for_mode(AppMode::Cli, &mut v);
+        assert_eq!(v["type"], "sse");
+        assert!(v.get("transport").is_none());
+        let mut v = json!({ "type": "http", "transport": 1, "url": "https://x.example/sse" });
+        normalize_server_for_mode(AppMode::Cli, &mut v);
+        assert_eq!(v["type"], "http");
+        assert!(v.get("transport").is_none());
     }
 }

@@ -41,7 +41,9 @@ import {
   addServersToActive,
   addServersToStored,
   deleteServer as apiDeleteServer,
+  legacySettingsMcpNames,
   listServers,
+  migrateLegacySettingsMcp,
   moveServerToActive,
   moveServerToStored,
   renameServer,
@@ -121,6 +123,25 @@ export function McpServersView({ mode, onMutated }: Props) {
   const [editError, setEditError] = useState<string | null>(null);
   const [showAdd, setShowAdd] = useState(false);
   const [needsRestart, setNeedsRestart] = useState(false);
+  const [legacyNames, setLegacyNames] = useState<string[]>([]);
+  const [migrating, setMigrating] = useState(false);
+  useEffect(() => {
+    if (mode !== "cli") {
+      setLegacyNames([]);
+      return;
+    }
+    let cancelled = false;
+    legacySettingsMcpNames()
+      .then((names) => {
+        if (!cancelled) setLegacyNames(names);
+      })
+      .catch(() => {
+        if (!cancelled) setLegacyNames([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [mode]);
   const [statusMessage, setStatusMessage] = useState("Ready.");
   const [statusIsError, setStatusIsError] = useState(false);
   const [drag, setDrag] = useState<DragState | null>(null);
@@ -685,6 +706,44 @@ export function McpServersView({ mode, onMutated }: Props) {
                 onClick={() => setNeedsRestart(false)}
               >
                 Dismiss
+              </button>
+            </span>
+          </div>
+        )}
+
+        {mode === "cli" && legacyNames.length > 0 && (
+          <div className="banner warning">
+            {legacyNames.length} server{legacyNames.length === 1 ? "" : "s"} in
+            ~/.claude/settings.json ({legacyNames.join(", ")}){" "}
+            {legacyNames.length === 1 ? "is" : "are"} ignored by Claude Code.
+            Move {legacyNames.length === 1 ? "it" : "them"} to ~/.claude.json?
+            <span style={{ marginLeft: "auto" }}>
+              <button
+                className="primary"
+                disabled={migrating}
+                onClick={async () => {
+                  setMigrating(true);
+                  try {
+                    const r = await migrateLegacySettingsMcp();
+                    setLegacyNames([]);
+                    setNeedsRestart(true);
+                    onMutated();
+                    await refresh();
+                    const base = `Moved ${r.moved.length} server(s) to ~/.claude.json. Original block archived at ${displayPath(r.archivePath)}.`;
+                    const msg = r.skipped.length
+                      ? `${base} Skipped (already present): ${r.skipped.join(", ")}.`
+                      : base;
+                    setStatus(msg);
+                    toast.show(msg, "success");
+                  } catch (e) {
+                    setStatus(String(e), true);
+                    toast.show(String(e), "error");
+                  } finally {
+                    setMigrating(false);
+                  }
+                }}
+              >
+                Migrate
               </button>
             </span>
           </div>

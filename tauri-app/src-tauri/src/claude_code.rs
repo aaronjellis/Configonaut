@@ -33,7 +33,7 @@ use anyhow::{anyhow, Context};
 use serde_json::{json, Map, Value};
 
 use crate::models::{
-    AgentEntry, AgentSource, AppResult, HookRule, SkillEntry, SkillSource,
+    AgentEntry, AgentSource, AppResult, HookRule, LegacyMigrationResult, SkillEntry, SkillSource,
 };
 use crate::paths;
 
@@ -1080,6 +1080,89 @@ fn allowed_roots() -> Vec<PathBuf> {
 }
 
 // ---------------------------------------------------------------------------
+// Legacy settings.json `mcpServers` migration
+// ---------------------------------------------------------------------------
+//
+// Configonaut ≤ 0.2.3 wrote MCP servers to ~/.claude/settings.json. Claude
+// Code never read them from there; they belong in ~/.claude.json.
+
+/// Names of servers still sitting under settings.json → mcpServers.
+pub fn legacy_settings_mcp_names() -> AppResult<Vec<String>> {
+    let settings = load_settings()?;
+    Ok(match settings.get("mcpServers") {
+        Some(Value::Object(m)) => m.keys().cloned().collect(),
+        _ => Vec::new(),
+    })
+}
+
+/// Split legacy entries into (entries to add to ~/.claude.json, names skipped
+/// because a server with that name already exists).
+pub(crate) fn plan_legacy_migration(
+    settings: &Map<String, Value>,
+    existing: &HashSet<String>,
+) -> (Vec<(String, Value)>, Vec<String>) {
+    let mut to_add = Vec::new();
+    let mut skipped = Vec::new();
+    if let Some(Value::Object(legacy)) = settings.get("mcpServers") {
+        for (name, config) in legacy {
+            if existing.contains(name) {
+                skipped.push(name.clone());
+            } else {
+                to_add.push((name.clone(), config.clone()));
+            }
+        }
+    }
+    (to_add, skipped)
+}
+
+/// Move legacy entries into ~/.claude.json (CLI mode), archive the original
+/// block under Configonaut's storage dir, then drop the key from settings.json.
+/// Names that already exist as active or stored CLI servers are skipped, not
+/// overwritten — their legacy configs survive in the archive file.
+pub fn migrate_legacy_settings_mcp() -> AppResult<LegacyMigrationResult> {
+    use crate::models::AppMode;
+    let settings = load_settings()?;
+    let Some(block) = settings.get("mcpServers").cloned() else {
+        return Err(anyhow!("settings.json has no mcpServers block").into());
+    };
+
+    let listing = crate::config::list_servers(AppMode::Cli)?;
+    let existing: HashSet<String> = listing
+        .active_servers
+        .iter()
+        .chain(listing.stored_servers.iter())
+        .map(|s| s.name.clone())
+        .collect();
+    let (to_add, skipped) = plan_legacy_migration(&settings, &existing);
+    let moved: Vec<String> = to_add.iter().map(|(n, _)| n.clone()).collect();
+
+    // Archive first so nothing is lost if a later step fails.
+    let dir = paths::storage_dir();
+    fs::create_dir_all(&dir)?;
+    let stamp = chrono::Local::now().format("%Y-%m-%d_%H-%M-%S");
+    let archive = dir.join(format!("legacy_settings_mcpServers_{stamp}.json"));
+    crate::config::write_atomic(&archive, serde_json::to_string_pretty(&block)?.as_bytes())?;
+
+    if !to_add.is_empty() {
+        // add_to_active backs up ~/.claude.json and normalizes url-only
+        // entries (adds "type") on the way in.
+        crate::config::add_to_active(AppMode::Cli, to_add)?;
+    }
+
+    // Re-read right before the destructive write to shrink the window in
+    // which an external edit to settings.json could be clobbered.
+    let mut settings = load_settings()?;
+    settings.shift_remove("mcpServers");
+    save_settings(&settings)?;
+
+    Ok(LegacyMigrationResult {
+        moved,
+        skipped,
+        archive_path: archive.to_string_lossy().into_owned(),
+    })
+}
+
+// ---------------------------------------------------------------------------
 // Slug / path helpers
 // ---------------------------------------------------------------------------
 
@@ -1365,5 +1448,40 @@ mod tests {
         assert!(!cmd.contains_key("name"));
         assert!(cmd.contains_key("description"));
         assert_eq!(cmd.get("argument-hint").map(String::as_str), Some("[args]"));
+    }
+
+    fn names(v: &[&str]) -> HashSet<String> {
+        v.iter().map(|s| s.to_string()).collect()
+    }
+
+    #[test]
+    fn plan_legacy_migration_skips_names_already_existing() {
+        let settings = hooks_obj(json!({ "mcpServers": {
+            "figma": { "url": "http://127.0.0.1:3845/mcp" },
+            "fathom": { "command": "npx", "args": ["-y", "fathom-mcp"] }
+        } }));
+        let (to_add, skipped) = plan_legacy_migration(&settings, &names(&["figma"]));
+        assert_eq!(to_add.len(), 1);
+        assert_eq!(to_add[0].0, "fathom");
+        assert_eq!(skipped, vec!["figma"]);
+    }
+
+    #[test]
+    fn plan_legacy_migration_handles_missing_empty_and_non_object() {
+        let empty = names(&[]);
+        assert_eq!(plan_legacy_migration(&hooks_obj(json!({})), &empty), (vec![], vec![]));
+        assert_eq!(plan_legacy_migration(&hooks_obj(json!({ "mcpServers": {} })), &empty), (vec![], vec![]));
+        assert_eq!(plan_legacy_migration(&hooks_obj(json!({ "mcpServers": [1] })), &empty), (vec![], vec![]));
+    }
+
+    #[test]
+    fn plan_legacy_migration_preserves_order_and_reports_all_skipped() {
+        let settings = hooks_obj(json!({ "mcpServers": { "a": {}, "b": {}, "c": {} } }));
+        let (to_add, skipped) = plan_legacy_migration(&settings, &names(&[]));
+        assert_eq!(to_add.iter().map(|(n, _)| n.as_str()).collect::<Vec<_>>(), vec!["a", "b", "c"]);
+        assert!(skipped.is_empty());
+        let (to_add, skipped) = plan_legacy_migration(&settings, &names(&["a", "b", "c"]));
+        assert!(to_add.is_empty());
+        assert_eq!(skipped, vec!["a", "b", "c"]);
     }
 }

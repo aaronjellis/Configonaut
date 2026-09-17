@@ -24,6 +24,12 @@ export interface ServerListing {
   projectGroups: ProjectMcpGroup[];
 }
 
+export interface LegacyMigrationResult {
+  moved: string[];
+  skipped: string[];
+  archivePath: string;
+}
+
 export interface HookRule {
   id: string;
   event: string;

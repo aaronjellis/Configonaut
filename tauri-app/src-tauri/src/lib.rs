@@ -197,6 +197,8 @@ pub fn run() {
             commands::update_hook_rule,
             commands::create_hook,
             commands::delete_hook,
+            commands::legacy_settings_mcp_names,
+            commands::migrate_legacy_settings_mcp,
             // Agents
             commands::list_agents,
             commands::create_agent,

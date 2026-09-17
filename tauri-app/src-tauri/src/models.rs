@@ -88,6 +88,19 @@ pub struct ServerListing {
     pub project_groups: Vec<ProjectMcpGroup>,
 }
 
+/// Outcome of moving legacy `mcpServers` out of settings.json.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LegacyMigrationResult {
+    /// Names added to ~/.claude.json.
+    pub moved: Vec<String>,
+    /// Names left out because a server with that name already exists
+    /// (active or stored) in CLI mode.
+    pub skipped: Vec<String>,
+    /// Where the original block was archived before removal.
+    pub archive_path: String,
+}
+
 // ---------------------------------------------------------------------------
 // Hooks
 // ---------------------------------------------------------------------------
