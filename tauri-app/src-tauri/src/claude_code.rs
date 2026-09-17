@@ -425,19 +425,25 @@ pub fn create_hook(event: &str, matcher: &str, commands: &[String]) -> AppResult
     save_settings(&settings)
 }
 
-/// Delete a rule from whichever store holds it.
+/// Delete a rule from both stores (a stale sidecar copy can shadow a settings.json rule).
 pub fn delete_hook(event: &str, matcher: &str) -> AppResult<()> {
     let mut settings = load_settings()?;
-    if let Some(Value::Object(hooks)) = settings.get_mut("hooks") {
-        if take_rule(hooks, event, matcher).is_some() {
-            return save_settings(&settings);
-        }
-    }
     let mut disabled = load_disabled_hooks()?;
-    if take_rule(&mut disabled, event, matcher).is_some() {
-        return save_disabled_hooks(&disabled);
+    let removed_enabled = match settings.get_mut("hooks") {
+        Some(Value::Object(hooks)) => take_rule(hooks, event, matcher).is_some(),
+        _ => false,
+    };
+    let removed_disabled = take_rule(&mut disabled, event, matcher).is_some();
+    if !removed_enabled && !removed_disabled {
+        return Err(anyhow!("no hook rule matched {event}/{matcher}").into());
     }
-    Err(anyhow!("no hook rule matched {event}/{matcher}").into())
+    if removed_enabled {
+        save_settings(&settings)?;
+    }
+    if removed_disabled {
+        save_disabled_hooks(&disabled)?;
+    }
+    Ok(())
 }
 
 /// Replace the whole JSON body of a rule, in whichever store holds it.
