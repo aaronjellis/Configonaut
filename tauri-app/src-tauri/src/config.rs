@@ -503,9 +503,57 @@ fn sort_keys(value: &Value) -> Value {
 // Backups
 // ---------------------------------------------------------------------------
 
+/// What a backup file contains for a mode. Desktop: the whole config file.
+/// CLI: only the `mcpServers` key, because ~/.claude.json also carries
+/// account and per-project state that must never be rolled back.
+pub(crate) fn backup_payload(mode: AppMode, root: &Map<String, Value>) -> Value {
+    match mode {
+        AppMode::Desktop => Value::Object(root.clone()),
+        AppMode::Cli => {
+            let mut m = Map::new();
+            m.insert(
+                "mcpServers".to_string(),
+                root.get("mcpServers")
+                    .cloned()
+                    .unwrap_or_else(|| Value::Object(Map::new())),
+            );
+            Value::Object(m)
+        }
+    }
+}
+
+/// Merge a backup into the live root. CLI mode keeps everything in
+/// `current` except `mcpServers`, which is taken from the backup (this also
+/// works for full-file backups written by older versions).
+pub(crate) fn apply_backup(
+    mode: AppMode,
+    current: &Map<String, Value>,
+    backup: &Value,
+) -> AppResult<Map<String, Value>> {
+    let Value::Object(backup_map) = backup else {
+        return Err(anyhow!("backup root is not a JSON object").into());
+    };
+    match mode {
+        AppMode::Desktop => Ok(backup_map.clone()),
+        AppMode::Cli => {
+            let servers = backup_map
+                .get("mcpServers")
+                .ok_or_else(|| anyhow!("backup has no mcpServers key — nothing to restore"))?;
+            if !servers.is_object() {
+                return Err(anyhow!("backup's mcpServers is not a JSON object").into());
+            }
+            let mut out = current.clone();
+            out.insert("mcpServers".to_string(), servers.clone());
+            Ok(out)
+        }
+    }
+}
+
 /// Copy the current active config to the backup directory with a timestamp.
 /// Called automatically before any mutation. Keeps only the 30 most recent
-/// backups per mode.
+/// backups per mode. The backup contains the whole config file in Desktop
+/// mode, and just `mcpServers` in CLI mode (see `backup_payload`) — ~/.claude.json
+/// also carries account and per-project state that a restore must not touch.
 pub fn backup_config(mode: AppMode) -> AppResult<()> {
     let src = paths::config_file(mode);
     if !src.exists() {
@@ -515,10 +563,28 @@ pub fn backup_config(mode: AppMode) -> AppResult<()> {
     fs::create_dir_all(&dir)?;
 
     let timestamp = Local::now().format("%Y-%m-%d_%H-%M-%S").to_string();
-    let dest = dir.join(format!("config_{timestamp}.json"));
+    let mut dest = dir.join(format!("config_{timestamp}.json"));
+    // Avoid clobbering a same-second backup: append -2, -3, ... until the
+    // filename is free.
+    let mut suffix = 2;
+    while dest.exists() {
+        dest = dir.join(format!("config_{timestamp}-{suffix}.json"));
+        suffix += 1;
+    }
 
-    let data = fs::read(&src)?;
-    fs::write(&dest, data)?;
+    // If the live file is corrupt, load_config_root will fail — fall back to
+    // copying the raw bytes so the corrupt state is still preserved before
+    // whatever mutation triggered this backup goes on to fail on its own.
+    match load_config_root(&src) {
+        Ok(root) => {
+            let payload = serde_json::to_string_pretty(&backup_payload(mode, &root))?;
+            write_atomic(&dest, payload.as_bytes())?;
+        }
+        Err(_) => {
+            let bytes = fs::read(&src)?;
+            write_atomic(&dest, &bytes)?;
+        }
+    }
 
     // Keep the last 30 backups.
     let mut files: Vec<_> = fs::read_dir(&dir)?
@@ -580,24 +646,42 @@ pub fn list_backups(mode: AppMode) -> AppResult<Vec<crate::models::BackupFile>> 
     Ok(files)
 }
 
+/// Restore a backup onto the live config. In Desktop mode this replaces the
+/// whole file. In CLI mode it replaces only `mcpServers`, leaving the OAuth
+/// account, per-project trust decisions, and other state Claude Code owns
+/// untouched (also works against full-file backups written by older
+/// versions of Configonaut — only their `mcpServers` key is applied).
 pub fn restore_backup(mode: AppMode, backup_path: &str) -> AppResult<()> {
     let backup_path = Path::new(backup_path);
     if !backup_path.exists() {
         return Err(anyhow!("backup file not found").into());
     }
-    // Validate the backup is real JSON before clobbering the live config.
-    let raw = fs::read_to_string(backup_path)?;
-    let _: Value = serde_json::from_str(&raw)
-        .context("backup file is not valid JSON")?;
 
-    // Take a snapshot of the current config before overwriting.
+    // Validate the backup before anything else so a bad file can't burn a
+    // backup rotation slot or clobber the live config.
+    let raw = fs::read_to_string(backup_path)?;
+    let backup: Value = serde_json::from_str(&raw).context("backup file is not valid JSON")?;
+    if !backup.is_object() {
+        return Err(anyhow!("backup root is not a JSON object").into());
+    }
+
+    // Snapshot the current config (raw copy if it doesn't parse) before
+    // touching it.
     backup_config(mode)?;
 
     let dest = paths::config_file(mode);
-    if let Some(parent) = dest.parent() {
-        fs::create_dir_all(parent)?;
-    }
-    write_atomic(&dest, raw.as_bytes())?;
+    let current = match mode {
+        // Desktop restore replaces the whole file, so a corrupt live file is
+        // exactly what restore is for — don't require it to parse.
+        AppMode::Desktop => Map::new(),
+        AppMode::Cli => load_config_root(&dest).context(
+            "~/.claude.json is not valid JSON, so the servers can't be merged into it \
+             without losing your account and project state. A copy of the current file \
+             was saved to the backup folder; repair or remove it and try again.",
+        )?,
+    };
+    let merged = apply_backup(mode, &current, &backup)?;
+    save_config_root(&dest, &merged)?;
     Ok(())
 }
 
@@ -813,5 +897,75 @@ mod tests {
         normalize_server_for_mode(AppMode::Cli, &mut v);
         assert_eq!(v["type"], "http");
         assert!(v.get("transport").is_none());
+    }
+
+    // -- backup payload / apply --
+
+    fn obj(v: Value) -> Map<String, Value> {
+        v.as_object().unwrap().clone()
+    }
+
+    #[test]
+    fn cli_backup_payload_contains_only_mcp_servers() {
+        let root = obj(json!({ "oauthAccount": { "e": "x" }, "mcpServers": { "a": { "command": "x" } }, "projects": {} }));
+        let payload = backup_payload(AppMode::Cli, &root);
+        assert_eq!(payload, json!({ "mcpServers": { "a": { "command": "x" } } }));
+    }
+
+    #[test]
+    fn desktop_backup_payload_is_the_whole_file() {
+        let root = obj(json!({ "preferences": {}, "mcpServers": {} }));
+        assert_eq!(backup_payload(AppMode::Desktop, &root), Value::Object(root.clone()));
+    }
+
+    #[test]
+    fn cli_apply_backup_replaces_only_mcp_servers() {
+        let current = obj(json!({ "oauthAccount": { "e": "now" }, "mcpServers": { "new": {} }, "numStartups": 9 }));
+        let backup = json!({ "oauthAccount": { "e": "old" }, "mcpServers": { "old": { "command": "x" } } });
+        let out = apply_backup(AppMode::Cli, &current, &backup).unwrap();
+        assert_eq!(out["oauthAccount"]["e"], "now");
+        assert_eq!(out["numStartups"], 9);
+        assert_eq!(out["mcpServers"], json!({ "old": { "command": "x" } }));
+    }
+
+    #[test]
+    fn desktop_apply_backup_replaces_whole_file() {
+        let current = obj(json!({ "mcpServers": { "a": {} } }));
+        let backup = json!({ "mcpServers": { "b": {} }, "preferences": { "x": 1 } });
+        let out = apply_backup(AppMode::Desktop, &current, &backup).unwrap();
+        assert_eq!(Value::Object(out), backup);
+    }
+
+    #[test]
+    fn apply_backup_rejects_non_object() {
+        assert!(apply_backup(AppMode::Cli, &Map::new(), &json!([1])).is_err());
+    }
+
+    #[test]
+    fn cli_apply_backup_rejects_backup_without_mcp_servers() {
+        // backup_payload always writes the key (empty map when there are no
+        // servers), so its absence means the file isn't one of ours.
+        let current = obj(json!({ "oauthAccount": {}, "mcpServers": { "a": {} } }));
+        assert!(apply_backup(AppMode::Cli, &current, &json!({ "someOtherKey": 1 })).is_err());
+        assert!(apply_backup(AppMode::Cli, &current, &json!({ "mcpServers": null })).is_err());
+    }
+
+    #[test]
+    fn cli_apply_backup_accepts_an_empty_server_map() {
+        let current = obj(json!({ "mcpServers": { "a": {} } }));
+        let out = apply_backup(AppMode::Cli, &current, &json!({ "mcpServers": {} })).unwrap();
+        assert_eq!(out["mcpServers"], json!({}));
+    }
+
+    #[test]
+    fn cli_apply_backup_keeps_mcp_servers_in_place() {
+        let current = obj(json!({
+            "numStartups": 3, "mcpServers": { "a": {} }, "oauthAccount": {}, "projects": {}
+        }));
+        let out = apply_backup(AppMode::Cli, &current, &json!({ "mcpServers": { "z": {} } })).unwrap();
+        assert_eq!(
+            out.keys().map(String::as_str).collect::<Vec<_>>(),
+            ["numStartups", "mcpServers", "oauthAccount", "projects"]
+        );
     }
 }
