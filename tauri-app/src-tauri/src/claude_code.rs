@@ -425,18 +425,33 @@ pub fn create_hook(event: &str, matcher: &str, commands: &[String]) -> AppResult
     save_settings(&settings)
 }
 
-/// Delete a rule from both stores (a stale sidecar copy can shadow a settings.json rule).
-pub fn delete_hook(event: &str, matcher: &str) -> AppResult<()> {
-    let mut settings = load_settings()?;
-    let mut disabled = load_disabled_hooks()?;
+/// Remove `event/matcher` from both stores. Returns (removed_from_settings,
+/// removed_from_sidecar). A non-object `hooks` value in settings is treated
+/// as "nothing there".
+fn remove_rule_everywhere(
+    settings: &mut Map<String, Value>,
+    disabled: &mut Map<String, Value>,
+    event: &str,
+    matcher: &str,
+) -> (bool, bool) {
     let removed_enabled = match settings.get_mut("hooks") {
         Some(Value::Object(hooks)) => take_rule(hooks, event, matcher).is_some(),
         _ => false,
     };
-    let removed_disabled = take_rule(&mut disabled, event, matcher).is_some();
+    let removed_disabled = take_rule(disabled, event, matcher).is_some();
+    (removed_enabled, removed_disabled)
+}
+
+/// Delete a rule from both stores (a stale sidecar copy can shadow a settings.json rule).
+pub fn delete_hook(event: &str, matcher: &str) -> AppResult<()> {
+    let mut settings = load_settings()?;
+    let mut disabled = load_disabled_hooks()?;
+    let (removed_enabled, removed_disabled) =
+        remove_rule_everywhere(&mut settings, &mut disabled, event, matcher);
     if !removed_enabled && !removed_disabled {
         return Err(anyhow!("no hook rule matched {event}/{matcher}").into());
     }
+    // Settings first: even if the sidecar write then fails, the hook has stopped firing, which is what the user asked for. A leftover sidecar copy just shows up as disabled and can be deleted again.
     if removed_enabled {
         save_settings(&settings)?;
     }
@@ -454,12 +469,21 @@ pub fn update_hook_rule(event: &str, matcher: &str, new_json: &str) -> AppResult
         return Err(anyhow!("hook rule must be a JSON object").into());
     }
     let mut settings = load_settings()?;
-    if let Some(Value::Object(hooks)) = settings.get_mut("hooks") {
-        if replace_rule(hooks, event, matcher, new_rule.clone()) {
-            return save_settings(&settings);
-        }
-    }
     let mut disabled = load_disabled_hooks()?;
+    let in_settings = match settings.get_mut("hooks") {
+        Some(Value::Object(hooks)) => replace_rule(hooks, event, matcher, new_rule.clone()),
+        _ => false,
+    };
+    if in_settings {
+        // The enabled copy is canonical; a stale sidecar copy would
+        // resurface as "disabled" after the enabled one is deleted.
+        let stale = take_rule(&mut disabled, event, matcher).is_some();
+        save_settings(&settings)?;
+        if stale {
+            save_disabled_hooks(&disabled)?;
+        }
+        return Ok(());
+    }
     if replace_rule(&mut disabled, event, matcher, new_rule) {
         return save_disabled_hooks(&disabled);
     }
@@ -1155,6 +1179,24 @@ mod tests {
         assert_eq!(arr[1]["matcher"], "B");
         assert_eq!(arr[1]["hooks"][0]["command"], "x");
         assert!(!replace_rule(&mut hooks, "PreToolUse", "Z", json!({})));
+    }
+
+    #[test]
+    fn remove_rule_everywhere_clears_both_stores() {
+        let mut settings = hooks_obj(json!({ "hooks": { "Stop": [ { "matcher": "*", "hooks": [] } ] } }));
+        let mut disabled = hooks_obj(json!({ "Stop": [ { "matcher": "*", "hooks": [] } ] }));
+        assert_eq!(remove_rule_everywhere(&mut settings, &mut disabled, "Stop", "*"), (true, true));
+        assert!(settings["hooks"].as_object().unwrap().get("Stop").is_none());
+        assert!(disabled.get("Stop").is_none());
+        assert_eq!(remove_rule_everywhere(&mut settings, &mut disabled, "Stop", "*"), (false, false));
+    }
+
+    #[test]
+    fn remove_rule_everywhere_tolerates_non_object_hooks() {
+        let mut settings = hooks_obj(json!({ "hooks": "oops" }));
+        let mut disabled = hooks_obj(json!({ "Stop": [ { "matcher": "*", "hooks": [] } ] }));
+        assert_eq!(remove_rule_everywhere(&mut settings, &mut disabled, "Stop", "*"), (false, true));
+        assert_eq!(settings["hooks"], "oops");
     }
 
     #[test]
