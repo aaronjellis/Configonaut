@@ -364,9 +364,10 @@ export const apiInspectInstall = (serverId: string) =>
   invoke<InstallSchema>("inspect_install", { serverId });
 
 export const apiInstallServer = (
+  mode: AppMode,
   serverId: string,
   fieldValues: Record<string, unknown>,
-) => invoke<void>("install_server", { serverId, fieldValues });
+) => invoke<string>("install_server", { mode, serverId, fieldValues });
 
 export function onInstallProgress(
   handler: (p: InstallProgress) => void,

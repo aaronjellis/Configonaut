@@ -791,20 +791,41 @@ pub fn install_from_catalog(
         .filter(|n| !n.is_empty())
         .unwrap_or_else(|| server.id.clone());
 
-    let unique_name = resolve_unique_name(mode, &base_name)?;
+    let config_map = custom_config.unwrap_or_else(|| server.config.to_config_dict());
 
-    let mut config_map = custom_config.unwrap_or_else(|| server.config.to_config_dict());
-    adapt_config_for_windows(&mut config_map);
-    crate::installer::inject_managed_node_path(&mut config_map);
-    let entries = vec![(unique_name.clone(), Value::Object(config_map))];
+    finalize_install(mode, &base_name, config_map, &server.id, target)
+}
 
+/// Shared tail of both install paths: PATH injection for the managed Node,
+/// sidecar `uv` substitution for `uvx`, Windows shim wrapping, unique
+/// naming, the config write, and the catalog link. Order matters —
+/// `inject_managed_node_path` and `inject_sidecar_uv` must both see the
+/// original `npx`/`node`/`uvx` command before `adapt_config_for_windows`
+/// wraps it in `cmd /c` (an absolute uv path is left alone by the wrap,
+/// since it only matches the bare command names).
+pub(crate) fn finalize_install(
+    mode: AppMode,
+    base_name: &str,
+    mut config: Map<String, Value>,
+    catalog_id: &str,
+    target: ServerSource,
+) -> AppResult<String> {
+    crate::installer::inject_managed_node_path(&mut config);
+    crate::installer::inject_sidecar_uv(&mut config);
+    adapt_config_for_windows(&mut config);
+    let name = resolve_unique_name(mode, base_name)?;
+    let entries = vec![(name.clone(), Value::Object(config))];
     match target {
         ServerSource::Active => config::add_to_active(mode, entries)?,
         ServerSource::Stored => config::add_to_stored(mode, entries)?,
     }
-
-    record_catalog_link(mode, &unique_name, &server.id)?;
-    Ok(unique_name)
+    // The link only drives the "Installed" badge and secret checks; the
+    // server is already written, so a failure here must not read as a
+    // failed install (a retry would create a duplicate `<name>-2`).
+    if let Err(e) = record_catalog_link(mode, &name, catalog_id) {
+        eprintln!("installed {name} but could not record catalog link: {e}");
+    }
+    Ok(name)
 }
 
 /// On Windows, `npx`, `uvx`, and `python` are installed as `.cmd` batch
@@ -821,7 +842,7 @@ fn adapt_config_for_windows(config: &mut Map<String, Value>) {
 
 /// Inner implementation, always applied — split out so tests can exercise
 /// it on any platform.
-fn do_adapt_config_for_windows(config: &mut Map<String, Value>) {
+pub(crate) fn do_adapt_config_for_windows(config: &mut Map<String, Value>) {
     const NEEDS_WRAP: &[&str] = &["npx", "uvx", "python", "python3", "pip", "pip3"];
 
     let Some(Value::String(cmd)) = config.get("command") else { return };

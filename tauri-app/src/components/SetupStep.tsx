@@ -7,23 +7,27 @@ import {
 import {
   initialSetupState, installEnabled, setupReducer, validateFields,
 } from "../lib/setupStepReducer";
-import type { RuntimeInstallProgress, RuntimeName } from "../types";
+import type { AppMode, RuntimeInstallProgress, RuntimeName } from "../types";
 import { ConfigField } from "./ConfigField";
 import { InstallProgress } from "./InstallProgress";
 import { PrerequisiteRow } from "./PrerequisiteRow";
 
 interface Props {
+  mode: AppMode;
   serverId: string;
-  onDone: () => void;
+  /// Receives the name the server was installed under (may differ from
+  /// serverId when a collision was resolved with a -2 / -3 suffix).
+  onDone: (installedName: string) => void;
   onCancel: () => void;
 }
 
-export function SetupStep({ serverId, onDone, onCancel }: Props) {
+export function SetupStep({ mode, serverId, onDone, onCancel }: Props) {
   const [state, dispatch] = useReducer(setupReducer, initialSetupState);
   const [runtimeProgress, setRuntimeProgress] = useState<Record<RuntimeName, RuntimeInstallProgress | null>>({
     node: null, uv: null, docker: null,
   });
   const downloadingRef = useRef(false);
+  const lastErrorCanRetryRef = useRef<boolean | null>(null);
 
   const handleCheck = useCallback(async (runtime: RuntimeName) => {
     const status = await apiCheckRuntime(runtime);
@@ -47,6 +51,7 @@ export function SetupStep({ serverId, onDone, onCancel }: Props) {
     let cancelled = false;
     onInstallProgress((p) => {
       if (p.kind === "log") dispatch({ type: "installLog", line: p.line });
+      if (p.kind === "error") lastErrorCanRetryRef.current = p.canRetry;
     }).then((fn) => {
       if (cancelled) fn();
       else unlisten = fn;
@@ -92,14 +97,19 @@ export function SetupStep({ serverId, onDone, onCancel }: Props) {
 
   const handleInstall = async () => {
     dispatch({ type: "installStarted" });
+    lastErrorCanRetryRef.current = null;
     try {
-      await apiInstallServer(serverId, state.fieldValues);
-      dispatch({ type: "installDone" });
+      const name = await apiInstallServer(mode, serverId, state.fieldValues);
+      dispatch({ type: "installDone", installedName: name });
       if (!state.schema?.postInstallNotes?.length) {
-        onDone();
+        onDone(name);
       }
     } catch (err) {
-      dispatch({ type: "installError", message: String(err), canRetry: true });
+      dispatch({
+        type: "installError",
+        message: String(err),
+        canRetry: lastErrorCanRetryRef.current ?? true,
+      });
     }
   };
 
@@ -131,7 +141,7 @@ export function SetupStep({ serverId, onDone, onCancel }: Props) {
           </ol>
         </div>
         <div className="setup-actions">
-          <button className="primary" onClick={onDone}>Done</button>
+          <button className="primary" onClick={() => onDone(state.installedName ?? serverId)}>Done</button>
         </div>
       </div>
     );

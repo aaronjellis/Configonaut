@@ -40,6 +40,7 @@ pub enum InstallErrorKind {
     Network,
     DockerDaemonDown,
     DiskFull,
+    RestrictedEnv,
     Interrupted,
     Generic(i32),
 }
@@ -61,6 +62,9 @@ pub fn classify_install_error(stderr: &str, exit_code: i32) -> InstallErrorKind 
     if s.contains("no space left on device") {
         return InstallErrorKind::DiskFull;
     }
+    if s.contains("failed to replace env in config") {
+        return InstallErrorKind::RestrictedEnv;
+    }
     if exit_code == 130 || s.contains("interrupted") || s.contains("signal") {
         return InstallErrorKind::Interrupted;
     }
@@ -73,6 +77,7 @@ impl InstallErrorKind {
             Self::Network => "Couldn't reach the registry. Check your connection and retry.".into(),
             Self::DockerDaemonDown => "Docker is installed but the daemon isn't running. Start Docker Desktop and retry.".into(),
             Self::DiskFull => "Out of disk space during install.".into(),
+            Self::RestrictedEnv => "npm's config references an environment variable (for example an auth token in .npmrc) that Configonaut does not pass to install steps. Run the server's install manually once, or remove the variable reference from .npmrc.".into(),
             Self::Interrupted => "Install was interrupted.".into(),
             Self::Generic(code) => format!("Install failed (exit code {code}). See log below."),
         }
@@ -183,19 +188,19 @@ pub fn managed_node_bin_dir() -> Option<PathBuf> {
 const RUNTIME_INSTALL_EVENT: &str = "runtime-install-progress";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "kind", rename_all = "camelCase")]
+#[serde(tag = "kind", rename_all = "camelCase", rename_all_fields = "camelCase")]
 pub enum RuntimeInstallProgress {
     Downloading { percent: f64, downloaded_bytes: u64, total_bytes: u64 },
+    VerifyingDownload,
     Extracting,
     Verifying,
     Done { version: String },
     Error { message: String },
 }
 
-fn node_download_url(version: &str) -> String {
-    // Always use .tar.gz — Windows bsdtar doesn't support
-    // --strip-components on .zip archives, and Node publishes
-    // .tar.gz for all platforms including Windows.
+fn node_archive_name(version: &str) -> String {
+    // Always .tar.gz — Windows bsdtar doesn't support --strip-components on
+    // .zip archives, and Node publishes .tar.gz for all platforms.
     let os = if cfg!(target_os = "macos") {
         "darwin"
     } else if cfg!(target_os = "windows") {
@@ -204,7 +209,52 @@ fn node_download_url(version: &str) -> String {
         "linux"
     };
     let arch = if cfg!(target_arch = "aarch64") { "arm64" } else { "x64" };
-    format!("https://nodejs.org/dist/{version}/node-{version}-{os}-{arch}.tar.gz")
+    format!("node-{version}-{os}-{arch}.tar.gz")
+}
+
+fn node_download_url(version: &str) -> String {
+    format!("https://nodejs.org/dist/{version}/{}", node_archive_name(version))
+}
+
+/// Pull the sha256 for `filename` out of a SHASUMS256.txt body.
+pub(crate) fn find_sha_for_file(shasums: &str, filename: &str) -> Option<String> {
+    shasums.lines().find_map(|line| {
+        let mut parts = line.split_whitespace();
+        let hash = parts.next()?;
+        let name = parts.next()?.trim_start_matches('*');
+        let is_sha256 = hash.len() == 64 && hash.chars().all(|c| c.is_ascii_hexdigit());
+        (name == filename && is_sha256).then(|| hash.to_ascii_lowercase())
+    })
+}
+
+async fn fetch_expected_sha256(
+    client: &reqwest::Client,
+    version: &str,
+    filename: &str,
+) -> Result<String, String> {
+    let url = format!("https://nodejs.org/dist/{version}/SHASUMS256.txt");
+    let resp = client
+        .get(&url)
+        .send()
+        .await
+        .map_err(|e| format!("Failed to fetch checksums: {e}"))?;
+    if !resp.status().is_success() {
+        return Err(format!("nodejs.org returned HTTP {} for SHASUMS256.txt", resp.status()));
+    }
+    let body = resp
+        .text()
+        .await
+        .map_err(|e| format!("Failed to read checksums: {e}"))?;
+    find_sha_for_file(&body, filename)
+        .ok_or_else(|| format!("No checksum listed for {filename}"))
+}
+
+fn sha256_of_file(path: &std::path::Path) -> Result<String, String> {
+    use sha2::{Digest, Sha256};
+    let mut file = std::fs::File::open(path).map_err(|e| format!("open archive: {e}"))?;
+    let mut hasher = Sha256::new();
+    std::io::copy(&mut file, &mut hasher).map_err(|e| format!("hash archive: {e}"))?;
+    Ok(format!("{:x}", hasher.finalize()))
 }
 
 #[derive(Debug, Deserialize)]
@@ -262,7 +312,13 @@ pub async fn download_node(app: AppHandle) -> Result<(), String> {
         percent: 0.0, downloaded_bytes: 0, total_bytes: 0,
     });
 
-    let version = fetch_latest_lts_version().await?;
+    let version = match fetch_latest_lts_version().await {
+        Ok(v) => v,
+        Err(msg) => {
+            emit(RuntimeInstallProgress::Error { message: msg.clone() });
+            return Err(msg);
+        }
+    };
     let url = node_download_url(&version);
 
     let client = reqwest::Client::builder()
@@ -333,6 +389,53 @@ pub async fn download_node(app: AppHandle) -> Result<(), String> {
     }
     drop(file);
 
+    // Verify the archive against nodejs.org's SHASUMS256.txt before extracting.
+    // The checksum comes from the same host over the same TLS trust path, so
+    // this catches a corrupted/truncated transfer or a swapped artifact at a
+    // CDN edge — it is not a defence against a compromised nodejs.org.
+    // Signature verification (SHASUMS256.txt.sig) would be needed for that.
+    emit(RuntimeInstallProgress::VerifyingDownload);
+    let archive_name = node_archive_name(&version);
+    let mut expected = Err(String::from("checksum fetch not attempted"));
+    for attempt in 1..=3u32 {
+        expected = fetch_expected_sha256(&client, &version, &archive_name).await;
+        if expected.is_ok() {
+            break;
+        }
+        if attempt < 3 {
+            tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+        }
+    }
+    let expected = match expected {
+        Ok(h) => h,
+        Err(msg) => {
+            emit(RuntimeInstallProgress::Error { message: msg.clone() });
+            let _ = std::fs::remove_file(&archive_path);
+            return Err(msg);
+        }
+    };
+    let hash_path = archive_path.clone();
+    let hashed = tokio::task::spawn_blocking(move || sha256_of_file(&hash_path))
+        .await
+        .unwrap_or_else(|e| Err(format!("hash task panicked: {e}")));
+    let actual = match hashed {
+        Ok(h) => h,
+        Err(msg) => {
+            emit(RuntimeInstallProgress::Error { message: msg.clone() });
+            let _ = std::fs::remove_file(&archive_path);
+            return Err(msg);
+        }
+    };
+    if actual != expected {
+        eprintln!("node download checksum mismatch: expected {expected} got {actual}");
+        let msg = format!(
+            "Checksum mismatch for {archive_name} — the download was discarded and not installed."
+        );
+        emit(RuntimeInstallProgress::Error { message: msg.clone() });
+        let _ = std::fs::remove_file(&archive_path);
+        return Err(msg);
+    }
+
     // Extract the archive.
     emit(RuntimeInstallProgress::Extracting);
 
@@ -378,7 +481,6 @@ pub async fn download_node(app: AppHandle) -> Result<(), String> {
 
     // Verify the install by running `node -v`.
     emit(RuntimeInstallProgress::Verifying);
-
     let node_bin = managed_node_bin().ok_or_else(|| {
         let msg = "Node binary not found after extraction".to_string();
         emit(RuntimeInstallProgress::Error { message: msg.clone() });
@@ -459,7 +561,7 @@ pub fn render_config_block(
     cfg: &CatalogConfig,
     schema: &[ConfigField],
     values: &BTreeMap<String, Value>,
-) -> Result<Value, String> {
+) -> Result<Map<String, Value>, String> {
     for f in schema {
         if f.required && !values.contains_key(&f.name) {
             return Err(format!("Missing required field: {}", f.name));
@@ -519,7 +621,7 @@ pub fn render_config_block(
         out.insert("headers".into(), Value::Object(headers.clone()));
     }
 
-    Ok(Value::Object(out))
+    Ok(out)
 }
 
 fn schema_field_for_marker<'a>(s: &str, schema: &'a [ConfigField]) -> Option<&'a ConfigField> {
@@ -615,7 +717,7 @@ pub fn build_inspect_schema(server: &CatalogServer) -> InstallSchema {
 
 #[tauri::command]
 pub async fn inspect_install(server_id: String) -> Result<InstallSchema, String> {
-    let catalog = crate::catalog::bootstrap_catalog()
+    let (catalog, _) = crate::catalog::bootstrap_catalog_with_feeds()
         .map_err(|e| format!("Failed to read catalog: {e}"))?;
     let server = catalog.servers.iter().find(|s| s.id == server_id)
         .ok_or_else(|| format!("Server '{server_id}' not found in catalog."))?;
@@ -626,17 +728,101 @@ pub async fn inspect_install(server_id: String) -> Result<InstallSchema, String>
 // install_server — runs install steps, streams progress events, writes config
 // ---------------------------------------------------------------------------
 
-pub fn warmup_command_for(step: &InstallStep) -> (&'static str, Vec<String>) {
+/// Whether `program` resolves on the system PATH (via `which` / `where`).
+fn system_has(program: &str) -> bool {
+    let probe = if cfg!(target_os = "windows") { "where" } else { "which" };
+    Command::new(probe)
+        .arg(program)
+        .output()
+        .map(|o| o.status.success() && !o.stdout.is_empty())
+        .unwrap_or(false)
+}
+
+pub fn warmup_command_for(step: &InstallStep) -> (String, Vec<String>) {
     match step {
         InstallStep::NpmWarmup { package } => {
-            ("npx", vec!["-y".into(), package.clone(), "--help".into()])
+            // Windows `Command` only appends `.exe` when searching PATH, and
+            // npx ships as `npx.cmd`; spawning the `.cmd` by name directly
+            // lets Rust apply its batch-file argument escaping (the
+            // CVE-2024-24576 fix), whereas wrapping in `cmd /c` would
+            // require rejecting shell metacharacters too.
+            let program = if cfg!(target_os = "windows") { "npx.cmd" } else { "npx" };
+            (program.to_string(), vec!["-y".into(), package.clone(), "--help".into()])
         }
         InstallStep::UvxWarmup { package } => {
-            ("uvx", vec![package.clone(), "--help".into()])
+            // `check_runtime(Uv)` reports the bundled sidecar as installed,
+            // so the warmup must be able to run without a system uv too —
+            // otherwise the prerequisite check and the actual install
+            // disagree. Prefer a system `uvx` when present (it may be a
+            // different/newer uv than the bundled one); otherwise fall back
+            // to the bundled uv via `uv tool run`, which is what `uvx`
+            // aliases. If neither is available, keep `("uvx", ...)` so the
+            // resulting ENOENT surfaces a clear error.
+            if system_has("uvx") {
+                ("uvx".to_string(), vec![package.clone(), "--help".into()])
+            } else if let Some(uv_path) = sidecar::uv_binary_path() {
+                (
+                    uv_path.to_string_lossy().to_string(),
+                    vec!["tool".into(), "run".into(), package.clone(), "--help".into()],
+                )
+            } else {
+                ("uvx".to_string(), vec![package.clone(), "--help".into()])
+            }
         }
-        InstallStep::DockerPull { image } => ("docker", vec!["pull".into(), image.clone()]),
-        InstallStep::None | InstallStep::Unknown => ("true", vec![]),
+        InstallStep::DockerPull { image } => ("docker".to_string(), vec!["pull".into(), image.clone()]),
+        InstallStep::None | InstallStep::Unknown => ("true".to_string(), vec![]),
     }
+}
+
+/// Environment keys forwarded to warmup children. Everything else (cloud
+/// credentials, tokens exported in the user's shell) stays out of a process
+/// that runs code chosen by a catalog feed. This is defence in depth against
+/// shell-exported secrets, not a sandbox: the child still runs as the user.
+/// On Windows env keys are case-insensitive, so one spelling per key suffices.
+pub(crate) const WARMUP_ENV_PASSTHROUGH: &[&str] = &[
+    // Core
+    "PATH", "HOME", "LOGNAME", "USER", "LANG", "LC_CTYPE", "TMPDIR", "TEMP", "TMP",
+    // SSH (git+ssh dependencies resolved during install)
+    "SSH_AUTH_SOCK",
+    // Windows
+    "USERPROFILE", "USERNAME", "HOMEDRIVE", "HOMEPATH", "APPDATA", "LOCALAPPDATA",
+    "ProgramData", "ProgramFiles", "SystemRoot", "SystemDrive", "windir",
+    "ComSpec", "PATHEXT",
+    // Linux XDG dirs (uv honors these)
+    "XDG_CACHE_HOME", "XDG_CONFIG_HOME", "XDG_DATA_HOME",
+    // Docker: DOCKER_HOST is useless without its context/TLS companions
+    "DOCKER_HOST", "DOCKER_CONTEXT", "DOCKER_CONFIG", "DOCKER_TLS_VERIFY", "DOCKER_CERT_PATH",
+    // Proxies and corporate CAs
+    "HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "http_proxy", "https_proxy", "no_proxy",
+    "SSL_CERT_FILE", "SSL_CLIENT_CERT", "NODE_EXTRA_CA_CERTS", "UV_NATIVE_TLS",
+    // Tool caches / registries (non-secret)
+    "UV_CACHE_DIR", "UV_TOOL_DIR", "UV_PYTHON_INSTALL_DIR", "UV_HTTP_TIMEOUT",
+    "npm_config_cache", "npm_config_registry", "NPM_CONFIG_REGISTRY",
+];
+
+pub(crate) fn warmup_env() -> Vec<(String, std::ffi::OsString)> {
+    WARMUP_ENV_PASSTHROUGH
+        .iter()
+        .filter_map(|k| std::env::var_os(k).map(|v| (k.to_string(), v)))
+        .collect()
+}
+
+/// A package or image name must never be able to act as a flag to npx /
+/// uvx / docker, and must be a single plain token (it is echoed into UI
+/// log lines).
+pub(crate) fn validate_install_step(step: &InstallStep) -> Result<(), String> {
+    let (what, target) = match step {
+        InstallStep::NpmWarmup { package } | InstallStep::UvxWarmup { package } => ("package", package),
+        InstallStep::DockerPull { image } => ("image", image),
+        InstallStep::None | InstallStep::Unknown => return Ok(()),
+    };
+    let t = target.trim();
+    if t.is_empty() || t.starts_with('-') || t.chars().any(|c| c.is_whitespace() || c.is_control()) {
+        return Err(format!(
+            "This server's install step was rejected: the {what} name {target:?} looks like a command-line flag or contains whitespace. The catalog feed may be untrustworthy."
+        ));
+    }
+    Ok(())
 }
 
 fn label_for(step: &InstallStep) -> String {
@@ -650,7 +836,7 @@ fn label_for(step: &InstallStep) -> String {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "kind", rename_all = "camelCase")]
+#[serde(tag = "kind", rename_all = "camelCase", rename_all_fields = "camelCase")]
 pub enum InstallProgress {
     Step { step: String, label: String },
     Log { line: String },
@@ -669,14 +855,7 @@ pub fn inject_managed_node_path(config: &mut Map<String, Value>) {
     }
 
     // Only inject if there's no system node and we have a managed install.
-    let probe = if cfg!(target_os = "windows") { "where" } else { "which" };
-    let has_system = Command::new(probe)
-        .arg("node")
-        .output()
-        .map(|o| o.status.success() && !o.stdout.is_empty())
-        .unwrap_or(false);
-
-    if has_system {
+    if system_has("node") {
         return;
     }
 
@@ -685,11 +864,45 @@ pub fn inject_managed_node_path(config: &mut Map<String, Value>) {
     do_inject_node_path(config, &bin_dir.to_string_lossy(), &current_path);
 }
 
+/// If the server uses `uvx` as its command and no system `uvx` is on PATH,
+/// point the written config at the bundled uv sidecar via `uv tool run`
+/// instead. Without this, a server installed successfully (because the
+/// warmup ran against the bundled uv) would still fail for Claude, which
+/// spawns the raw command from the config and has no PATH fallback.
+pub fn inject_sidecar_uv(config: &mut Map<String, Value>) {
+    let is_uvx = matches!(config.get("command"), Some(Value::String(c)) if c == "uvx");
+    if !is_uvx || system_has("uvx") {
+        return;
+    }
+    let Some(uv_path) = sidecar::uv_binary_path() else { return };
+    do_inject_sidecar_uv(config, &uv_path.to_string_lossy());
+}
+
+/// Inner implementation, split out so tests can exercise it without
+/// filesystem or system-PATH side effects.
+fn do_inject_sidecar_uv(config: &mut Map<String, Value>, uv_path: &str) {
+    let mut new_args = vec![Value::String("tool".into()), Value::String("run".into())];
+    if let Some(Value::Array(existing)) = config.get("args") {
+        new_args.extend(existing.iter().cloned());
+    }
+    config.insert("command".into(), Value::String(uv_path.to_string()));
+    config.insert("args".into(), Value::Array(new_args));
+}
+
 fn config_needs_node(config: &Map<String, Value>) -> bool {
     match config.get("command") {
-        Some(Value::String(cmd)) => {
-            matches!(cmd.as_str(), "npx" | "node" | "npx.cmd" | "node.exe")
-        }
+        Some(Value::String(cmd)) if matches!(cmd.as_str(), "npx" | "node" | "npx.cmd" | "node.exe") => true,
+        // Defense in depth: see through a `cmd /c <program> ...` wrapper
+        // (what adapt_config_for_windows produces) in case this ever runs
+        // after the Windows adapter instead of before it.
+        Some(Value::String(cmd)) if cmd == "cmd" => match config.get("args") {
+            Some(Value::Array(args)) => args
+                .get(1)
+                .and_then(Value::as_str)
+                .map(|inner| matches!(inner, "npx" | "node" | "npx.cmd" | "node.exe"))
+                .unwrap_or(false),
+            _ => false,
+        },
         _ => false,
     }
 }
@@ -723,14 +936,28 @@ fn do_inject_node_path(config: &mut Map<String, Value>, bin_dir: &str, current_p
 #[tauri::command]
 pub async fn install_server(
     app: tauri::AppHandle,
+    mode: crate::models::AppMode,
     server_id: String,
     field_values: BTreeMap<String, Value>,
-) -> Result<(), String> {
-    let catalog = crate::catalog::bootstrap_catalog()
+) -> Result<String, String> {
+    let (catalog, _) = crate::catalog::bootstrap_catalog_with_feeds()
         .map_err(|e| format!("Failed to read catalog: {e}"))?;
     let server = catalog.servers.iter().find(|s| s.id == server_id)
         .ok_or_else(|| format!("Server '{server_id}' not found in catalog."))?
         .clone();
+
+    // Refuse the whole install up front: validating inside the loop would
+    // let earlier (valid-looking) steps run before a hostile one is caught.
+    for step in &server.install {
+        if let Err(msg) = validate_install_step(step) {
+            app.emit(PROGRESS_EVENT, InstallProgress::Error {
+                step: "check".into(),
+                message: msg.clone(),
+                can_retry: false,
+            }).ok();
+            return Err(msg);
+        }
+    }
 
     app.emit(PROGRESS_EVENT, InstallProgress::Step {
         step: "configure".into(),
@@ -751,15 +978,20 @@ pub async fn install_server(
             continue;
         }
 
-        let mut command = TokioCommand::new(program);
-        command.args(&args).stdout(Stdio::piped()).stderr(Stdio::piped());
+        let mut command = TokioCommand::new(&program);
+        command
+            .args(&args)
+            .env_clear()
+            .envs(warmup_env())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
 
         // npx is the only program we manage ourselves — if the user just
         // installed Node via the in-app downloader, the managed bin dir
         // is NOT on the Tauri process's inherited PATH, so a bare
         // `TokioCommand::new("npx")` would ENOENT. Mirror the same path
         // injection inject_managed_node_path does for server configs.
-        if program == "npx" || program == "node" {
+        if matches!(program.as_str(), "npx" | "npx.cmd" | "node") {
             if let Some(bin_dir) = managed_node_bin_dir() {
                 let sep = if cfg!(target_os = "windows") { ";" } else { ":" };
                 let current_path = std::env::var("PATH").unwrap_or_default();
@@ -821,27 +1053,30 @@ pub async fn install_server(
         }
     }
 
-    // Write to Claude config using existing config API.
+    // Write to Claude config — now literally shares finalize_install with
+    // install_from_catalog, instead of just following the same path.
     app.emit(PROGRESS_EVENT, InstallProgress::Step {
         step: "configure".into(),
         label: "Writing configuration".into(),
     }).ok();
 
-    let mut rendered = rendered;
-    if let Value::Object(ref mut map) = rendered {
-        inject_managed_node_path(map);
-    }
-
-    use crate::models::AppMode;
-    crate::config::add_to_active(AppMode::Desktop, vec![(server.id.clone(), rendered)])
-        .map_err(|e| e.to_string())?;
+    // Always active: render_config_block already rejects missing required
+    // fields, so there is nothing left to park as "stored" here.
+    let name = crate::catalog::finalize_install(
+        mode,
+        &server.id,
+        rendered,
+        &server.id,
+        crate::models::ServerSource::Active,
+    )
+    .map_err(|e| e.to_string())?;
 
     app.emit(PROGRESS_EVENT, InstallProgress::Step {
         step: "done".into(),
         label: "Done".into(),
     }).ok();
 
-    Ok(())
+    Ok(name)
 }
 
 #[cfg(test)]
@@ -864,6 +1099,12 @@ mod tests {
     fn classify_disk_full() {
         let kind = classify_install_error("write: No space left on device", 28);
         assert_eq!(kind, InstallErrorKind::DiskFull);
+    }
+
+    #[test]
+    fn classify_restricted_env() {
+        let kind = classify_install_error("npm error Failed to replace env in config: ${AUTH_TOKEN}", 1);
+        assert_eq!(kind, InstallErrorKind::RestrictedEnv);
     }
 
     #[test]
@@ -891,6 +1132,7 @@ mod tests {
             InstallErrorKind::Network,
             InstallErrorKind::DockerDaemonDown,
             InstallErrorKind::DiskFull,
+            InstallErrorKind::RestrictedEnv,
             InstallErrorKind::Interrupted,
             InstallErrorKind::Generic(7),
         ] {
@@ -1033,7 +1275,7 @@ mod tests {
         let (program, args) = warmup_command_for(&InstallStep::NpmWarmup {
             package: "@scope/foo".into(),
         });
-        assert_eq!(program, "npx");
+        assert!(program == "npx" || program == "npx.cmd");
         assert_eq!(args, vec!["-y", "@scope/foo", "--help"]);
     }
 
@@ -1042,8 +1284,12 @@ mod tests {
         let (program, args) = warmup_command_for(&InstallStep::UvxWarmup {
             package: "mcp-server-foo".into(),
         });
-        assert_eq!(program, "uvx");
-        assert_eq!(args, vec!["mcp-server-foo", "--help"]);
+        // Either a system `uvx` or the bundled uv binary (invoked as
+        // `uv tool run`), depending on what's on PATH / bundled in this
+        // test environment.
+        assert!(program == "uvx" || program.ends_with("uv") || program.ends_with("uv.exe"));
+        assert!(args.contains(&"mcp-server-foo".to_string()));
+        assert!(args.contains(&"--help".to_string()));
     }
 
     #[test]
@@ -1110,6 +1356,55 @@ mod tests {
         assert!(url.starts_with("https://nodejs.org/dist/v22.13.1/node-v22.13.1-"));
         assert!(url.ends_with(".tar.gz"));
         assert!(url.contains("-x64.") || url.contains("-arm64."));
+    }
+
+    #[test]
+    fn find_sha_for_file_picks_exact_filename() {
+        let hex = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+        let non_hex = "g".repeat(64);
+        let shasums = format!(
+            "aaaa  node-v22.13.1-darwin-arm64.tar.gz\n\
+             bbbb  node-v22.13.1-darwin-arm64.tar.xz\n\
+             {hex}  node-v22.13.1-linux-x64.tar.gz\n\
+             {non_hex}  node-v22.13.1-bad-hash.tar.gz\n"
+        );
+        assert_eq!(
+            find_sha_for_file(&shasums, "node-v22.13.1-linux-x64.tar.gz").as_deref(),
+            Some(hex)
+        );
+        // A 4-char "hash" is not a sha256 and must be rejected.
+        assert!(find_sha_for_file(&shasums, "node-v22.13.1-darwin-arm64.tar.gz").is_none());
+        assert!(find_sha_for_file(&shasums, "missing.tar.gz").is_none());
+        // A 64-char non-hex token is not a sha256 and must be rejected too.
+        assert!(find_sha_for_file(&shasums, "node-v22.13.1-bad-hash.tar.gz").is_none());
+    }
+
+    #[test]
+    fn find_sha_for_file_handles_crlf_uppercase_and_star_prefix() {
+        let hash = "0123456789ABCDEF0123456789abcdef0123456789abcdef0123456789abcdef";
+        let shasums = format!("{hash}  node-v22.13.1-linux-x64.tar.gz\r\n");
+        assert_eq!(
+            find_sha_for_file(&shasums, "node-v22.13.1-linux-x64.tar.gz").as_deref(),
+            Some(hash.to_ascii_lowercase().as_str())
+        );
+        let starred = format!("{hash} *node-v22.13.1-linux-x64.tar.gz\n");
+        assert!(find_sha_for_file(&starred, "node-v22.13.1-linux-x64.tar.gz").is_some());
+    }
+
+    #[test]
+    fn sha256_of_file_matches_known_digest() {
+        let path = std::env::temp_dir().join(format!("configonaut-sha256-test-{}.bin", std::process::id()));
+        std::fs::write(&path, b"abc").unwrap();
+        let got = sha256_of_file(&path).unwrap();
+        let _ = std::fs::remove_file(&path);
+        assert_eq!(got, "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
+    }
+
+    #[test]
+    fn node_archive_name_matches_download_url() {
+        let name = node_archive_name("v22.13.1");
+        assert!(node_download_url("v22.13.1").ends_with(&name));
+        assert!(name.ends_with(".tar.gz"));
     }
 
     #[test]
@@ -1230,6 +1525,29 @@ mod tests {
     }
 
     #[test]
+    fn config_needs_node_sees_through_cmd_wrapper() {
+        let mut config = Map::new();
+        config.insert("command".into(), json!("cmd"));
+        config.insert("args".into(), json!(["/c", "npx", "-y", "pkg"]));
+        assert!(config_needs_node(&config));
+        config.insert("args".into(), json!(["/c", "docker", "run"]));
+        assert!(!config_needs_node(&config));
+    }
+
+    #[test]
+    fn windows_adapt_after_inject_keeps_env_path() {
+        // The composed order finalize_install uses: inject, then wrap.
+        let mut config = Map::new();
+        config.insert("command".into(), json!("npx"));
+        config.insert("args".into(), json!(["-y", "pkg"]));
+        do_inject_node_path(&mut config, "/managed/bin", "/usr/bin");
+        crate::catalog::do_adapt_config_for_windows(&mut config);
+        assert_eq!(config["command"], "cmd");
+        assert_eq!(config["args"][1], "npx");
+        assert!(config["env"]["PATH"].as_str().unwrap().starts_with("/managed/bin"));
+    }
+
+    #[test]
     fn download_guard_resets_flag() {
         // Simulate the guard's drop behavior.
         NODE_DOWNLOAD_IN_PROGRESS.store(true, std::sync::atomic::Ordering::SeqCst);
@@ -1237,5 +1555,55 @@ mod tests {
             let _guard = DownloadGuard;
         }
         assert!(!NODE_DOWNLOAD_IN_PROGRESS.load(std::sync::atomic::Ordering::SeqCst));
+    }
+
+    #[test]
+    fn validate_install_step_rejects_flag_shaped_targets() {
+        assert!(validate_install_step(&InstallStep::NpmWarmup { package: "--registry=https://evil".into() }).is_err());
+        assert!(validate_install_step(&InstallStep::UvxWarmup { package: "".into() }).is_err());
+        assert!(validate_install_step(&InstallStep::DockerPull { image: "-x".into() }).is_err());
+        assert!(validate_install_step(&InstallStep::NpmWarmup { package: "@scope/pkg".into() }).is_ok());
+        assert!(validate_install_step(&InstallStep::None).is_ok());
+        assert!(validate_install_step(&InstallStep::NpmWarmup { package: " -x".into() }).is_err());
+        assert!(validate_install_step(&InstallStep::NpmWarmup { package: "a b".into() }).is_err());
+    }
+
+    #[test]
+    fn warmup_env_only_passes_allowlisted_keys() {
+        let env = warmup_env();
+        assert!(env.iter().all(|(k, _)| WARMUP_ENV_PASSTHROUGH.contains(&k.as_str())));
+        assert!(env.iter().any(|(k, _)| k == "PATH"));
+    }
+
+    #[test]
+    fn progress_events_serialize_camel_case_fields() {
+        let v = serde_json::to_value(RuntimeInstallProgress::Downloading {
+            percent: 1.0, downloaded_bytes: 2, total_bytes: 3,
+        }).unwrap();
+        assert_eq!(v["kind"], "downloading");
+        assert!(v.get("downloadedBytes").is_some());
+        assert!(v.get("totalBytes").is_some());
+        let e = serde_json::to_value(InstallProgress::Error {
+            step: "check".into(), message: "m".into(), can_retry: false,
+        }).unwrap();
+        assert_eq!(e["canRetry"], false);
+    }
+
+    #[test]
+    fn do_inject_sidecar_uv_prepends_tool_run() {
+        let mut config: Map<String, Value> = Map::new();
+        config.insert("command".into(), json!("uvx"));
+        config.insert("args".into(), json!(["mcp-server-foo", "--help"]));
+        do_inject_sidecar_uv(&mut config, "/managed/uv");
+        assert_eq!(config["command"], json!("/managed/uv"));
+        assert_eq!(config["args"], json!(["tool", "run", "mcp-server-foo", "--help"]));
+    }
+
+    #[test]
+    fn inject_sidecar_uv_skips_non_uvx_commands() {
+        let mut config: Map<String, Value> = Map::new();
+        config.insert("command".into(), json!("npx"));
+        inject_sidecar_uv(&mut config);
+        assert_eq!(config["command"], json!("npx"));
     }
 }

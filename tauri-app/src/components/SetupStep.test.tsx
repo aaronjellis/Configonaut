@@ -18,7 +18,7 @@ vi.mock("@tauri-apps/plugin-opener", () => ({
 }));
 
 import {
-  apiInspectInstall, apiCheckRuntime, apiInstallServer,
+  apiInspectInstall, apiCheckRuntime, apiInstallServer, onInstallProgress,
 } from "../api";
 
 const SCHEMA = {
@@ -47,11 +47,11 @@ describe("SetupStep", () => {
     vi.mocked(apiCheckRuntime).mockResolvedValue(
       { installed: false, version: null, source: null } as any,
     );
-    vi.mocked(apiInstallServer).mockResolvedValue(undefined as any);
+    vi.mocked(apiInstallServer).mockResolvedValue("installed-name");
   });
 
   it("loads schema on mount and renders prereq + field rows", async () => {
-    render(<SetupStep serverId="filesystem" onDone={() => {}} onCancel={() => {}} />);
+    render(<SetupStep mode="desktop" serverId="filesystem" onDone={() => {}} onCancel={() => {}} />);
     await waitFor(() => expect(screen.getByText(/needs a few things/i)).toBeInTheDocument());
     expect(screen.getByText("Node.js")).toBeInTheDocument();
     expect(screen.getByText(/Paths/i)).toBeInTheDocument();
@@ -60,7 +60,7 @@ describe("SetupStep", () => {
   it("shows post-install notes after successful install", async () => {
     vi.mocked(apiInspectInstall).mockResolvedValue(SCHEMA_WITH_NOTES as any);
     const onDone = vi.fn();
-    render(<SetupStep serverId="salesforce-dx" onDone={onDone} onCancel={() => {}} />);
+    render(<SetupStep mode="desktop" serverId="salesforce-dx" onDone={onDone} onCancel={() => {}} />);
     await waitFor(() => screen.getByRole("button", { name: /Install Server/i }));
     fireEvent.click(screen.getByRole("button", { name: /Install Server/i }));
     await waitFor(() => screen.getByText(/next steps/i));
@@ -78,17 +78,17 @@ describe("SetupStep", () => {
       postInstallNotes: [],
     } as any);
     const onDone = vi.fn();
-    render(<SetupStep serverId="test" onDone={onDone} onCancel={() => {}} />);
+    render(<SetupStep mode="desktop" serverId="test" onDone={onDone} onCancel={() => {}} />);
     await waitFor(() => screen.getByRole("button", { name: /Install Server/i }));
     fireEvent.click(screen.getByRole("button", { name: /Install Server/i }));
-    await waitFor(() => expect(onDone).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(onDone).toHaveBeenCalledWith("installed-name"));
   });
 
   it("install button disabled until prereqs and fields satisfied", async () => {
     vi.mocked(apiCheckRuntime).mockResolvedValueOnce(
       { installed: true, version: "v20", source: "system" } as any,
     );
-    render(<SetupStep serverId="filesystem" onDone={() => {}} onCancel={() => {}} />);
+    render(<SetupStep mode="desktop" serverId="filesystem" onDone={() => {}} onCancel={() => {}} />);
     await waitFor(() => screen.getByText("Node.js"));
     fireEvent.click(screen.getByRole("button", { name: /Re-check/i }));
     await waitFor(() => screen.getByText(/v20/));
@@ -98,5 +98,40 @@ describe("SetupStep", () => {
     fireEvent.click(screen.getByText(/\+ Add path/i));
     fireEvent.change(screen.getAllByPlaceholderText(/path/i)[0], { target: { value: "/a" } });
     expect(btn).toBeEnabled();
+  });
+
+  it("passes the mode to install_server", async () => {
+    vi.mocked(apiInspectInstall).mockResolvedValue({ ...SCHEMA_WITH_NOTES, postInstallNotes: [] } as any);
+    render(<SetupStep mode="cli" serverId="test" onDone={() => {}} onCancel={() => {}} />);
+    await waitFor(() => screen.getByRole("button", { name: /Install Server/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Install Server/i }));
+    await waitFor(() => expect(apiInstallServer).toHaveBeenCalledWith("cli", "test", {}));
+  });
+
+  it("does not offer Retry when the install-progress stream reports canRetry: false", async () => {
+    vi.mocked(apiInspectInstall).mockResolvedValue({ ...SCHEMA_WITH_NOTES, postInstallNotes: [] } as any);
+
+    let captured: ((p: any) => void) | undefined;
+    vi.mocked(onInstallProgress).mockImplementation((handler: any) => {
+      captured = handler;
+      return Promise.resolve(() => {});
+    });
+
+    let rejectInstall!: (err: unknown) => void;
+    vi.mocked(apiInstallServer).mockReturnValue(
+      new Promise((_resolve, reject) => { rejectInstall = reject; }),
+    );
+
+    render(<SetupStep mode="desktop" serverId="test" onDone={() => {}} onCancel={() => {}} />);
+    await waitFor(() => screen.getByRole("button", { name: /Install Server/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Install Server/i }));
+    await waitFor(() => expect(captured).toBeDefined());
+
+    // Backend emits a non-retryable error event before the invoke rejects.
+    captured!({ kind: "error", step: "check", message: "nope", canRetry: false });
+    rejectInstall("nope");
+
+    await waitFor(() => screen.getByText("nope"));
+    expect(screen.queryByRole("button", { name: /Retry/i })).not.toBeInTheDocument();
   });
 });

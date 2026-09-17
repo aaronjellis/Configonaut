@@ -18,6 +18,10 @@ export interface SetupState {
   errorMessage: string | null;
   errorCanRetry: boolean;
   log: string[];
+  /// The name the server was installed under (may differ from the catalog
+  /// id when a collision was resolved with a -2 / -3 suffix). Carried in
+  /// the installDone action so phase and name can't diverge.
+  installedName: string | null;
 }
 
 export const initialSetupState: SetupState = {
@@ -28,6 +32,7 @@ export const initialSetupState: SetupState = {
   errorMessage: null,
   errorCanRetry: false,
   log: [],
+  installedName: null,
 };
 
 export type SetupAction =
@@ -39,7 +44,7 @@ export type SetupAction =
   | { type: "installLog"; line: string }
   | { type: "installError"; message: string; canRetry: boolean }
   | { type: "installRetry" }
-  | { type: "installDone" };
+  | { type: "installDone"; installedName: string };
 
 export function setupReducer(state: SetupState, action: SetupAction): SetupState {
   switch (action.type) {
@@ -89,7 +94,7 @@ export function setupReducer(state: SetupState, action: SetupAction): SetupState
     case "installRetry":
       return { ...state, phase: "ready", errorMessage: null, errorCanRetry: false, log: [] };
     case "installDone":
-      return { ...state, phase: "done" };
+      return { ...state, phase: "done", installedName: action.installedName };
   }
 }
 

@@ -104,4 +104,12 @@ describe("setupReducer", () => {
     expect(retried.fieldValues.paths).toEqual(["/a"]);
     expect(retried.prereqStatus.node?.installed).toBe(true);
   });
+
+  it("installDone carries the installed name into state", () => {
+    let s: SetupState = setupReducer(initialSetupState, { type: "loaded", schema: SCHEMA });
+    s = setupReducer(s, { type: "installStarted" });
+    const done = setupReducer(s, { type: "installDone", installedName: "filesystem-2" });
+    expect(done.phase).toBe("done");
+    expect(done.installedName).toBe("filesystem-2");
+  });
 });

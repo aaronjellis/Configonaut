@@ -14,11 +14,18 @@
 - **Remote servers get a `type` in CLI mode** -- Claude Code skips `url`-only entries, so `http` (or `sse`) is filled in when writing to `~/.claude.json`.
 
 ### Fixed
+- **Content Security Policy enabled** for the app's webviews, and the webview no longer holds any shell permission (the bundled `uv` sidecar is only ever invoked from Rust). Previously the webview had no CSP and could run the sidecar with arbitrary arguments.
+- **Guided Setup installs into the current mode** -- the auto-install flow always wrote to Claude Desktop's config, even in CLI mode. It now targets the active mode, wraps `npx`/`uvx` for Windows, picks a unique name on collision, records the catalog link (so the "Installed" badge and secret checks work), and can install servers from custom feeds. On Windows the managed Node.js PATH is now injected before the `cmd /c` wrap, so servers installed after the in-app Node download can start.
 - **Disabling a hook actually disables it** -- Claude Code has no per-rule disable flag, so the old `disabled: true` marker left hooks running. Disabled rules now move to Configonaut's `disabled_hooks.json` and are restored verbatim on re-enable. Existing flagged rules are migrated on first launch.
 - **Deleting a hook removes stale disabled copies** so the rule can't resurface as "disabled".
 - **New skills are created as `~/.claude/skills/<name>/SKILL.md`** -- the only layout Claude Code loads. Flat `<name>.md` files created by earlier versions are still listed; the app now refuses to create a skill whose legacy file already exists.
 - **Plugins are discovered from `installed_plugins.json`** -- every installed plugin from any marketplace now appears in Agents and Skills, and Enable/Disable uses the real `<plugin>@<marketplace>` key. Previously the app scanned the official marketplace's source clone, which listed uninstalled plugins and missed everything else.
 - **Every write to `~/.claude/settings.json` is now preceded by a timestamped backup** under Configonaut's storage directory (30 kept).
+- **The in-app Node.js download is verified against nodejs.org's SHASUMS256.txt** before extraction. A mismatch discards the archive and reports an error instead of running the binary.
+- **Install steps from catalog feeds are sandboxed a little harder** -- package and image names that look like command-line flags are refused, and the `npx` / `uvx` / `docker` warmup processes now receive only an allowlisted environment (PATH, HOME, proxy and cache settings) instead of the whole shell environment. Every step is checked before any of them runs. On Windows the npm warmup now spawns `npx.cmd` directly (it previously failed to start). If your `.npmrc` references an environment variable such as an auth token, the warmup now explains why it can't run instead of failing generically.
+- **Download progress shows real numbers** -- the percent/bytes fields were sent in snake_case and rendered as "NaN MB".
+- **Python (uvx) servers install without a system uv** -- the warmup and the written config now use the bundled uv (`uv tool run …`) when `uvx` is not on PATH, matching what the prerequisite check reports.
+- **Retry is only offered for retryable install errors.**
 
 ## 0.4.0
 
