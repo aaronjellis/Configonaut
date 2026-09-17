@@ -325,18 +325,26 @@ export function AddServerModal({
               }
             }}
             onRemoveFeed={async (feedId) => {
-              await removeFeed(feedId);
-              setFeeds(await listFeeds());
-              const [fresh, statuses] = await refreshAllFeeds();
-              setCatalog(fresh);
-              setFeedStatuses(statuses);
+              try {
+                await removeFeed(feedId);
+                setFeeds(await listFeeds());
+                const [fresh, statuses] = await refreshAllFeeds();
+                setCatalog(fresh);
+                setFeedStatuses(statuses);
+              } catch (e) {
+                toast.show(`Couldn't remove feed: ${String(e)}`, "error");
+              }
             }}
             onToggleFeed={async (feedId, enabled) => {
-              await toggleFeed(feedId, enabled);
-              setFeeds(await listFeeds());
-              const [fresh, statuses] = await refreshAllFeeds();
-              setCatalog(fresh);
-              setFeedStatuses(statuses);
+              try {
+                await toggleFeed(feedId, enabled);
+                setFeeds(await listFeeds());
+                const [fresh, statuses] = await refreshAllFeeds();
+                setCatalog(fresh);
+                setFeedStatuses(statuses);
+              } catch (e) {
+                toast.show(`Couldn't update feed: ${String(e)}`, "error");
+              }
             }}
           />
         ) : (
