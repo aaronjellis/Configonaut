@@ -95,11 +95,16 @@ pub struct ServerListing {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct HookRule {
-    /// Stable id for React lists — index-based, regenerated on every load.
+    /// Stable id for React lists — `event::matcher`, regenerated on every load.
     pub id: String,
     pub event: String,
     pub matcher: String,
+    /// One human-readable summary per handler: the shell command for
+    /// `command` hooks, `prompt: …` / `agent: …` / `http: <url>` /
+    /// `mcp_tool: <server>/<tool>` for the other handler types.
     pub commands: Vec<String>,
+    /// The `type` of each handler, in the same order as `commands`.
+    pub handler_types: Vec<String>,
     pub is_enabled: bool,
 }
 

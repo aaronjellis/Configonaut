@@ -136,6 +136,13 @@ pub fn feed_cache_file(feed_id: &str) -> PathBuf {
     storage_dir().join(format!("feed-cache-{feed_id}.json"))
 }
 
+/// Hook rules the user has switched off. Claude Code has no per-rule
+/// disable flag, so a rule is only "off" if it is absent from
+/// settings.json — we park it here so it can be restored verbatim.
+pub fn disabled_hooks_file() -> PathBuf {
+    storage_dir().join("disabled_hooks.json")
+}
+
 // Claude Code content directories (used for agents, skills, and plugin scanning).
 // These are identical across OSes since Claude Code reads them from ~/.claude
 // regardless of platform.

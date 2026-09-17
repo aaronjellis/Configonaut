@@ -29,6 +29,7 @@ export interface HookRule {
   event: string;
   matcher: string;
   commands: string[];
+  handlerTypes: string[];
   isEnabled: boolean;
 }
 

@@ -9,11 +9,12 @@
 //
 //   ~/.claude/settings.json
 //     {
-//       "hooks": { "<Event>": [ { "matcher": "...", "disabled": bool?,
+//       "hooks": { "<Event>": [ { "matcher": "...",
 //                                  "hooks": [ { "command": "..." } ] } ] },
 //       "enabledPlugins": { "<pluginName>@claude-plugins-official": bool },
 //       ...
 //     }
+//   <storage>/disabled_hooks.json         (rules the user switched off — see below)
 //   ~/.claude/agents/*.md                       (personal agents)
 //   ~/.claude/commands/*.md                     (custom slash commands)
 //   ~/.claude/commands/.disabled/*.md           (hidden/off)
@@ -23,12 +24,12 @@
 //       <plugin>/agents/*.md                    (read-only plugin agents)
 //       <plugin>/skills/...                     (read-only plugin skills)
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 
 use anyhow::{anyhow, Context};
-use serde_json::{Map, Value};
+use serde_json::{json, Map, Value};
 
 use crate::models::{
     AgentEntry, AgentSource, AppResult, HookRule, SkillEntry, SkillSource,
@@ -69,16 +70,7 @@ fn save_settings(settings: &Map<String, Value>) -> AppResult<()> {
     // which used `.sortedKeys`.
     let sorted = sort_keys(&Value::Object(settings.clone()));
     let json = serde_json::to_string_pretty(&sorted)?;
-    let tmp = match path.parent() {
-        Some(parent) => parent.join(format!(
-            ".{}.tmp",
-            path.file_name().and_then(|s| s.to_str()).unwrap_or("settings")
-        )),
-        None => path.with_extension("tmp"),
-    };
-    fs::write(&tmp, json.as_bytes())?;
-    fs::rename(&tmp, &path)?;
-    Ok(())
+    crate::config::write_atomic(&path, json.as_bytes())
 }
 
 fn sort_keys(value: &Value) -> Value {
@@ -131,258 +123,341 @@ fn parse_frontmatter(content: &str) -> BTreeMap<String, String> {
 // ---------------------------------------------------------------------------
 // Hooks
 // ---------------------------------------------------------------------------
+//
+// Two stores share one shape — `{ "<Event>": [ rule, ... ] }`:
+//
+//   • settings.json → "hooks"            enabled rules (what Claude Code runs)
+//   • <storage>/disabled_hooks.json      rules the user switched off
+//
+// Claude Code has no per-rule disable flag, so "off" means "not in
+// settings.json". Older Configonaut builds wrote `"disabled": true` on the
+// rule instead; `migrate_legacy_disabled` moves those to the sidecar the
+// first time the list is read.
 
-/// Read every hook rule out of settings.json, sorted by event then matcher
-/// for a stable UI order. The id is a synthetic `event::matcher` pair — not
-/// globally unique if the user registers the same matcher twice under the
-/// same event, but that's a misconfiguration and the UI doesn't need to
-/// support it.
-pub fn list_hooks() -> AppResult<Vec<HookRule>> {
-    let settings = load_settings()?;
-    let Some(Value::Object(hooks)) = settings.get("hooks") else {
-        return Ok(vec![]);
-    };
+fn load_disabled_hooks() -> AppResult<Map<String, Value>> {
+    let path = paths::disabled_hooks_file();
+    if !path.exists() {
+        return Ok(Map::new());
+    }
+    let raw = fs::read_to_string(&path)
+        .with_context(|| format!("read {}", path.display()))?;
+    if raw.trim().is_empty() {
+        return Ok(Map::new());
+    }
+    match serde_json::from_str::<Value>(&raw)
+        .with_context(|| format!("parse {}", path.display()))?
+    {
+        Value::Object(m) => Ok(m),
+        _ => Ok(Map::new()),
+    }
+}
 
-    let mut out: Vec<HookRule> = Vec::new();
-    for (event, rules) in hooks {
-        let Value::Array(arr) = rules else { continue };
-        for rule in arr {
-            let Value::Object(rule_map) = rule else { continue };
-            let matcher = rule_map
-                .get("matcher")
-                .and_then(|v| v.as_str())
-                .unwrap_or("*")
-                .to_string();
-            let is_disabled = rule_map
+fn save_disabled_hooks(disabled: &Map<String, Value>) -> AppResult<()> {
+    let path = paths::disabled_hooks_file();
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    let json = serde_json::to_string_pretty(&Value::Object(disabled.clone()))?;
+    crate::config::write_atomic(&path, json.as_bytes())
+}
+
+/// Borrow settings.json's `hooks` object, creating it if absent. Errors
+/// instead of clobbering an unexpected non-object value.
+fn settings_hooks_mut(settings: &mut Map<String, Value>) -> AppResult<&mut Map<String, Value>> {
+    let entry = settings
+        .entry("hooks".to_string())
+        .or_insert_with(|| Value::Object(Map::new()));
+    if !entry.is_object() {
+        return Err(anyhow!("'hooks' in settings.json is not a JSON object").into());
+    }
+    Ok(entry.as_object_mut().expect("hooks is an object"))
+}
+
+fn rule_matcher(rule: &Value) -> &str {
+    rule.as_object()
+        .and_then(|m| m.get("matcher"))
+        .and_then(|v| v.as_str())
+        .unwrap_or("*")
+}
+
+/// Position of the rule under `matcher` within an event's rule array.
+fn rule_index(arr: &[Value], matcher: &str) -> Option<usize> {
+    arr.iter().position(|r| rule_matcher(r) == matcher)
+}
+
+/// Replace a rule in place. Returns false if no rule matched.
+fn replace_rule(hooks: &mut Map<String, Value>, event: &str, matcher: &str, new_rule: Value) -> bool {
+    let Some(arr) = hooks.get_mut(event).and_then(|v| v.as_array_mut()) else { return false };
+    match rule_index(arr, matcher) {
+        Some(idx) => {
+            arr[idx] = new_rule;
+            true
+        }
+        None => false,
+    }
+}
+
+/// Remove and return the rule under `event` whose matcher equals `matcher`.
+/// Prunes the event key when its array becomes empty.
+fn take_rule(hooks: &mut Map<String, Value>, event: &str, matcher: &str) -> Option<Value> {
+    let arr = hooks.get_mut(event)?.as_array_mut()?;
+    let idx = rule_index(arr, matcher)?;
+    let rule = arr.remove(idx);
+    if arr.is_empty() {
+        hooks.shift_remove(event);
+    }
+    Some(rule)
+}
+
+/// Insert a rule under `event`, replacing any existing rule with the same
+/// matcher in place rather than duplicating it. Errors if the event key
+/// already holds something other than an array.
+fn put_rule(hooks: &mut Map<String, Value>, event: &str, rule: Value) -> AppResult<()> {
+    let entry = hooks
+        .entry(event.to_string())
+        .or_insert_with(|| Value::Array(vec![]));
+    if !entry.is_array() {
+        return Err(anyhow!("'hooks.{event}' is not a JSON array").into());
+    }
+    let arr = entry.as_array_mut().expect("event is an array");
+    match rule_index(arr, rule_matcher(&rule)) {
+        Some(idx) => arr[idx] = rule,
+        None => arr.push(rule),
+    }
+    Ok(())
+}
+
+fn find_rule<'a>(hooks: &'a Map<String, Value>, event: &str, matcher: &str) -> Option<&'a Value> {
+    hooks
+        .get(event)?
+        .as_array()?
+        .iter()
+        .find(|r| rule_matcher(r) == matcher)
+}
+
+fn truncate(s: &str, n: usize) -> String {
+    if s.chars().count() <= n {
+        s.to_string()
+    } else {
+        format!("{}…", s.chars().take(n).collect::<String>())
+    }
+}
+
+/// One-line description of a handler for the list view.
+fn summarize_handler(h: &Value) -> Option<String> {
+    let m = h.as_object()?;
+    let kind = m.get("type").and_then(|v| v.as_str()).unwrap_or("command");
+    let s = |k: &str| m.get(k).and_then(|v| v.as_str()).map(str::to_string);
+    match kind {
+        "command" => s("command"),
+        "prompt" => s("prompt").map(|p| format!("prompt: {}", truncate(&p, 80))),
+        "agent" => s("prompt").map(|p| format!("agent: {}", truncate(&p, 80))),
+        "http" => s("url").map(|u| format!("http: {u}")),
+        "mcp_tool" => Some(format!(
+            "mcp_tool: {}/{}",
+            s("server").unwrap_or_default(),
+            s("tool").unwrap_or_default()
+        )),
+        other => Some(format!("{other} hook")),
+    }
+}
+
+fn rule_to_hook_rule(event: &str, rule: &Value, is_enabled: bool) -> Option<HookRule> {
+    let m = rule.as_object()?;
+    let matcher = m
+        .get("matcher")
+        .and_then(|v| v.as_str())
+        .unwrap_or("*")
+        .to_string();
+    let handlers: Vec<&Value> = m
+        .get("hooks")
+        .and_then(|v| v.as_array())
+        .map(|a| a.iter().collect())
+        .unwrap_or_default();
+    let (commands, handler_types): (Vec<String>, Vec<String>) = handlers
+        .iter()
+        .filter_map(|h| {
+            let kind = h.get("type").and_then(|v| v.as_str()).unwrap_or("command");
+            summarize_handler(h).map(|s| (s, kind.to_string()))
+        })
+        .unzip();
+    Some(HookRule {
+        id: format!("{event}::{matcher}"),
+        event: event.to_string(),
+        matcher,
+        commands,
+        handler_types,
+        is_enabled,
+    })
+}
+
+/// Move rules carrying the legacy `"disabled": true` flag out of settings.json
+/// and into the sidecar. Returns true if anything moved.
+fn migrate_legacy_disabled(
+    hooks: &mut Map<String, Value>,
+    disabled: &mut Map<String, Value>,
+) -> AppResult<bool> {
+    let mut changed = false;
+    let events: Vec<String> = hooks.keys().cloned().collect();
+    for event in events {
+        let Some(Value::Array(arr)) = hooks.get_mut(&event) else { continue };
+        let mut i = 0;
+        while i < arr.len() {
+            let flagged = arr[i]
                 .get("disabled")
                 .and_then(|v| v.as_bool())
                 .unwrap_or(false);
-            let commands: Vec<String> = rule_map
-                .get("hooks")
-                .and_then(|v| v.as_array())
-                .map(|inner| {
-                    inner
-                        .iter()
-                        .filter_map(|h| {
-                            h.as_object()
-                                .and_then(|o| o.get("command"))
-                                .and_then(|v| v.as_str())
-                                .map(|s| s.to_string())
-                        })
-                        .collect()
-                })
-                .unwrap_or_default();
-            if commands.is_empty() {
-                continue;
+            if flagged {
+                let mut rule = arr.remove(i);
+                if let Some(m) = rule.as_object_mut() {
+                    m.shift_remove("disabled");
+                }
+                put_rule(disabled, &event, rule)?;
+                changed = true;
+            } else {
+                i += 1;
             }
-            out.push(HookRule {
-                id: format!("{event}::{matcher}"),
-                event: event.clone(),
-                matcher,
-                commands,
-                is_enabled: !is_disabled,
-            });
+        }
+        if arr.is_empty() {
+            hooks.shift_remove(&event);
         }
     }
+    Ok(changed)
+}
+
+fn collect_rules(hooks: &Map<String, Value>, is_enabled: bool, out: &mut Vec<HookRule>) {
+    for (event, rules) in hooks {
+        let Value::Array(arr) = rules else { continue };
+        for rule in arr {
+            if let Some(hr) = rule_to_hook_rule(event, rule, is_enabled) {
+                out.push(hr);
+            }
+        }
+    }
+}
+
+/// Every hook rule from both stores, sorted by event then matcher.
+pub fn list_hooks() -> AppResult<Vec<HookRule>> {
+    let mut settings = load_settings()?;
+    let mut disabled = load_disabled_hooks()?;
+
+    let mut migrated = false;
+    if let Some(Value::Object(hooks)) = settings.get_mut("hooks") {
+        migrated = migrate_legacy_disabled(hooks, &mut disabled)?;
+    }
+    if migrated {
+        // Sidecar first: if the settings.json write then fails, the rule
+        // exists in both stores (duplicated) rather than in neither (lost).
+        save_disabled_hooks(&disabled)?;
+        save_settings(&settings)?;
+    }
+
+    let mut out: Vec<HookRule> = Vec::new();
+    if let Some(Value::Object(hooks)) = settings.get("hooks") {
+        collect_rules(hooks, true, &mut out);
+    }
+    // A sidecar rule whose event+matcher already exists in settings.json is
+    // stale — skip it instead of listing the same rule twice.
+    let settings_ids: HashSet<String> = out.iter().map(|hr| hr.id.clone()).collect();
+    let mut disabled_out: Vec<HookRule> = Vec::new();
+    collect_rules(&disabled, false, &mut disabled_out);
+    out.extend(disabled_out.into_iter().filter(|hr| !settings_ids.contains(&hr.id)));
     out.sort_by(|a, b| a.event.cmp(&b.event).then(a.matcher.cmp(&b.matcher)));
     Ok(out)
 }
 
-/// Pretty-print the raw JSON for one specific hook rule so the editor pane
-/// can show exactly what's on disk, without needing to reverse-engineer it
-/// from the parsed HookRule fields.
+/// Pretty JSON for one rule, from whichever store holds it.
 pub fn hook_rule_json(event: &str, matcher: &str) -> AppResult<String> {
     let settings = load_settings()?;
-    let Some(Value::Object(hooks)) = settings.get("hooks") else {
-        return Ok("{}".to_string());
-    };
-    let Some(Value::Array(arr)) = hooks.get(event) else {
-        return Ok("{}".to_string());
-    };
-    for rule in arr {
-        if let Value::Object(m) = rule {
-            let m_matcher = m
-                .get("matcher")
-                .and_then(|v| v.as_str())
-                .unwrap_or("*");
-            if m_matcher == matcher {
-                return Ok(serde_json::to_string_pretty(rule)
-                    .unwrap_or_else(|_| "{}".into()));
-            }
+    if let Some(Value::Object(hooks)) = settings.get("hooks") {
+        if let Some(rule) = find_rule(hooks, event, matcher) {
+            return Ok(serde_json::to_string_pretty(rule).unwrap_or_else(|_| "{}".into()));
         }
+    }
+    let disabled = load_disabled_hooks()?;
+    if let Some(rule) = find_rule(&disabled, event, matcher) {
+        return Ok(serde_json::to_string_pretty(rule).unwrap_or_else(|_| "{}".into()));
     }
     Ok("{}".to_string())
 }
 
-/// Flip a hook's `disabled` flag. We don't care what it currently is — we
-/// set it to the caller's intent, so repeated clicks are idempotent.
+/// Enable = move sidecar → settings.json. Disable = move settings.json → sidecar.
 pub fn toggle_hook(event: &str, matcher: &str, enable: bool) -> AppResult<()> {
     let mut settings = load_settings()?;
-    let hooks = settings
-        .get_mut("hooks")
-        .and_then(|v| v.as_object_mut())
-        .ok_or_else(|| anyhow!("no hooks section in settings.json"))?;
-    let arr = hooks
-        .get_mut(event)
-        .and_then(|v| v.as_array_mut())
-        .ok_or_else(|| anyhow!("hook event {event} not found"))?;
-
-    for rule in arr.iter_mut() {
-        if let Value::Object(m) = rule {
-            let m_matcher = m
-                .get("matcher")
-                .and_then(|v| v.as_str())
-                .unwrap_or("*");
-            if m_matcher == matcher {
-                if enable {
-                    m.remove("disabled");
-                } else {
-                    m.insert("disabled".to_string(), Value::Bool(true));
-                }
-                break;
-            }
-        }
+    let mut disabled = load_disabled_hooks()?;
+    if enable {
+        let rule = take_rule(&mut disabled, event, matcher)
+            .ok_or_else(|| anyhow!("no disabled hook matched {event}/{matcher}"))?;
+        put_rule(settings_hooks_mut(&mut settings)?, event, rule)?;
+        save_settings(&settings)?;
+        save_disabled_hooks(&disabled)
+    } else {
+        let hooks = settings
+            .get_mut("hooks")
+            .and_then(|v| v.as_object_mut())
+            .ok_or_else(|| anyhow!("no hooks section in settings.json"))?;
+        let rule = take_rule(hooks, event, matcher)
+            .ok_or_else(|| anyhow!("no enabled hook matched {event}/{matcher}"))?;
+        put_rule(&mut disabled, event, rule)?;
+        save_disabled_hooks(&disabled)?;
+        save_settings(&settings)
     }
-    save_settings(&settings)
 }
 
-/// Create a brand new hook rule under `event`. We refuse to silently
-/// overwrite: if a rule with the same matcher already exists under this
-/// event, the caller gets an error instead of a surprise stomp.
-///
-/// The inner shape follows what Claude Code actually writes:
-///   { "matcher": "...", "hooks": [ { "type": "command", "command": "..." } ] }
-/// `type: "command"` isn't required by our reader but is the documented
-/// format, so we emit it for forward-compat.
+/// Create a new enabled `command` hook rule. Refuses to duplicate a matcher
+/// that already exists under `event` in either store.
 pub fn create_hook(event: &str, matcher: &str, commands: &[String]) -> AppResult<()> {
     if commands.iter().all(|c| c.trim().is_empty()) {
         return Err(anyhow!("hook needs at least one non-empty command").into());
     }
-
     let mut settings = load_settings()?;
-
-    // Ensure the top-level "hooks" object exists (may be absent on fresh
-    // installs; `create_hook` is the one command that's allowed to mint it).
-    let hooks_entry = settings
-        .entry("hooks".to_string())
-        .or_insert_with(|| Value::Object(Map::new()));
-    let hooks_obj = hooks_entry
-        .as_object_mut()
-        .ok_or_else(|| anyhow!("'hooks' in settings.json is not a JSON object"))?;
-
-    // Ensure the event array exists.
-    let event_entry = hooks_obj
-        .entry(event.to_string())
-        .or_insert_with(|| Value::Array(vec![]));
-    let arr = event_entry
-        .as_array_mut()
-        .ok_or_else(|| anyhow!("'hooks.{event}' is not a JSON array"))?;
-
-    // Duplicate check. Same convention as list_hooks: absent matcher defaults to "*".
-    for rule in arr.iter() {
-        if let Value::Object(m) = rule {
-            let existing = m.get("matcher").and_then(|v| v.as_str()).unwrap_or("*");
-            if existing == matcher {
-                return Err(anyhow!(
-                    "a hook with matcher '{matcher}' already exists under {event}"
-                )
-                .into());
-            }
-        }
+    let disabled = load_disabled_hooks()?;
+    let hooks = settings_hooks_mut(&mut settings)?;
+    if find_rule(hooks, event, matcher).is_some() || find_rule(&disabled, event, matcher).is_some() {
+        return Err(anyhow!("a hook with matcher '{matcher}' already exists under {event}").into());
     }
-
-    // Build the new rule. Skip empty command strings; the caller may have
-    // sent placeholders from a multi-row form.
     let commands_json: Vec<Value> = commands
         .iter()
         .filter(|c| !c.trim().is_empty())
-        .map(|c| {
-            let mut m = Map::new();
-            m.insert("type".to_string(), Value::String("command".to_string()));
-            m.insert("command".to_string(), Value::String(c.clone()));
-            Value::Object(m)
-        })
+        .map(|c| json!({ "type": "command", "command": c }))
         .collect();
-
-    let mut rule = Map::new();
-    rule.insert("matcher".to_string(), Value::String(matcher.to_string()));
-    rule.insert("hooks".to_string(), Value::Array(commands_json));
-    arr.push(Value::Object(rule));
-
+    put_rule(hooks, event, json!({ "matcher": matcher, "hooks": commands_json }))?;
     save_settings(&settings)
 }
 
-/// Delete a single hook rule. Also prunes the event key if this was the
-/// last rule under it, so the file stays tidy and list_hooks doesn't see
-/// phantom events with zero rules.
+/// Delete a rule from whichever store holds it.
 pub fn delete_hook(event: &str, matcher: &str) -> AppResult<()> {
     let mut settings = load_settings()?;
-    let hooks_obj = settings
-        .get_mut("hooks")
-        .and_then(|v| v.as_object_mut())
-        .ok_or_else(|| anyhow!("no hooks section in settings.json"))?;
-    let arr = hooks_obj
-        .get_mut(event)
-        .and_then(|v| v.as_array_mut())
-        .ok_or_else(|| anyhow!("hook event {event} not found"))?;
-
-    let before = arr.len();
-    arr.retain(|rule| {
-        let Value::Object(m) = rule else { return true };
-        let existing = m.get("matcher").and_then(|v| v.as_str()).unwrap_or("*");
-        existing != matcher
-    });
-    if arr.len() == before {
-        return Err(anyhow!("no hook rule matched {event}/{matcher}").into());
+    if let Some(Value::Object(hooks)) = settings.get_mut("hooks") {
+        if take_rule(hooks, event, matcher).is_some() {
+            return save_settings(&settings);
+        }
     }
-
-    if arr.is_empty() {
-        hooks_obj.remove(event);
+    let mut disabled = load_disabled_hooks()?;
+    if take_rule(&mut disabled, event, matcher).is_some() {
+        return save_disabled_hooks(&disabled);
     }
-    save_settings(&settings)
+    Err(anyhow!("no hook rule matched {event}/{matcher}").into())
 }
 
-/// Replace the whole JSON body for a single hook rule. The new JSON is
-/// expected to be a complete rule object (matcher, hooks, etc.) — we don't
-/// merge, we substitute.
-pub fn update_hook_rule(
-    event: &str,
-    matcher: &str,
-    new_json: &str,
-) -> AppResult<()> {
+/// Replace the whole JSON body of a rule, in whichever store holds it.
+pub fn update_hook_rule(event: &str, matcher: &str, new_json: &str) -> AppResult<()> {
     let new_rule: Value = serde_json::from_str(new_json)
         .with_context(|| "invalid JSON — check for syntax errors")?;
     if !new_rule.is_object() {
         return Err(anyhow!("hook rule must be a JSON object").into());
     }
     let mut settings = load_settings()?;
-    let hooks = settings
-        .get_mut("hooks")
-        .and_then(|v| v.as_object_mut())
-        .ok_or_else(|| anyhow!("no hooks section in settings.json"))?;
-    let arr = hooks
-        .get_mut(event)
-        .and_then(|v| v.as_array_mut())
-        .ok_or_else(|| anyhow!("hook event {event} not found"))?;
-
-    let mut replaced = false;
-    for rule in arr.iter_mut() {
-        if let Value::Object(m) = rule {
-            let m_matcher = m
-                .get("matcher")
-                .and_then(|v| v.as_str())
-                .unwrap_or("*");
-            if m_matcher == matcher {
-                *rule = new_rule.clone();
-                replaced = true;
-                break;
-            }
+    if let Some(Value::Object(hooks)) = settings.get_mut("hooks") {
+        if replace_rule(hooks, event, matcher, new_rule.clone()) {
+            return save_settings(&settings);
         }
     }
-    if !replaced {
-        return Err(anyhow!("no hook rule matched {event}/{matcher}").into());
+    let mut disabled = load_disabled_hooks()?;
+    if replace_rule(&mut disabled, event, matcher, new_rule) {
+        return save_disabled_hooks(&disabled);
     }
-    save_settings(&settings)
+    Err(anyhow!("no hook rule matched {event}/{matcher}").into())
 }
 
 // ---------------------------------------------------------------------------
@@ -924,4 +999,165 @@ fn file_stem(path: &Path) -> String {
         .and_then(|s| s.to_str())
         .unwrap_or("unnamed")
         .to_string()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    fn hooks_obj(v: Value) -> Map<String, Value> {
+        v.as_object().unwrap().clone()
+    }
+
+    #[test]
+    fn take_rule_removes_by_matcher_and_prunes_empty_event() {
+        let mut hooks = hooks_obj(json!({
+            "PreToolUse": [
+                { "matcher": "Bash", "hooks": [{ "type": "command", "command": "a" }] }
+            ]
+        }));
+        let taken = take_rule(&mut hooks, "PreToolUse", "Bash").unwrap();
+        assert_eq!(taken["hooks"][0]["command"], "a");
+        assert!(hooks.get("PreToolUse").is_none());
+    }
+
+    #[test]
+    fn take_rule_treats_missing_matcher_as_star() {
+        let mut hooks = hooks_obj(json!({
+            "Stop": [ { "hooks": [{ "type": "command", "command": "a" }] } ]
+        }));
+        assert!(take_rule(&mut hooks, "Stop", "*").is_some());
+    }
+
+    #[test]
+    fn put_rule_creates_event_array() {
+        let mut hooks = Map::new();
+        put_rule(&mut hooks, "Stop", json!({ "matcher": "*", "hooks": [] })).unwrap();
+        assert_eq!(hooks["Stop"].as_array().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn summarize_handler_covers_all_types() {
+        assert_eq!(
+            summarize_handler(&json!({ "type": "command", "command": "npm test" })),
+            Some("npm test".into())
+        );
+        assert_eq!(
+            summarize_handler(&json!({ "command": "no-type" })),
+            Some("no-type".into())
+        );
+        assert_eq!(
+            summarize_handler(&json!({ "type": "prompt", "prompt": "Is this safe?" })),
+            Some("prompt: Is this safe?".into())
+        );
+        assert_eq!(
+            summarize_handler(&json!({ "type": "http", "url": "https://x/hook" })),
+            Some("http: https://x/hook".into())
+        );
+        assert_eq!(
+            summarize_handler(&json!({ "type": "mcp_tool", "server": "s", "tool": "t" })),
+            Some("mcp_tool: s/t".into())
+        );
+    }
+
+    #[test]
+    fn rule_to_hook_rule_keeps_non_command_handlers() {
+        let rule = json!({
+            "matcher": "Write",
+            "hooks": [
+                { "type": "prompt", "prompt": "check it" },
+                { "type": "command", "command": "lint" }
+            ]
+        });
+        let hr = rule_to_hook_rule("PreToolUse", &rule, true).unwrap();
+        assert_eq!(hr.id, "PreToolUse::Write");
+        assert_eq!(hr.commands, vec!["prompt: check it", "lint"]);
+        assert_eq!(hr.handler_types, vec!["prompt", "command"]);
+        assert!(hr.is_enabled);
+    }
+
+    #[test]
+    fn migrate_legacy_disabled_moves_flagged_rules_to_sidecar() {
+        let mut hooks = hooks_obj(json!({
+            "PreToolUse": [
+                { "matcher": "Bash", "disabled": true, "hooks": [{ "type": "command", "command": "a" }] },
+                { "matcher": "Write", "hooks": [{ "type": "command", "command": "b" }] }
+            ],
+            "Stop": [
+                { "matcher": "*", "disabled": true, "hooks": [{ "type": "command", "command": "c" }] }
+            ]
+        }));
+        let mut disabled = Map::new();
+        assert!(migrate_legacy_disabled(&mut hooks, &mut disabled).unwrap());
+        assert_eq!(hooks["PreToolUse"].as_array().unwrap().len(), 1);
+        assert!(hooks.get("Stop").is_none());
+        let moved = &disabled["PreToolUse"][0];
+        assert!(moved.get("disabled").is_none());
+        assert_eq!(moved["matcher"], "Bash");
+        assert_eq!(disabled["Stop"][0]["hooks"][0]["command"], "c");
+        // Second pass is a no-op.
+        assert!(!migrate_legacy_disabled(&mut hooks, &mut disabled).unwrap());
+    }
+
+    #[test]
+    fn rule_to_hook_rule_keeps_commands_and_types_aligned() {
+        let rule = json!({
+            "matcher": "*",
+            "hooks": [
+                { "type": "command" },
+                { "type": "http", "url": "https://x/hook" }
+            ]
+        });
+        let hr = rule_to_hook_rule("Stop", &rule, true).unwrap();
+        assert_eq!(hr.commands, vec!["http: https://x/hook"]);
+        assert_eq!(hr.handler_types, vec!["http"]);
+    }
+
+    #[test]
+    fn put_rule_replaces_existing_matcher() {
+        let mut hooks = hooks_obj(json!({ "Stop": [ { "matcher": "*", "hooks": [{ "type": "command", "command": "old" }] } ] }));
+        put_rule(&mut hooks, "Stop", json!({ "matcher": "*", "hooks": [{ "type": "command", "command": "new" }] })).unwrap();
+        let arr = hooks["Stop"].as_array().unwrap();
+        assert_eq!(arr.len(), 1);
+        assert_eq!(arr[0]["hooks"][0]["command"], "new");
+    }
+
+    #[test]
+    fn put_rule_errors_on_non_array_event() {
+        let mut hooks = hooks_obj(json!({ "Stop": "oops" }));
+        assert!(put_rule(&mut hooks, "Stop", json!({ "matcher": "*", "hooks": [] })).is_err());
+        assert_eq!(hooks["Stop"], "oops");
+    }
+
+    #[test]
+    fn settings_hooks_mut_errors_on_non_object() {
+        let mut settings = hooks_obj(json!({ "hooks": [1, 2] }));
+        assert!(settings_hooks_mut(&mut settings).is_err());
+        assert_eq!(settings["hooks"], json!([1, 2]));
+    }
+
+    #[test]
+    fn replace_rule_keeps_position() {
+        let mut hooks = hooks_obj(json!({ "PreToolUse": [
+            { "matcher": "A", "hooks": [] },
+            { "matcher": "B", "hooks": [] },
+            { "matcher": "C", "hooks": [] }
+        ] }));
+        assert!(replace_rule(&mut hooks, "PreToolUse", "B", json!({ "matcher": "B", "hooks": [{ "type": "command", "command": "x" }] })));
+        let arr = hooks["PreToolUse"].as_array().unwrap();
+        assert_eq!(arr[1]["matcher"], "B");
+        assert_eq!(arr[1]["hooks"][0]["command"], "x");
+        assert!(!replace_rule(&mut hooks, "PreToolUse", "Z", json!({})));
+    }
+
+    #[test]
+    fn migrate_legacy_disabled_replaces_existing_sidecar_copy() {
+        let mut hooks = hooks_obj(json!({ "Stop": [ { "matcher": "*", "disabled": true, "hooks": [{ "type": "command", "command": "new" }] } ] }));
+        let mut disabled = hooks_obj(json!({ "Stop": [ { "matcher": "*", "hooks": [{ "type": "command", "command": "old" }] } ] }));
+        assert!(migrate_legacy_disabled(&mut hooks, &mut disabled).unwrap());
+        let arr = disabled["Stop"].as_array().unwrap();
+        assert_eq!(arr.len(), 1);
+        assert_eq!(arr[0]["hooks"][0]["command"], "new");
+    }
 }

@@ -447,7 +447,7 @@ fn save_stored_map(mode: AppMode, stored: &Map<String, Value>) -> AppResult<()> 
 /// Write bytes to `path` atomically: stage them in a sibling temp file, then
 /// rename over the destination. On POSIX this is a single syscall; on Windows
 /// `fs::rename` across existing files works fine since Rust 1.5+.
-fn write_atomic(path: &Path, bytes: &[u8]) -> AppResult<()> {
+pub(crate) fn write_atomic(path: &Path, bytes: &[u8]) -> AppResult<()> {
     let tmp = match path.parent() {
         Some(parent) => parent.join(format!(
             ".{}.tmp",
