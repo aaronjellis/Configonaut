@@ -49,6 +49,7 @@ export interface AgentEntry {
   model: string;
   color: string;
   pluginName: string;
+  pluginKey: string;
   filePath: string;
   source: AgentSource;
   isPluginEnabled: boolean;
@@ -60,6 +61,7 @@ export interface SkillEntry {
   name: string;
   description: string;
   source: SkillSource;
+  pluginKey: string;
   filePath: string;
   isEnabled: boolean;
 }

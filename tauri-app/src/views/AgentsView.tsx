@@ -45,7 +45,9 @@ interface Props {
 }
 
 type PluginGroup = {
-  plugin: string;
+  pluginKey: string;
+  pluginName: string;
+  displayName: string;
   agents: AgentEntry[];
   isEnabled: boolean;
 };
@@ -156,20 +158,37 @@ export function AgentsView({ mode, onMutated }: Props) {
 
   const pluginGroups: PluginGroup[] = useMemo(() => {
     const plugins = filtered.filter((a) => a.source === "plugin");
+    // Group by pluginKey (<plugin>@<marketplace>), not pluginName — two
+    // marketplaces can ship a plugin with the same display name, and those
+    // are distinct installs with independent enable state.
     const map = new Map<string, AgentEntry[]>();
     for (const a of plugins) {
-      const arr = map.get(a.pluginName) ?? [];
+      const arr = map.get(a.pluginKey) ?? [];
       arr.push(a);
-      map.set(a.pluginName, arr);
+      map.set(a.pluginKey, arr);
+    }
+    // Track how many distinct plugin keys share a display name, so the
+    // header can disambiguate collisions with the marketplace name.
+    const nameCounts = new Map<string, number>();
+    for (const arr of map.values()) {
+      const name = arr[0]?.pluginName ?? "";
+      nameCounts.set(name, (nameCounts.get(name) ?? 0) + 1);
     }
     return Array.from(map.keys())
       .sort()
-      .map((plugin) => {
-        const list = (map.get(plugin) ?? []).slice().sort((a, b) =>
+      .map((pluginKey) => {
+        const list = (map.get(pluginKey) ?? []).slice().sort((a, b) =>
           a.name.localeCompare(b.name)
         );
+        const pluginName = list[0]?.pluginName ?? pluginKey;
+        const displayName =
+          (nameCounts.get(pluginName) ?? 0) > 1
+            ? `${pluginName} (${pluginKey.split("@")[1] ?? ""})`
+            : pluginName;
         return {
-          plugin,
+          pluginKey,
+          pluginName,
+          displayName,
           agents: list,
           // Each agent row knows its own plugin-enabled state
           isEnabled: list[0]?.isPluginEnabled ?? false,
@@ -181,7 +200,7 @@ export function AgentsView({ mode, onMutated }: Props) {
   const enabledPluginCount = useMemo(() => {
     const set = new Set<string>();
     for (const a of agents) {
-      if (a.source === "plugin" && a.isPluginEnabled) set.add(a.pluginName);
+      if (a.source === "plugin" && a.isPluginEnabled) set.add(a.pluginKey);
     }
     return set.size;
   }, [agents]);
@@ -220,10 +239,9 @@ export function AgentsView({ mode, onMutated }: Props) {
     }
   }
 
-  async function handleTogglePlugin(pluginName: string) {
+  async function handleTogglePlugin(pluginKey: string, pluginName: string) {
     try {
-      const key = `${pluginName}@claude-plugins-official`;
-      await togglePlugin(key);
+      await togglePlugin(pluginKey);
       setStatus(`Toggled plugin "${pluginName}".`);
       toast.show(`Toggled plugin "${pluginName}".`, "success");
       onMutated();
@@ -361,11 +379,11 @@ export function AgentsView({ mode, onMutated }: Props) {
             )}
             {pluginGroups.map((g) => (
               <PluginSection
-                key={g.plugin}
+                key={g.pluginKey}
                 group={g}
                 selectedPath={selectedPath}
                 onSelect={handleSelect}
-                onTogglePlugin={() => handleTogglePlugin(g.plugin)}
+                onTogglePlugin={() => handleTogglePlugin(g.pluginKey, g.pluginName)}
               />
             ))}
           </div>
@@ -394,7 +412,7 @@ export function AgentsView({ mode, onMutated }: Props) {
           onSave={handleSave}
           onClose={() => setSelectedPath(null)}
           onDelete={() => setConfirmDelete(selected)}
-          onTogglePlugin={() => handleTogglePlugin(selected.pluginName)}
+          onTogglePlugin={() => handleTogglePlugin(selected.pluginKey, selected.pluginName)}
         />
       )}
 
@@ -497,7 +515,7 @@ function PluginSection({
           className="glow-dot"
           style={{ background: statusColor, boxShadow: `0 0 6px ${statusColor}` }}
         />
-        <span className="group-title">{group.plugin}</span>
+        <span className="group-title">{group.displayName}</span>
         <span
           className="count-mini-pill"
           style={{

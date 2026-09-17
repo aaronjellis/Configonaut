@@ -11,7 +11,7 @@
 //     {
 //       "hooks": { "<Event>": [ { "matcher": "...",
 //                                  "hooks": [ { "command": "..." } ] } ] },
-//       "enabledPlugins": { "<pluginName>@claude-plugins-official": bool },
+//       "enabledPlugins": { "<pluginName>@<marketplace>": bool },
 //       ...
 //     }
 //   <storage>/disabled_hooks.json         (rules the user switched off — see below)
@@ -20,9 +20,9 @@
 //   ~/.claude/commands/.disabled/*.md           (hidden/off)
 //   ~/.claude/skills/{name,SKILL.md|<name>.md}  (custom skills)
 //   ~/.claude/skills/.disabled/...              (hidden/off)
-//   ~/.claude/plugins/marketplaces/claude-plugins-official/plugins/
-//       <plugin>/agents/*.md                    (read-only plugin agents)
-//       <plugin>/skills/...                     (read-only plugin skills)
+//   ~/.claude/plugins/installed_plugins.json    (index: "<plugin>@<marketplace>" → installPath)
+//   <installPath>/agents/*.md                   (read-only plugin agents)
+//   <installPath>/skills/<name>/SKILL.md        (read-only plugin skills)
 
 use std::collections::{BTreeMap, HashSet};
 use std::fs;
@@ -506,9 +506,66 @@ fn load_enabled_plugins() -> BTreeMap<String, bool> {
         .collect()
 }
 
-/// Flip a single plugin's entry in `enabledPlugins`. Key format is
-/// `<pluginName>@claude-plugins-official`, matching what the Swift version
-/// wrote. Callers pass the already-formatted key.
+#[derive(Debug, Clone)]
+pub(crate) struct InstalledPlugin {
+    /// `<plugin>@<marketplace>` — matches `enabledPlugins` keys.
+    pub key: String,
+    /// The part before `@`.
+    pub name: String,
+    pub install_path: PathBuf,
+}
+
+/// Parse the `plugins` map of installed_plugins.json. Accepts the v2 shape
+/// (an array of install records per key) and the older single-object shape.
+pub(crate) fn parse_installed_plugins(root: &Value) -> Vec<InstalledPlugin> {
+    let mut out = Vec::new();
+    let Some(Value::Object(plugins)) = root.get("plugins") else { return out };
+    for (key, entry) in plugins {
+        // v2 keeps one record per install scope; a project-scope install can
+        // sit next to a user-scope one. This app manages user-level state,
+        // so prefer the user record, then any record that has a path.
+        let records: Vec<&Map<String, Value>> = match entry {
+            Value::Array(arr) => arr.iter().filter_map(|v| v.as_object()).collect(),
+            Value::Object(m) => vec![m],
+            _ => continue,
+        };
+        let install_path_of = |r: &Map<String, Value>| {
+            r.get("installPath").and_then(|v| v.as_str()).map(str::to_string)
+        };
+        let is_user = |r: &Map<String, Value>| {
+            r.get("scope").and_then(|v| v.as_str()) == Some("user")
+        };
+        let Some(path) = records
+            .iter()
+            .copied()
+            .filter(|r| is_user(r))
+            .find_map(install_path_of)
+            .or_else(|| records.iter().copied().find_map(install_path_of))
+        else {
+            continue;
+        };
+        let name = key.split('@').next().unwrap_or(key).to_string();
+        out.push(InstalledPlugin {
+            key: key.clone(),
+            name,
+            install_path: PathBuf::from(path),
+        });
+    }
+    out.sort_by(|a, b| a.key.cmp(&b.key));
+    out
+}
+
+fn load_installed_plugins() -> Vec<InstalledPlugin> {
+    let path = paths::installed_plugins_file();
+    let Ok(raw) = fs::read_to_string(&path) else { return Vec::new() };
+    let Ok(root) = serde_json::from_str::<Value>(&raw) else { return Vec::new() };
+    parse_installed_plugins(&root)
+        .into_iter()
+        .filter(|p| p.install_path.is_dir())
+        .collect()
+}
+
+/// Flip a single plugin's entry in enabledPlugins. plugin_key is <plugin>@<marketplace>.
 pub fn toggle_plugin(plugin_key: &str) -> AppResult<()> {
     let mut settings = load_settings()?;
     let entry = settings
@@ -572,6 +629,7 @@ pub fn list_agents() -> AppResult<Vec<AgentEntry>> {
                     .cloned()
                     .unwrap_or_else(|| "blue".to_string()),
                 plugin_name: "Personal".to_string(),
+                plugin_key: String::new(),
                 file_path: path.to_string_lossy().into_owned(),
                 source: AgentSource::Personal,
                 is_plugin_enabled: true,
@@ -579,57 +637,42 @@ pub fn list_agents() -> AppResult<Vec<AgentEntry>> {
         }
     }
 
-    // 2. Plugin agents — ~/.claude/plugins/.../plugins/<plugin>/agents/*.md
-    let plugins_dir = paths::plugins_dir();
-    if let Ok(plugin_entries) = fs::read_dir(&plugins_dir) {
-        for plugin_entry in plugin_entries.flatten() {
-            let plugin_path = plugin_entry.path();
-            if !plugin_path.is_dir() {
+    // 2. Plugin agents — <installPath>/agents/*.md for each installed plugin.
+    for plugin in load_installed_plugins() {
+        let agents_subdir = plugin.install_path.join("agents");
+        let Ok(agent_entries) = fs::read_dir(&agents_subdir) else { continue };
+        let is_enabled = enabled.get(&plugin.key).copied().unwrap_or(false);
+        for agent_entry in agent_entries.flatten() {
+            let path = agent_entry.path();
+            if path.extension().and_then(|s| s.to_str()) != Some("md") {
                 continue;
             }
-            let plugin_name = plugin_path
-                .file_name()
-                .and_then(|s| s.to_str())
-                .unwrap_or("")
-                .to_string();
-            if plugin_name.is_empty() {
-                continue;
-            }
-            let agents_subdir = plugin_path.join("agents");
-            let Ok(agent_entries) = fs::read_dir(&agents_subdir) else { continue };
-            let plugin_key = format!("{plugin_name}@claude-plugins-official");
-            let is_enabled = enabled.get(&plugin_key).copied().unwrap_or(false);
-            for agent_entry in agent_entries.flatten() {
-                let path = agent_entry.path();
-                if path.extension().and_then(|s| s.to_str()) != Some("md") {
-                    continue;
-                }
-                let Ok(content) = fs::read_to_string(&path) else { continue };
-                let meta = parse_frontmatter(&content);
-                let tools: Vec<String> = meta
-                    .get("tools")
-                    .map(|s| {
-                        s.split(',')
-                            .map(|t| t.trim().to_string())
-                            .filter(|t| !t.is_empty())
-                            .collect()
-                    })
-                    .unwrap_or_default();
-                out.push(AgentEntry {
-                    name: meta
-                        .get("name")
-                        .cloned()
-                        .unwrap_or_else(|| file_stem(&path)),
-                    description: meta.get("description").cloned().unwrap_or_default(),
-                    tools,
-                    model: meta.get("model").cloned().unwrap_or_default(),
-                    color: meta.get("color").cloned().unwrap_or_default(),
-                    plugin_name: plugin_name.clone(),
-                    file_path: path.to_string_lossy().into_owned(),
-                    source: AgentSource::Plugin,
-                    is_plugin_enabled: is_enabled,
-                });
-            }
+            let Ok(content) = fs::read_to_string(&path) else { continue };
+            let meta = parse_frontmatter(&content);
+            let tools: Vec<String> = meta
+                .get("tools")
+                .map(|s| {
+                    s.split(',')
+                        .map(|t| t.trim().to_string())
+                        .filter(|t| !t.is_empty())
+                        .collect()
+                })
+                .unwrap_or_default();
+            out.push(AgentEntry {
+                name: meta
+                    .get("name")
+                    .cloned()
+                    .unwrap_or_else(|| file_stem(&path)),
+                description: meta.get("description").cloned().unwrap_or_default(),
+                tools,
+                model: meta.get("model").cloned().unwrap_or_default(),
+                color: meta.get("color").cloned().unwrap_or_default(),
+                plugin_name: plugin.name.clone(),
+                plugin_key: plugin.key.clone(),
+                file_path: path.to_string_lossy().into_owned(),
+                source: AgentSource::Plugin,
+                is_plugin_enabled: is_enabled,
+            });
         }
     }
 
@@ -697,47 +740,34 @@ pub fn list_skills() -> AppResult<Vec<SkillEntry>> {
     let commands_dir = paths::commands_dir();
     let skills_dir = paths::skills_dir();
 
-    scan_skill_dir(&commands_dir, SkillSource::Command, true, &mut out);
+    scan_skill_dir(&commands_dir, SkillSource::Command, true, "", &mut out);
     scan_skill_dir(
         &commands_dir.join(".disabled"),
         SkillSource::Command,
         false,
+        "",
         &mut out,
     );
 
-    scan_skill_dir(&skills_dir, SkillSource::Skill, true, &mut out);
+    scan_skill_dir(&skills_dir, SkillSource::Skill, true, "", &mut out);
     scan_skill_dir(
         &skills_dir.join(".disabled"),
         SkillSource::Skill,
         false,
+        "",
         &mut out,
     );
 
     // Plugin skills (read-only, toggled via plugin enable/disable).
-    let plugins_dir = paths::plugins_dir();
-    if let Ok(plugin_entries) = fs::read_dir(&plugins_dir) {
-        for plugin_entry in plugin_entries.flatten() {
-            let plugin_path = plugin_entry.path();
-            if !plugin_path.is_dir() {
-                continue;
-            }
-            let plugin_name = plugin_path
-                .file_name()
-                .and_then(|s| s.to_str())
-                .unwrap_or("")
-                .to_string();
-            if plugin_name.is_empty() {
-                continue;
-            }
-            let plugin_key = format!("{plugin_name}@claude-plugins-official");
-            let is_enabled = enabled.get(&plugin_key).copied().unwrap_or(false);
-            scan_skill_dir(
-                &plugin_path.join("skills"),
-                SkillSource::Plugin,
-                is_enabled,
-                &mut out,
-            );
-        }
+    for plugin in load_installed_plugins() {
+        let is_enabled = enabled.get(&plugin.key).copied().unwrap_or(false);
+        scan_skill_dir(
+            &plugin.install_path.join("skills"),
+            SkillSource::Plugin,
+            is_enabled,
+            &plugin.key,
+            &mut out,
+        );
     }
 
     out.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
@@ -752,6 +782,7 @@ fn scan_skill_dir(
     dir: &Path,
     source: SkillSource,
     is_enabled: bool,
+    plugin_key: &str,
     out: &mut Vec<SkillEntry>,
 ) {
     let Ok(entries) = fs::read_dir(dir) else { return };
@@ -783,6 +814,7 @@ fn scan_skill_dir(
             name: display_name,
             description: meta.get("description").cloned().unwrap_or_default(),
             source,
+            plugin_key: plugin_key.to_string(),
             file_path: skill_file.to_string_lossy().into_owned(),
             is_enabled,
         });
@@ -1006,7 +1038,7 @@ fn allowed_roots() -> Vec<PathBuf> {
         paths::personal_agents_dir(),
         paths::commands_dir(),
         paths::skills_dir(),
-        paths::plugins_dir(),
+        paths::plugins_root(),
     ]
 }
 
@@ -1207,5 +1239,69 @@ mod tests {
         let arr = disabled["Stop"].as_array().unwrap();
         assert_eq!(arr.len(), 1);
         assert_eq!(arr[0]["hooks"][0]["command"], "new");
+    }
+
+    #[test]
+    fn parse_installed_plugins_reads_v2_array_records() {
+        let root = json!({
+            "version": 2,
+            "plugins": {
+                "superpowers@claude-plugins-official": [
+                    { "installPath": "/home/u/.claude/plugins/cache/claude-plugins-official/superpowers/5.1.0", "scope": "user" }
+                ],
+                "legacy@other": { "installPath": "/home/u/.claude/plugins/cache/other/legacy/1.0.0" },
+                "broken@x": [ { "scope": "user" } ]
+            }
+        });
+        let plugins = parse_installed_plugins(&root);
+        assert_eq!(plugins.len(), 2);
+        assert_eq!(plugins[0].key, "legacy@other");
+        assert_eq!(plugins[0].name, "legacy");
+        assert_eq!(plugins[1].key, "superpowers@claude-plugins-official");
+        assert_eq!(plugins[1].name, "superpowers");
+        assert!(plugins[1].install_path.ends_with("superpowers/5.1.0"));
+    }
+
+    #[test]
+    fn parse_installed_plugins_tolerates_missing_or_empty_map() {
+        assert!(parse_installed_plugins(&json!({ "version": 2 })).is_empty());
+        assert!(parse_installed_plugins(&json!({ "plugins": [] })).is_empty());
+        assert!(parse_installed_plugins(&json!(null)).is_empty());
+        assert!(parse_installed_plugins(&json!({ "plugins": { "a@m": [] } })).is_empty());
+    }
+
+    #[test]
+    fn parse_installed_plugins_prefers_user_scope_record() {
+        let root = json!({ "plugins": { "p@m": [
+            { "scope": "project", "installPath": "/proj/p" },
+            { "scope": "user", "installPath": "/user/p" }
+        ] } });
+        let plugins = parse_installed_plugins(&root);
+        assert_eq!(plugins.len(), 1);
+        assert_eq!(plugins[0].install_path, PathBuf::from("/user/p"));
+    }
+
+    #[test]
+    fn parse_installed_plugins_skips_unusable_first_record() {
+        let root = json!({ "plugins": { "p@m": [
+            { "scope": "user" },
+            { "scope": "project", "installPath": "/proj/p" }
+        ] } });
+        let plugins = parse_installed_plugins(&root);
+        assert_eq!(plugins.len(), 1);
+        assert_eq!(plugins[0].install_path, PathBuf::from("/proj/p"));
+    }
+
+    #[test]
+    fn parse_installed_plugins_keeps_same_name_from_two_marketplaces() {
+        let root = json!({ "plugins": {
+            "tools@alpha": [ { "installPath": "/a/tools" } ],
+            "tools@beta": [ { "installPath": "/b/tools" } ]
+        } });
+        let plugins = parse_installed_plugins(&root);
+        assert_eq!(plugins.len(), 2);
+        assert_eq!(plugins[0].key, "tools@alpha");
+        assert_eq!(plugins[1].key, "tools@beta");
+        assert!(plugins.iter().all(|p| p.name == "tools"));
     }
 }

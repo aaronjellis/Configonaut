@@ -159,11 +159,14 @@ pub fn personal_agents_dir() -> PathBuf {
     home().join(".claude").join("agents")
 }
 
-pub fn plugins_dir() -> PathBuf {
-    home()
-        .join(".claude")
-        .join("plugins")
-        .join("marketplaces")
-        .join("claude-plugins-official")
-        .join("plugins")
+/// Root of Claude Code's plugin state: installed_plugins.json,
+/// known_marketplaces.json, cache/, marketplaces/, synced/.
+pub fn plugins_root() -> PathBuf {
+    home().join(".claude").join("plugins")
+}
+
+/// Index of installed plugins. Keys are `<plugin>@<marketplace>`; each
+/// value carries the on-disk `installPath` of the installed version.
+pub fn installed_plugins_file() -> PathBuf {
+    plugins_root().join("installed_plugins.json")
 }

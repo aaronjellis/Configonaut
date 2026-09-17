@@ -148,6 +148,9 @@ pub struct AgentEntry {
     pub model: String,
     pub color: String,
     pub plugin_name: String,
+    /// `<plugin>@<marketplace>` — the key used in settings.json `enabledPlugins`.
+    /// Empty for personal agents.
+    pub plugin_key: String,
     pub file_path: String,
     pub source: AgentSource,
     pub is_plugin_enabled: bool,
@@ -167,6 +170,8 @@ pub struct SkillEntry {
     pub name: String,
     pub description: String,
     pub source: SkillSource,
+    /// `<plugin>@<marketplace>` for plugin skills, empty otherwise.
+    pub plugin_key: String,
     pub file_path: String,
     pub is_enabled: bool,
 }
