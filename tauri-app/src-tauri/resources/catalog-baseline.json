@@ -1,7 +1,7 @@
 {
   "$schema": "https://configonaut.app/schemas/catalog-v1.json",
   "version": "1.1.0",
-  "generatedAt": "2026-04-12",
+  "generatedAt": "2026-05-27",
   "source": "https://github.com/aaronjellis/configonaut-catalog",
   "categories": [
     {
@@ -1536,7 +1536,7 @@
     {
       "id": "aws",
       "name": "AWS (AWS Labs)",
-      "description": "Core AWS services \u2014 S3, Lambda, CloudFormation, and more.",
+      "description": "Core AWS services — S3, Lambda, CloudFormation, and more.",
       "category": "cloud",
       "tags": [
         "aws",
