@@ -17,7 +17,7 @@
 //   │ Defined in ~/.claude/settings.json  N on, M off │
 //   └──────────────────────────────────────────────┘
 //
-// Empty state shows the five hook types with short descriptions in a
+// Empty state shows the four hook types with short descriptions in a
 // glass card. Clicking a row toggles the editor panel open/closed; the
 // resize handle only shows when the panel is open.
 
@@ -35,6 +35,7 @@ import {
   deleteHook as apiDeleteHook,
   getClaudeCodeSettingsPath,
   getHookRuleJson,
+  getStorageDir,
   listHooks,
   toggleHook as apiToggleHook,
   updateHookRule,
@@ -57,18 +58,44 @@ const DETAIL_HEIGHT_KEY = "configonaut.hooks.detailHeight";
 const DETAIL_MIN_HEIGHT = 180;
 const LIST_MIN_HEIGHT = 160;
 
-// Hook events Claude Code currently fires. Keep in sync with Claude Code's
-// docs; if the user picks one the runtime doesn't recognize the hook is
-// simply never triggered (no harm, no error).
+// Hook events Claude Code fires, per code.claude.com/docs/en/hooks
+// (checked 2026-09-17). Roughly most-common first. If the runtime doesn't
+// recognize a name the hook is simply never triggered (no harm, no error),
+// so a stale entry here is low-risk — but re-sync when Claude Code adds events.
 const HOOK_EVENTS = [
   { name: "PreToolUse", desc: "Before Claude uses a tool (can block it)" },
   { name: "PostToolUse", desc: "After a tool completes" },
+  { name: "PostToolUseFailure", desc: "After a tool call fails" },
+  { name: "PermissionRequest", desc: "When a permission prompt would be shown" },
+  { name: "PermissionDenied", desc: "When a permission is denied" },
   { name: "UserPromptSubmit", desc: "When the user submits a prompt" },
   { name: "Notification", desc: "When Claude sends a notification" },
   { name: "Stop", desc: "When Claude finishes a task" },
+  { name: "StopFailure", desc: "When a turn ends in an error" },
+  { name: "SubagentStart", desc: "When a subagent is dispatched" },
   { name: "SubagentStop", desc: "When a dispatched subagent finishes" },
   { name: "SessionStart", desc: "When a session begins" },
   { name: "SessionEnd", desc: "When a session ends" },
+  { name: "Setup", desc: "On first run in a project" },
+  { name: "PreCompact", desc: "Before context is compacted" },
+  { name: "PostCompact", desc: "After context is compacted" },
+  { name: "TaskCreated", desc: "When a background task is created" },
+  { name: "TaskCompleted", desc: "When a background task completes" },
+  { name: "ConfigChange", desc: "When a settings file changes" },
+  { name: "CwdChanged", desc: "When the working directory changes" },
+  { name: "FileChanged", desc: "When a watched file changes" },
+  { name: "DirectoryAdded", desc: "When a directory is added to the session" },
+  { name: "WorktreeCreate", desc: "When a git worktree is created" },
+  { name: "WorktreeRemove", desc: "When a git worktree is removed" },
+  { name: "PreModelSwitch", desc: "Before the model changes" },
+  { name: "PostModelSwitch", desc: "After the model changes" },
+  { name: "Elicitation", desc: "When an MCP server asks the user for input" },
+  { name: "ElicitationResult", desc: "After the user answers an MCP elicitation" },
+  { name: "InstructionsLoaded", desc: "When CLAUDE.md files are loaded" },
+  { name: "UserPromptExpansion", desc: "When a prompt is expanded" },
+  { name: "PostToolBatch", desc: "After a batch of tool calls completes" },
+  { name: "MessageDisplay", desc: "When a message is displayed" },
+  { name: "TeammateIdle", desc: "When a teammate agent goes idle" },
 ] as const;
 
 const DEFAULT_NEW_EVENT: (typeof HOOK_EVENTS)[number]["name"] = "PreToolUse";
@@ -83,6 +110,7 @@ export function HooksView({ mode, onMutated }: Props) {
   const [status, setStatusMessage] = useState("Ready.");
   const [statusIsError, setStatusIsError] = useState(false);
   const [settingsPath, setSettingsPath] = useState<string>("~/.claude/settings.json");
+  const [storageDir, setStorageDir] = useState<string>("");
 
   const [detailHeight, setDetailHeight] = useState<number>(() => {
     const stored = localStorage.getItem(DETAIL_HEIGHT_KEY);
@@ -129,6 +157,9 @@ export function HooksView({ mode, onMutated }: Props) {
     refresh();
     getClaudeCodeSettingsPath()
       .then((p) => setSettingsPath(displayPath(p)))
+      .catch(() => {});
+    getStorageDir()
+      .then((p) => setStorageDir(displayPath(p)))
       .catch(() => {});
   }, [refresh]);
 
@@ -491,7 +522,11 @@ export function HooksView({ mode, onMutated }: Props) {
                   Delete
                 </button>
                 <span className="spacer" />
-                <span className="settings-path-hint">{settingsPath}</span>
+                <span className="settings-path-hint">
+                  {selected && !selected.isEnabled
+                    ? `${storageDir}/disabled_hooks.json`
+                    : settingsPath}
+                </span>
               </div>
             </div>
           </>
@@ -625,6 +660,22 @@ function eventColorVar(event: string): string {
       return "#ff5a5f";
     case "SubagentStop":
       return "#b36cff";
+    case "PostToolUseFailure":
+    case "StopFailure":
+    case "PermissionDenied":
+      return "#ff5a5f";
+    case "PermissionRequest":
+    case "UserPromptSubmit":
+      return "#ffaa55";
+    case "SubagentStart":
+      return "#b36cff";
+    case "SessionStart":
+    case "SessionEnd":
+    case "Setup":
+      return "#2fd66c";
+    case "PreCompact":
+    case "PostCompact":
+      return "#5a93ff";
     default:
       return "#9aa0a6";
   }

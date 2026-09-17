@@ -1,5 +1,25 @@
 # Changelog
 
+## Unreleased
+
+> Rename this section to the version number when cutting a release —
+> `.github/workflows/release.yml` uses the first `## ` section as the notes.
+
+### Added
+- **All current hook events** in the New Hook picker (33 events, from PreToolUse to TeammateIdle), instead of eight.
+- **Non-command hooks are listed** -- prompt, agent, http, and mcp_tool handlers now show in the Hooks view with a summary instead of being hidden.
+- **Migrate leftover servers from settings.json** -- versions before 0.2.4 wrote MCP servers to `~/.claude/settings.json`, which Claude Code ignores. CLI mode now shows a banner with a one-click move into `~/.claude.json`. Entries whose name already exists (active or stored) are left alone and reported, and the original block is archived under Configonaut's storage directory before it is removed.
+
+### Changed
+- **Remote servers get a `type` in CLI mode** -- Claude Code skips `url`-only entries, so `http` (or `sse`) is filled in when writing to `~/.claude.json`.
+
+### Fixed
+- **Disabling a hook actually disables it** -- Claude Code has no per-rule disable flag, so the old `disabled: true` marker left hooks running. Disabled rules now move to Configonaut's `disabled_hooks.json` and are restored verbatim on re-enable. Existing flagged rules are migrated on first launch.
+- **Deleting a hook removes stale disabled copies** so the rule can't resurface as "disabled".
+- **New skills are created as `~/.claude/skills/<name>/SKILL.md`** -- the only layout Claude Code loads. Flat `<name>.md` files created by earlier versions are still listed; the app now refuses to create a skill whose legacy file already exists.
+- **Plugins are discovered from `installed_plugins.json`** -- every installed plugin from any marketplace now appears in Agents and Skills, and Enable/Disable uses the real `<plugin>@<marketplace>` key. Previously the app scanned the official marketplace's source clone, which listed uninstalled plugins and missed everything else.
+- **Every write to `~/.claude/settings.json` is now preceded by a timestamped backup** under Configonaut's storage directory (30 kept).
+
 ## 0.4.0
 
 ### Added

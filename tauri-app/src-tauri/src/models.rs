@@ -88,6 +88,19 @@ pub struct ServerListing {
     pub project_groups: Vec<ProjectMcpGroup>,
 }
 
+/// Outcome of moving legacy `mcpServers` out of settings.json.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LegacyMigrationResult {
+    /// Names added to ~/.claude.json.
+    pub moved: Vec<String>,
+    /// Names left out because a server with that name already exists
+    /// (active or stored) in CLI mode.
+    pub skipped: Vec<String>,
+    /// Where the original block was archived before removal.
+    pub archive_path: String,
+}
+
 // ---------------------------------------------------------------------------
 // Hooks
 // ---------------------------------------------------------------------------
@@ -95,11 +108,16 @@ pub struct ServerListing {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct HookRule {
-    /// Stable id for React lists — index-based, regenerated on every load.
+    /// Stable id for React lists — `event::matcher`, regenerated on every load.
     pub id: String,
     pub event: String,
     pub matcher: String,
+    /// One human-readable summary per handler: the shell command for
+    /// `command` hooks, `prompt: …` / `agent: …` / `http: <url>` /
+    /// `mcp_tool: <server>/<tool>` for the other handler types.
     pub commands: Vec<String>,
+    /// The `type` of each handler, in the same order as `commands`.
+    pub handler_types: Vec<String>,
     pub is_enabled: bool,
 }
 
@@ -143,6 +161,9 @@ pub struct AgentEntry {
     pub model: String,
     pub color: String,
     pub plugin_name: String,
+    /// `<plugin>@<marketplace>` — the key used in settings.json `enabledPlugins`.
+    /// Empty for personal agents.
+    pub plugin_key: String,
     pub file_path: String,
     pub source: AgentSource,
     pub is_plugin_enabled: bool,
@@ -162,6 +183,8 @@ pub struct SkillEntry {
     pub name: String,
     pub description: String,
     pub source: SkillSource,
+    /// `<plugin>@<marketplace>` for plugin skills, empty otherwise.
+    pub plugin_key: String,
     pub file_path: String,
     pub is_enabled: bool,
 }

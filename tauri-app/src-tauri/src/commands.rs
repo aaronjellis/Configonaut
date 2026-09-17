@@ -18,8 +18,8 @@ use crate::catalog::{self, Catalog};
 use crate::claude_code;
 use crate::config;
 use crate::models::{
-    AgentEntry, AppMode, AppResult, BackupFile, HookRule, ServerListing, ServerSource,
-    SkillEntry, SkillSource,
+    AgentEntry, AppMode, AppResult, BackupFile, HookRule, LegacyMigrationResult, ServerListing,
+    ServerSource, SkillEntry, SkillSource,
 };
 use crate::paths;
 
@@ -799,6 +799,16 @@ pub fn create_hook(
 #[tauri::command]
 pub fn delete_hook(event: String, matcher: String) -> AppResult<()> {
     claude_code::delete_hook(&event, &matcher)
+}
+
+#[tauri::command]
+pub fn legacy_settings_mcp_names() -> AppResult<Vec<String>> {
+    claude_code::legacy_settings_mcp_names()
+}
+
+#[tauri::command]
+pub fn migrate_legacy_settings_mcp() -> AppResult<LegacyMigrationResult> {
+    claude_code::migrate_legacy_settings_mcp()
 }
 
 // ---------------------------------------------------------------------------

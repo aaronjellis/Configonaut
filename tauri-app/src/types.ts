@@ -24,11 +24,18 @@ export interface ServerListing {
   projectGroups: ProjectMcpGroup[];
 }
 
+export interface LegacyMigrationResult {
+  moved: string[];
+  skipped: string[];
+  archivePath: string;
+}
+
 export interface HookRule {
   id: string;
   event: string;
   matcher: string;
   commands: string[];
+  handlerTypes: string[];
   isEnabled: boolean;
 }
 
@@ -48,6 +55,7 @@ export interface AgentEntry {
   model: string;
   color: string;
   pluginName: string;
+  pluginKey: string;
   filePath: string;
   source: AgentSource;
   isPluginEnabled: boolean;
@@ -59,6 +67,7 @@ export interface SkillEntry {
   name: string;
   description: string;
   source: SkillSource;
+  pluginKey: string;
   filePath: string;
   isEnabled: boolean;
 }

@@ -115,6 +115,13 @@ pub fn backup_dir(mode: AppMode) -> PathBuf {
     storage_dir().join("backups").join(mode.as_str())
 }
 
+/// Timestamped copies of ~/.claude/settings.json taken before each write.
+/// Kept apart from the per-mode MCP backup dirs so the Backups view
+/// (which lists those) is unaffected.
+pub fn settings_backup_dir() -> PathBuf {
+    storage_dir().join("backups").join("claude-code-settings")
+}
+
 /// Per-mode file mapping a server name → the catalog id it was installed from.
 /// Used by the "ready to enable" gate so we know which env vars a server needs.
 pub fn catalog_links_file(mode: AppMode) -> PathBuf {
@@ -136,6 +143,13 @@ pub fn feed_cache_file(feed_id: &str) -> PathBuf {
     storage_dir().join(format!("feed-cache-{feed_id}.json"))
 }
 
+/// Hook rules the user has switched off. Claude Code has no per-rule
+/// disable flag, so a rule is only "off" if it is absent from
+/// settings.json — we park it here so it can be restored verbatim.
+pub fn disabled_hooks_file() -> PathBuf {
+    storage_dir().join("disabled_hooks.json")
+}
+
 // Claude Code content directories (used for agents, skills, and plugin scanning).
 // These are identical across OSes since Claude Code reads them from ~/.claude
 // regardless of platform.
@@ -152,11 +166,14 @@ pub fn personal_agents_dir() -> PathBuf {
     home().join(".claude").join("agents")
 }
 
-pub fn plugins_dir() -> PathBuf {
-    home()
-        .join(".claude")
-        .join("plugins")
-        .join("marketplaces")
-        .join("claude-plugins-official")
-        .join("plugins")
+/// Root of Claude Code's plugin state: installed_plugins.json,
+/// known_marketplaces.json, cache/, marketplaces/, synced/.
+pub fn plugins_root() -> PathBuf {
+    home().join(".claude").join("plugins")
+}
+
+/// Index of installed plugins. Keys are `<plugin>@<marketplace>`; each
+/// value carries the on-disk `installPath` of the installed version.
+pub fn installed_plugins_file() -> PathBuf {
+    plugins_root().join("installed_plugins.json")
 }

@@ -51,33 +51,6 @@ type SourceGroup = {
   skills: SkillEntry[];
 };
 
-function skillTemplate(name: string, source: SkillSource): string {
-  if (source === "command") {
-    return `---
-name: ${name}
-description: A custom slash command
----
-
-You are executing the /${name} command.
-
-## Instructions
-
-Describe what this command should do when invoked.
-`;
-  }
-  return `---
-name: ${name}
-description: A custom skill
----
-
-You are a specialized skill.
-
-## Instructions
-
-Describe what this skill does and when it should activate.
-`;
-}
-
 export function SkillsView({ mode, onMutated }: Props) {
   const toast = useToast();
   const [skills, setSkills] = useState<SkillEntry[]>([]);
@@ -231,11 +204,7 @@ export function SkillsView({ mode, onMutated }: Props) {
     try {
       const path = await apiCreateSkill(name, newType);
       if (newContent.trim()) {
-        try {
-          await writeClaudeFile(path, newContent);
-        } catch {
-          /* ignore */
-        }
+        await writeClaudeFile(path, newContent);
       }
       setStatus(`Created "${name}".`);
       toast.show(`Created skill "${name}".`, "success");
@@ -255,19 +224,15 @@ export function SkillsView({ mode, onMutated }: Props) {
     setShowNew(true);
     setNewName("");
     setNewType("command");
-    setNewContent(skillTemplate("my-command", "command"));
+    setNewContent("");
   }
 
   function onNewNameChange(name: string) {
     setNewName(name);
-    const safe = slugify(name);
-    if (safe) setNewContent(skillTemplate(safe, newType));
   }
 
   function onNewTypeChange(t: SkillSource) {
     setNewType(t);
-    const safe = slugify(newName) || (t === "command" ? "my-command" : "my-skill");
-    setNewContent(skillTemplate(safe, t));
   }
 
   async function openSkillsFolder() {
@@ -767,6 +732,7 @@ function CreateModal({
             className="code-editor code-editor--large"
             value={content}
             onChange={(e) => onContentChange(e.target.value)}
+            placeholder="Leave empty to start from the default template."
             spellCheck={false}
           />
         </div>
@@ -967,12 +933,5 @@ function SourceIcon({ source, color }: { source: SkillSource; color: string }) {
       <path d="M10 3v4a2 2 0 0 1-2 2H4v4h4a2 2 0 0 1 2 2v4h4v-4a2 2 0 0 1 2-2h4v-4h-4a2 2 0 0 1-2-2V3z" />
     </svg>
   );
-}
-
-function slugify(name: string): string {
-  return name
-    .toLowerCase()
-    .replace(/\s+/g, "-")
-    .replace(/[^a-z0-9-]/g, "");
 }
 

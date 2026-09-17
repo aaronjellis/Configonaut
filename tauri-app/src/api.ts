@@ -17,6 +17,7 @@ import type {
   InstallAction,
   InstallProgress,
   InstallSchema,
+  LegacyMigrationResult,
   RuntimeInstallProgress,
   RuntimeName,
   RuntimeStatus,
@@ -95,6 +96,19 @@ export function updateServerConfig(
   newJson: string
 ): Promise<void> {
   return invoke("update_server_config", { mode, name, source, newJson });
+}
+
+/// Servers left behind in ~/.claude/settings.json by Configonaut ≤ 0.2.3.
+export function legacySettingsMcpNames(): Promise<string[]> {
+  return invoke<string[]>("legacy_settings_mcp_names");
+}
+
+/// Move those servers into ~/.claude.json, archiving the original block
+/// under Configonaut's storage dir first. Resolves with the names moved,
+/// the names skipped because a server by that name already existed, and
+/// where the archive was written.
+export function migrateLegacySettingsMcp(): Promise<LegacyMigrationResult> {
+  return invoke<LegacyMigrationResult>("migrate_legacy_settings_mcp");
 }
 
 // ---------- Backups ----------
