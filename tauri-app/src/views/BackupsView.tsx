@@ -216,6 +216,9 @@ export function BackupsView({ mode, onMutated }: Props) {
               </p>
               <p className="muted" style={{ fontSize: 13 }}>
                 Your current config will be backed up first.
+                {mode === "cli"
+                  ? " Only your MCP servers are restored — your Claude Code account and project settings stay as they are."
+                  : ""}
               </p>
             </div>
             <div className="modal-footer">
@@ -319,7 +322,7 @@ export function BackupsView({ mode, onMutated }: Props) {
                   <div className="hint-glyph">◎</div>
                   <div>Click a backup to preview it.</div>
                   <div className="sub">
-                    You'll see the full config plus a summary of which
+                    You'll see the backed-up config plus a summary of which
                     servers changed.
                   </div>
                 </div>
