@@ -12,10 +12,9 @@ ready-to-install servers that appear inside the in-app "Add Server" marketplace.
 2. Configonaut fetches `https://raw.githubusercontent.com/aaronjellis/configonaut-catalog/main/catalog.json` once on launch (and on user refresh).
 3. It caches the result locally at `~/Library/Application Support/Configonaut/catalog-cache.json` with a last-good fallback so the marketplace still works offline.
 4. Users browse, search, and one-click add servers to their `claude_desktop_config.json` (or `~/.claude.json` in CLI mode).
+5. This directory is a mirror of the configonaut-catalog repo; the app embeds a copy at `tauri-app/src-tauri/resources/catalog-baseline.json` (see `scripts/sync-catalog-baseline.sh`).
 
 The app never uploads your tokens anywhere — the catalog only declares *which* environment variables a server needs, not their values.
-
-This directory is a mirror of the configonaut-catalog repo; the app embeds a copy at tauri-app/src-tauri/resources/catalog-baseline.json (see scripts/sync-catalog-baseline.sh).
 
 ## Repository layout
 

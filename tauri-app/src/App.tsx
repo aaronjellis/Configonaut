@@ -58,7 +58,7 @@ function App() {
   useEffect(() => {
     getVersion()
       .then(setAppVersion)
-      .catch(() => setAppVersion(""));
+      .catch(() => { /* not running inside Tauri (plain vite dev); leave the version blank */ });
   }, []);
 
   useEffect(() => {

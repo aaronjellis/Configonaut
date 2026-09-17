@@ -6,12 +6,12 @@ Desktop app (Tauri 2 + React 19 + Rust) that edits Claude Desktop and Claude Cod
 
 - `tauri-app/src-tauri/src/` — Rust backend. `config.rs` owns MCP servers + backups, `claude_code.rs` owns hooks/agents/skills/plugins, `catalog.rs` the marketplace, `installer.rs` auto-install, `paths.rs` every on-disk location.
 - `tauri-app/src/` — React frontend. `api.ts` is the only place that calls `invoke()`; `types.ts` mirrors `models.rs`.
-- `marketplace-catalog/` — mirror of the `aaronjellis/configonaut-catalog` repo. `tauri-app/src-tauri/resources/catalog-baseline.json` must be byte-identical (`scripts/sync-catalog-baseline.sh`); CI checks this.
+- `marketplace-catalog/` — mirror of the `aaronjellis/configonaut-catalog` repo. `tauri-app/src-tauri/resources/catalog-baseline.json` must match it semantically (`scripts/sync-catalog-baseline.sh`; CI compares `jq -S` output).
 
 ## Commands
 
 - Frontend tests: `cd tauri-app && bun run test`
-- Typecheck: `cd tauri-app && npx tsc --noEmit`
+- Typecheck: `cd tauri-app && bun run typecheck`
 - Rust tests: `cd tauri-app/src-tauri && cargo test`
 - Clippy (CI uses `-D warnings`): `cd tauri-app/src-tauri && cargo clippy --all-targets -- -D warnings`
 - Run the app: `cd tauri-app && bun run tauri dev` (run `src-tauri/binaries/download-uv.sh` once first)

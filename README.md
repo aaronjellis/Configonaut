@@ -21,7 +21,7 @@ A desktop app for managing Claude Desktop and Claude Code configuration files. B
 ```
 tauri-app/           Tauri 2 + React + Rust application
 marketplace-catalog/ Catalog tooling and schema
-docs/                Design specs, plans, and guides
+docs/                Release checklists
 ```
 
 ## Development
@@ -29,7 +29,7 @@ docs/                Design specs, plans, and guides
 ### Prerequisites
 
 - [Rust](https://rustup.rs/) (stable)
-- [Node.js](https://nodejs.org/) 18+ and [bun](https://bun.sh/)
+- [Node.js](https://nodejs.org/) 22.12+ and [bun](https://bun.sh/)
 - The `uv` sidecar binaries: run `tauri-app/src-tauri/binaries/download-uv.sh` once before the first build
 
 ### Run locally
