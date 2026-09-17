@@ -27,6 +27,7 @@ export function SetupStep({ mode, serverId, onDone, onCancel }: Props) {
     node: null, uv: null, docker: null,
   });
   const downloadingRef = useRef(false);
+  const lastErrorCanRetryRef = useRef<boolean | null>(null);
 
   const handleCheck = useCallback(async (runtime: RuntimeName) => {
     const status = await apiCheckRuntime(runtime);
@@ -50,6 +51,7 @@ export function SetupStep({ mode, serverId, onDone, onCancel }: Props) {
     let cancelled = false;
     onInstallProgress((p) => {
       if (p.kind === "log") dispatch({ type: "installLog", line: p.line });
+      if (p.kind === "error") lastErrorCanRetryRef.current = p.canRetry;
     }).then((fn) => {
       if (cancelled) fn();
       else unlisten = fn;
@@ -95,6 +97,7 @@ export function SetupStep({ mode, serverId, onDone, onCancel }: Props) {
 
   const handleInstall = async () => {
     dispatch({ type: "installStarted" });
+    lastErrorCanRetryRef.current = null;
     try {
       const name = await apiInstallServer(mode, serverId, state.fieldValues);
       dispatch({ type: "installDone", installedName: name });
@@ -102,7 +105,11 @@ export function SetupStep({ mode, serverId, onDone, onCancel }: Props) {
         onDone(name);
       }
     } catch (err) {
-      dispatch({ type: "installError", message: String(err), canRetry: true });
+      dispatch({
+        type: "installError",
+        message: String(err),
+        canRetry: lastErrorCanRetryRef.current ?? true,
+      });
     }
   };
 

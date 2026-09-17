@@ -11,6 +11,17 @@ use tauri_plugin_shell::ShellExt;
 /// Tauri picks the right per-platform suffix at runtime.
 pub const UV_SIDECAR_NAME: &str = "binaries/uv";
 
+/// Absolute path of the bundled uv binary, if present. Tauri copies
+/// `externalBin` entries next to the executable under their base name
+/// (`uv` / `uv.exe`) both in dev and in the bundle.
+pub fn uv_binary_path() -> Option<std::path::PathBuf> {
+    let exe = std::env::current_exe().ok()?;
+    let dir = exe.parent()?;
+    let name = if cfg!(target_os = "windows") { "uv.exe" } else { "uv" };
+    let p = dir.join(name);
+    if p.exists() { Some(p) } else { None }
+}
+
 /// Run `uv <args>` to completion, collecting stdout + stderr.
 /// Returns the combined output and the exit code.
 pub async fn run_uv(app: &AppHandle, args: &[&str]) -> Result<UvOutput> {

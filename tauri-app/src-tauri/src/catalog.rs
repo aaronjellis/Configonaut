@@ -797,10 +797,12 @@ pub fn install_from_catalog(
 }
 
 /// Shared tail of both install paths: PATH injection for the managed Node,
-/// Windows shim wrapping, unique naming, the config write, and the catalog
-/// link. Order matters — `inject_managed_node_path` must see the original
-/// `npx`/`node` command before `adapt_config_for_windows` wraps it in
-/// `cmd /c`.
+/// sidecar `uv` substitution for `uvx`, Windows shim wrapping, unique
+/// naming, the config write, and the catalog link. Order matters —
+/// `inject_managed_node_path` and `inject_sidecar_uv` must both see the
+/// original `npx`/`node`/`uvx` command before `adapt_config_for_windows`
+/// wraps it in `cmd /c` (an absolute uv path is left alone by the wrap,
+/// since it only matches the bare command names).
 pub(crate) fn finalize_install(
     mode: AppMode,
     base_name: &str,
@@ -809,6 +811,7 @@ pub(crate) fn finalize_install(
     target: ServerSource,
 ) -> AppResult<String> {
     crate::installer::inject_managed_node_path(&mut config);
+    crate::installer::inject_sidecar_uv(&mut config);
     adapt_config_for_windows(&mut config);
     let name = resolve_unique_name(mode, base_name)?;
     let entries = vec![(name.clone(), Value::Object(config))];

@@ -188,7 +188,7 @@ pub fn managed_node_bin_dir() -> Option<PathBuf> {
 const RUNTIME_INSTALL_EVENT: &str = "runtime-install-progress";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "kind", rename_all = "camelCase")]
+#[serde(tag = "kind", rename_all = "camelCase", rename_all_fields = "camelCase")]
 pub enum RuntimeInstallProgress {
     Downloading { percent: f64, downloaded_bytes: u64, total_bytes: u64 },
     VerifyingDownload,
@@ -222,7 +222,8 @@ pub(crate) fn find_sha_for_file(shasums: &str, filename: &str) -> Option<String>
         let mut parts = line.split_whitespace();
         let hash = parts.next()?;
         let name = parts.next()?.trim_start_matches('*');
-        (name == filename && hash.len() == 64).then(|| hash.to_ascii_lowercase())
+        let is_sha256 = hash.len() == 64 && hash.chars().all(|c| c.is_ascii_hexdigit());
+        (name == filename && is_sha256).then(|| hash.to_ascii_lowercase())
     })
 }
 
@@ -727,7 +728,17 @@ pub async fn inspect_install(server_id: String) -> Result<InstallSchema, String>
 // install_server — runs install steps, streams progress events, writes config
 // ---------------------------------------------------------------------------
 
-pub fn warmup_command_for(step: &InstallStep) -> (&'static str, Vec<String>) {
+/// Whether `program` resolves on the system PATH (via `which` / `where`).
+fn system_has(program: &str) -> bool {
+    let probe = if cfg!(target_os = "windows") { "where" } else { "which" };
+    Command::new(probe)
+        .arg(program)
+        .output()
+        .map(|o| o.status.success() && !o.stdout.is_empty())
+        .unwrap_or(false)
+}
+
+pub fn warmup_command_for(step: &InstallStep) -> (String, Vec<String>) {
     match step {
         InstallStep::NpmWarmup { package } => {
             // Windows `Command` only appends `.exe` when searching PATH, and
@@ -736,13 +747,30 @@ pub fn warmup_command_for(step: &InstallStep) -> (&'static str, Vec<String>) {
             // CVE-2024-24576 fix), whereas wrapping in `cmd /c` would
             // require rejecting shell metacharacters too.
             let program = if cfg!(target_os = "windows") { "npx.cmd" } else { "npx" };
-            (program, vec!["-y".into(), package.clone(), "--help".into()])
+            (program.to_string(), vec!["-y".into(), package.clone(), "--help".into()])
         }
         InstallStep::UvxWarmup { package } => {
-            ("uvx", vec![package.clone(), "--help".into()])
+            // `check_runtime(Uv)` reports the bundled sidecar as installed,
+            // so the warmup must be able to run without a system uv too —
+            // otherwise the prerequisite check and the actual install
+            // disagree. Prefer a system `uvx` when present (it may be a
+            // different/newer uv than the bundled one); otherwise fall back
+            // to the bundled uv via `uv tool run`, which is what `uvx`
+            // aliases. If neither is available, keep `("uvx", ...)` so the
+            // resulting ENOENT surfaces a clear error.
+            if system_has("uvx") {
+                ("uvx".to_string(), vec![package.clone(), "--help".into()])
+            } else if let Some(uv_path) = sidecar::uv_binary_path() {
+                (
+                    uv_path.to_string_lossy().to_string(),
+                    vec!["tool".into(), "run".into(), package.clone(), "--help".into()],
+                )
+            } else {
+                ("uvx".to_string(), vec![package.clone(), "--help".into()])
+            }
         }
-        InstallStep::DockerPull { image } => ("docker", vec!["pull".into(), image.clone()]),
-        InstallStep::None | InstallStep::Unknown => ("true", vec![]),
+        InstallStep::DockerPull { image } => ("docker".to_string(), vec!["pull".into(), image.clone()]),
+        InstallStep::None | InstallStep::Unknown => ("true".to_string(), vec![]),
     }
 }
 
@@ -753,7 +781,9 @@ pub fn warmup_command_for(step: &InstallStep) -> (&'static str, Vec<String>) {
 /// On Windows env keys are case-insensitive, so one spelling per key suffices.
 pub(crate) const WARMUP_ENV_PASSTHROUGH: &[&str] = &[
     // Core
-    "PATH", "HOME", "LOGNAME", "LANG", "LC_CTYPE", "TMPDIR", "TEMP", "TMP",
+    "PATH", "HOME", "LOGNAME", "USER", "LANG", "LC_CTYPE", "TMPDIR", "TEMP", "TMP",
+    // SSH (git+ssh dependencies resolved during install)
+    "SSH_AUTH_SOCK",
     // Windows
     "USERPROFILE", "USERNAME", "HOMEDRIVE", "HOMEPATH", "APPDATA", "LOCALAPPDATA",
     "ProgramData", "ProgramFiles", "SystemRoot", "SystemDrive", "windir",
@@ -806,7 +836,7 @@ fn label_for(step: &InstallStep) -> String {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "kind", rename_all = "camelCase")]
+#[serde(tag = "kind", rename_all = "camelCase", rename_all_fields = "camelCase")]
 pub enum InstallProgress {
     Step { step: String, label: String },
     Log { line: String },
@@ -825,20 +855,38 @@ pub fn inject_managed_node_path(config: &mut Map<String, Value>) {
     }
 
     // Only inject if there's no system node and we have a managed install.
-    let probe = if cfg!(target_os = "windows") { "where" } else { "which" };
-    let has_system = Command::new(probe)
-        .arg("node")
-        .output()
-        .map(|o| o.status.success() && !o.stdout.is_empty())
-        .unwrap_or(false);
-
-    if has_system {
+    if system_has("node") {
         return;
     }
 
     let Some(bin_dir) = managed_node_bin_dir() else { return };
     let current_path = std::env::var("PATH").unwrap_or_default();
     do_inject_node_path(config, &bin_dir.to_string_lossy(), &current_path);
+}
+
+/// If the server uses `uvx` as its command and no system `uvx` is on PATH,
+/// point the written config at the bundled uv sidecar via `uv tool run`
+/// instead. Without this, a server installed successfully (because the
+/// warmup ran against the bundled uv) would still fail for Claude, which
+/// spawns the raw command from the config and has no PATH fallback.
+pub fn inject_sidecar_uv(config: &mut Map<String, Value>) {
+    let is_uvx = matches!(config.get("command"), Some(Value::String(c)) if c == "uvx");
+    if !is_uvx || system_has("uvx") {
+        return;
+    }
+    let Some(uv_path) = sidecar::uv_binary_path() else { return };
+    do_inject_sidecar_uv(config, &uv_path.to_string_lossy());
+}
+
+/// Inner implementation, split out so tests can exercise it without
+/// filesystem or system-PATH side effects.
+fn do_inject_sidecar_uv(config: &mut Map<String, Value>, uv_path: &str) {
+    let mut new_args = vec![Value::String("tool".into()), Value::String("run".into())];
+    if let Some(Value::Array(existing)) = config.get("args") {
+        new_args.extend(existing.iter().cloned());
+    }
+    config.insert("command".into(), Value::String(uv_path.to_string()));
+    config.insert("args".into(), Value::Array(new_args));
 }
 
 fn config_needs_node(config: &Map<String, Value>) -> bool {
@@ -930,7 +978,7 @@ pub async fn install_server(
             continue;
         }
 
-        let mut command = TokioCommand::new(program);
+        let mut command = TokioCommand::new(&program);
         command
             .args(&args)
             .env_clear()
@@ -943,7 +991,7 @@ pub async fn install_server(
         // is NOT on the Tauri process's inherited PATH, so a bare
         // `TokioCommand::new("npx")` would ENOENT. Mirror the same path
         // injection inject_managed_node_path does for server configs.
-        if matches!(program, "npx" | "npx.cmd" | "node") {
+        if matches!(program.as_str(), "npx" | "npx.cmd" | "node") {
             if let Some(bin_dir) = managed_node_bin_dir() {
                 let sep = if cfg!(target_os = "windows") { ";" } else { ":" };
                 let current_path = std::env::var("PATH").unwrap_or_default();
@@ -1236,8 +1284,12 @@ mod tests {
         let (program, args) = warmup_command_for(&InstallStep::UvxWarmup {
             package: "mcp-server-foo".into(),
         });
-        assert_eq!(program, "uvx");
-        assert_eq!(args, vec!["mcp-server-foo", "--help"]);
+        // Either a system `uvx` or the bundled uv binary (invoked as
+        // `uv tool run`), depending on what's on PATH / bundled in this
+        // test environment.
+        assert!(program == "uvx" || program.ends_with("uv") || program.ends_with("uv.exe"));
+        assert!(args.contains(&"mcp-server-foo".to_string()));
+        assert!(args.contains(&"--help".to_string()));
     }
 
     #[test]
@@ -1308,18 +1360,23 @@ mod tests {
 
     #[test]
     fn find_sha_for_file_picks_exact_filename() {
-        let shasums = "\
-aaaa  node-v22.13.1-darwin-arm64.tar.gz
-bbbb  node-v22.13.1-darwin-arm64.tar.xz
-0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef  node-v22.13.1-linux-x64.tar.gz
-";
+        let hex = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+        let non_hex = "g".repeat(64);
+        let shasums = format!(
+            "aaaa  node-v22.13.1-darwin-arm64.tar.gz\n\
+             bbbb  node-v22.13.1-darwin-arm64.tar.xz\n\
+             {hex}  node-v22.13.1-linux-x64.tar.gz\n\
+             {non_hex}  node-v22.13.1-bad-hash.tar.gz\n"
+        );
         assert_eq!(
-            find_sha_for_file(shasums, "node-v22.13.1-linux-x64.tar.gz").as_deref(),
-            Some("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")
+            find_sha_for_file(&shasums, "node-v22.13.1-linux-x64.tar.gz").as_deref(),
+            Some(hex)
         );
         // A 4-char "hash" is not a sha256 and must be rejected.
-        assert!(find_sha_for_file(shasums, "node-v22.13.1-darwin-arm64.tar.gz").is_none());
-        assert!(find_sha_for_file(shasums, "missing.tar.gz").is_none());
+        assert!(find_sha_for_file(&shasums, "node-v22.13.1-darwin-arm64.tar.gz").is_none());
+        assert!(find_sha_for_file(&shasums, "missing.tar.gz").is_none());
+        // A 64-char non-hex token is not a sha256 and must be rejected too.
+        assert!(find_sha_for_file(&shasums, "node-v22.13.1-bad-hash.tar.gz").is_none());
     }
 
     #[test]
@@ -1516,5 +1573,37 @@ bbbb  node-v22.13.1-darwin-arm64.tar.xz
         let env = warmup_env();
         assert!(env.iter().all(|(k, _)| WARMUP_ENV_PASSTHROUGH.contains(&k.as_str())));
         assert!(env.iter().any(|(k, _)| k == "PATH"));
+    }
+
+    #[test]
+    fn progress_events_serialize_camel_case_fields() {
+        let v = serde_json::to_value(RuntimeInstallProgress::Downloading {
+            percent: 1.0, downloaded_bytes: 2, total_bytes: 3,
+        }).unwrap();
+        assert_eq!(v["kind"], "downloading");
+        assert!(v.get("downloadedBytes").is_some());
+        assert!(v.get("totalBytes").is_some());
+        let e = serde_json::to_value(InstallProgress::Error {
+            step: "check".into(), message: "m".into(), can_retry: false,
+        }).unwrap();
+        assert_eq!(e["canRetry"], false);
+    }
+
+    #[test]
+    fn do_inject_sidecar_uv_prepends_tool_run() {
+        let mut config: Map<String, Value> = Map::new();
+        config.insert("command".into(), json!("uvx"));
+        config.insert("args".into(), json!(["mcp-server-foo", "--help"]));
+        do_inject_sidecar_uv(&mut config, "/managed/uv");
+        assert_eq!(config["command"], json!("/managed/uv"));
+        assert_eq!(config["args"], json!(["tool", "run", "mcp-server-foo", "--help"]));
+    }
+
+    #[test]
+    fn inject_sidecar_uv_skips_non_uvx_commands() {
+        let mut config: Map<String, Value> = Map::new();
+        config.insert("command".into(), json!("npx"));
+        inject_sidecar_uv(&mut config);
+        assert_eq!(config["command"], json!("npx"));
     }
 }

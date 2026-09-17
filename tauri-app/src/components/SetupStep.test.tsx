@@ -18,7 +18,7 @@ vi.mock("@tauri-apps/plugin-opener", () => ({
 }));
 
 import {
-  apiInspectInstall, apiCheckRuntime, apiInstallServer,
+  apiInspectInstall, apiCheckRuntime, apiInstallServer, onInstallProgress,
 } from "../api";
 
 const SCHEMA = {
@@ -106,5 +106,32 @@ describe("SetupStep", () => {
     await waitFor(() => screen.getByRole("button", { name: /Install Server/i }));
     fireEvent.click(screen.getByRole("button", { name: /Install Server/i }));
     await waitFor(() => expect(apiInstallServer).toHaveBeenCalledWith("cli", "test", {}));
+  });
+
+  it("does not offer Retry when the install-progress stream reports canRetry: false", async () => {
+    vi.mocked(apiInspectInstall).mockResolvedValue({ ...SCHEMA_WITH_NOTES, postInstallNotes: [] } as any);
+
+    let captured: ((p: any) => void) | undefined;
+    vi.mocked(onInstallProgress).mockImplementation((handler: any) => {
+      captured = handler;
+      return Promise.resolve(() => {});
+    });
+
+    let rejectInstall!: (err: unknown) => void;
+    vi.mocked(apiInstallServer).mockReturnValue(
+      new Promise((_resolve, reject) => { rejectInstall = reject; }),
+    );
+
+    render(<SetupStep mode="desktop" serverId="test" onDone={() => {}} onCancel={() => {}} />);
+    await waitFor(() => screen.getByRole("button", { name: /Install Server/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Install Server/i }));
+    await waitFor(() => expect(captured).toBeDefined());
+
+    // Backend emits a non-retryable error event before the invoke rejects.
+    captured!({ kind: "error", step: "check", message: "nope", canRetry: false });
+    rejectInstall("nope");
+
+    await waitFor(() => screen.getByText("nope"));
+    expect(screen.queryByRole("button", { name: /Retry/i })).not.toBeInTheDocument();
   });
 });

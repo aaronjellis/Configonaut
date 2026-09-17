@@ -23,6 +23,9 @@
 - **Every write to `~/.claude/settings.json` is now preceded by a timestamped backup** under Configonaut's storage directory (30 kept).
 - **The in-app Node.js download is verified against nodejs.org's SHASUMS256.txt** before extraction. A mismatch discards the archive and reports an error instead of running the binary.
 - **Install steps from catalog feeds are sandboxed a little harder** -- package and image names that look like command-line flags are refused, and the `npx` / `uvx` / `docker` warmup processes now receive only an allowlisted environment (PATH, HOME, proxy and cache settings) instead of the whole shell environment. Every step is checked before any of them runs. On Windows the npm warmup now spawns `npx.cmd` directly (it previously failed to start). If your `.npmrc` references an environment variable such as an auth token, the warmup now explains why it can't run instead of failing generically.
+- **Download progress shows real numbers** -- the percent/bytes fields were sent in snake_case and rendered as "NaN MB".
+- **Python (uvx) servers install without a system uv** -- the warmup and the written config now use the bundled uv (`uv tool run …`) when `uvx` is not on PATH, matching what the prerequisite check reports.
+- **Retry is only offered for retryable install errors.**
 
 ## 0.4.0
 
