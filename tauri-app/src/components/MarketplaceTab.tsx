@@ -823,8 +823,11 @@ function ServerRow({
                     {env.helpUrl && (
                       <a
                         href={env.helpUrl}
-                        target="_blank"
-                        rel="noreferrer noopener"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          void openUrl(env.helpUrl!);
+                        }}
                       >
                         ↗
                       </a>

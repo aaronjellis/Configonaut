@@ -5,6 +5,7 @@
 import { useState } from "react";
 import type { Update } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
+import { openUrl } from "@tauri-apps/plugin-opener";
 
 interface Props {
   update: Update;
@@ -34,7 +35,14 @@ function renderMarkdown(text: string) {
       const link = part.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
       if (link) {
         return (
-          <a key={`${key}-${i}`} href={link[2]} target="_blank" rel="noopener noreferrer">
+          <a
+            key={`${key}-${i}`}
+            href={link[2]}
+            onClick={(e) => {
+              e.preventDefault();
+              void openUrl(link[2]);
+            }}
+          >
             {link[1]}
           </a>
         );
