@@ -59,10 +59,35 @@ fn load_settings() -> AppResult<Map<String, Value>> {
     }
 }
 
-/// Persist a mutated settings.json. Same atomic-write pattern as the MCP
-/// config path: write a sibling temp file and rename over it so a crash
-/// can't truncate the live file.
+/// Copy the current settings.json into the settings backup dir, keeping the
+/// 30 most recent. No-op if the file doesn't exist yet.
+fn backup_settings() -> AppResult<()> {
+    let src = paths::claude_code_settings();
+    if !src.exists() {
+        return Ok(());
+    }
+    let dir = paths::settings_backup_dir();
+    fs::create_dir_all(&dir)?;
+    let stamp = chrono::Local::now().format("%Y-%m-%d_%H-%M-%S");
+    fs::copy(&src, dir.join(format!("settings_{stamp}.json")))?;
+    let mut files: Vec<_> = fs::read_dir(&dir)?
+        .flatten()
+        .filter(|e| e.path().extension().is_some_and(|x| x == "json"))
+        .collect();
+    files.sort_by_key(|e| e.file_name());
+    while files.len() > 30 {
+        let oldest = files.remove(0);
+        let _ = fs::remove_file(oldest.path());
+    }
+    Ok(())
+}
+
+/// Persist a mutated settings.json. Backs up the current file before writing
+/// (see `backup_settings`), then writes with the same atomic-write pattern as
+/// the MCP config path: write a sibling temp file and rename over it so a
+/// crash can't truncate the live file.
 fn save_settings(settings: &Map<String, Value>) -> AppResult<()> {
+    backup_settings()?;
     let path = paths::claude_code_settings();
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)?;
@@ -462,15 +487,44 @@ pub fn delete_hook(event: &str, matcher: &str) -> AppResult<()> {
     Ok(())
 }
 
+/// True if renaming `event`'s rule from matcher `old` to `new` would collide
+/// with a different, already-existing rule in either store. Renaming a rule
+/// onto its own matcher (`old == new`) is never a collision.
+fn matcher_collides(
+    settings_hooks: Option<&Map<String, Value>>,
+    disabled: &Map<String, Value>,
+    event: &str,
+    old: &str,
+    new: &str,
+) -> bool {
+    if old == new {
+        return false;
+    }
+    settings_hooks.is_some_and(|hooks| find_rule(hooks, event, new).is_some())
+        || find_rule(disabled, event, new).is_some()
+}
+
 /// Replace the whole JSON body of a rule, in whichever store holds it.
+/// Refuses a rename that would collide with a different rule that already
+/// has the new matcher under this event.
 pub fn update_hook_rule(event: &str, matcher: &str, new_json: &str) -> AppResult<()> {
     let new_rule: Value = serde_json::from_str(new_json)
         .with_context(|| "invalid JSON — check for syntax errors")?;
     if !new_rule.is_object() {
         return Err(anyhow!("hook rule must be a JSON object").into());
     }
+    let new_matcher = rule_matcher(&new_rule).to_string();
     let mut settings = load_settings()?;
     let mut disabled = load_disabled_hooks()?;
+    if matcher_collides(
+        settings.get("hooks").and_then(|v| v.as_object()),
+        &disabled,
+        event,
+        matcher,
+        &new_matcher,
+    ) {
+        return Err(anyhow!("a hook with matcher '{new_matcher}' already exists under {event}").into());
+    }
     let in_settings = match settings.get_mut("hooks") {
         Some(Value::Object(hooks)) => replace_rule(hooks, event, matcher, new_rule.clone()),
         _ => false,
@@ -1070,13 +1124,19 @@ pub fn write_claude_file(file_path: &str, content: &str) -> AppResult<()> {
     Ok(())
 }
 
+/// Roots `read_claude_file` may open from. Includes every installed plugin's
+/// own install path in addition to `plugins_root()`, so agents/skills of a
+/// plugin installed from a local marketplace (and so living outside
+/// `~/.claude/plugins`) remain readable in the editor.
 fn allowed_roots() -> Vec<PathBuf> {
-    vec![
+    let mut roots = vec![
         paths::personal_agents_dir(),
         paths::commands_dir(),
         paths::skills_dir(),
         paths::plugins_root(),
-    ]
+    ];
+    roots.extend(load_installed_plugins().into_iter().map(|p| p.install_path));
+    roots
 }
 
 // ---------------------------------------------------------------------------
@@ -1349,6 +1409,17 @@ mod tests {
         let mut disabled = hooks_obj(json!({ "Stop": [ { "matcher": "*", "hooks": [] } ] }));
         assert_eq!(remove_rule_everywhere(&mut settings, &mut disabled, "Stop", "*"), (false, true));
         assert_eq!(settings["hooks"], "oops");
+    }
+
+    #[test]
+    fn matcher_collides_detects_rename_onto_existing_rule() {
+        let settings_hooks = hooks_obj(json!({ "PreToolUse": [ { "matcher": "A", "hooks": [] }, { "matcher": "B", "hooks": [] } ] }));
+        let disabled = hooks_obj(json!({ "PreToolUse": [ { "matcher": "C", "hooks": [] } ] }));
+        assert!(!matcher_collides(Some(&settings_hooks), &disabled, "PreToolUse", "A", "A"));
+        assert!(matcher_collides(Some(&settings_hooks), &disabled, "PreToolUse", "A", "B"));
+        assert!(matcher_collides(Some(&settings_hooks), &disabled, "PreToolUse", "A", "C"));
+        assert!(!matcher_collides(Some(&settings_hooks), &disabled, "PreToolUse", "A", "Z"));
+        assert!(!matcher_collides(None, &disabled, "PreToolUse", "A", "B"));
     }
 
     #[test]

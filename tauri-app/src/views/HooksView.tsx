@@ -35,6 +35,7 @@ import {
   deleteHook as apiDeleteHook,
   getClaudeCodeSettingsPath,
   getHookRuleJson,
+  getStorageDir,
   listHooks,
   toggleHook as apiToggleHook,
   updateHookRule,
@@ -109,6 +110,7 @@ export function HooksView({ mode, onMutated }: Props) {
   const [status, setStatusMessage] = useState("Ready.");
   const [statusIsError, setStatusIsError] = useState(false);
   const [settingsPath, setSettingsPath] = useState<string>("~/.claude/settings.json");
+  const [storageDir, setStorageDir] = useState<string>("");
 
   const [detailHeight, setDetailHeight] = useState<number>(() => {
     const stored = localStorage.getItem(DETAIL_HEIGHT_KEY);
@@ -155,6 +157,9 @@ export function HooksView({ mode, onMutated }: Props) {
     refresh();
     getClaudeCodeSettingsPath()
       .then((p) => setSettingsPath(displayPath(p)))
+      .catch(() => {});
+    getStorageDir()
+      .then((p) => setStorageDir(displayPath(p)))
       .catch(() => {});
   }, [refresh]);
 
@@ -517,7 +522,11 @@ export function HooksView({ mode, onMutated }: Props) {
                   Delete
                 </button>
                 <span className="spacer" />
-                <span className="settings-path-hint">{settingsPath}</span>
+                <span className="settings-path-hint">
+                  {selected && !selected.isEnabled
+                    ? `${storageDir}/disabled_hooks.json`
+                    : settingsPath}
+                </span>
               </div>
             </div>
           </>

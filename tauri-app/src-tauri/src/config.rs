@@ -356,6 +356,9 @@ pub fn normalize_server_for_mode(mode: AppMode, config: &mut Value) {
         map.insert("type".to_string(), Value::String(t));
         return;
     }
+    if map.contains_key("command") {
+        return;
+    }
     let Some(Value::String(url)) = map.get("url") else { return };
     let path = url.split(['?', '#']).next().unwrap_or(url);
     let kind = if path.trim_end_matches('/').to_ascii_lowercase().ends_with("/sse") {
@@ -761,6 +764,13 @@ mod tests {
     #[test]
     fn normalize_leaves_stdio_alone() {
         let mut v = json!({ "command": "npx", "args": ["-y", "foo"] });
+        normalize_server_for_mode(AppMode::Cli, &mut v);
+        assert!(v.get("type").is_none());
+    }
+
+    #[test]
+    fn normalize_ignores_url_when_command_present() {
+        let mut v = json!({ "command": "npx", "args": ["-y", "mcp-remote", "https://x/mcp"], "url": "https://x/mcp" });
         normalize_server_for_mode(AppMode::Cli, &mut v);
         assert!(v.get("type").is_none());
     }

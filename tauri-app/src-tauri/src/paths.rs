@@ -115,6 +115,13 @@ pub fn backup_dir(mode: AppMode) -> PathBuf {
     storage_dir().join("backups").join(mode.as_str())
 }
 
+/// Timestamped copies of ~/.claude/settings.json taken before each write.
+/// Kept apart from the per-mode MCP backup dirs so the Backups view
+/// (which lists those) is unaffected.
+pub fn settings_backup_dir() -> PathBuf {
+    storage_dir().join("backups").join("claude-code-settings")
+}
+
 /// Per-mode file mapping a server name → the catalog id it was installed from.
 /// Used by the "ready to enable" gate so we know which env vars a server needs.
 pub fn catalog_links_file(mode: AppMode) -> PathBuf {
