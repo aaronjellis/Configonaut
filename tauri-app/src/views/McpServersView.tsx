@@ -861,7 +861,12 @@ export function McpServersView({ mode, onMutated }: Props) {
                     onBlur={commitRename}
                     onKeyDown={(e) => {
                       if (e.key === "Enter") commitRename();
-                      if (e.key === "Escape") setRenaming(false);
+                      if (e.key === "Escape") {
+                        // Mark committed so the blur fired by unmounting
+                        // the input doesn't turn a cancel into a rename.
+                        renameCommittedRef.current = true;
+                        setRenaming(false);
+                      }
                     }}
                     autoFocus
                     spellCheck={false}
