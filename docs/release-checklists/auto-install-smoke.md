@@ -3,6 +3,7 @@
 Run on a clean macOS VM (or a fresh user account) with no Node, no uv, no Docker installed system-wide.
 
 ## Setup
+- [ ] Run `./scripts/sync-catalog-baseline.sh --pull` and commit any diff before tagging.
 - [ ] Install the latest Configonaut release.
 - [ ] Verify the app launches without errors.
 

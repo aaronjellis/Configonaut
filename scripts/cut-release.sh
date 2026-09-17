@@ -6,7 +6,7 @@
 #
 # What it does:
 #   1. Validates the version argument
-#   2. Bumps version in all 4 locations (tauri.conf.json, Cargo.toml, package.json, App.tsx)
+#   2. Bumps version in all 3 locations (tauri.conf.json, Cargo.toml, package.json)
 #   3. Rebuilds Cargo.lock with the new version
 #   4. Prompts you to verify CHANGELOG.md has the new section
 #   5. Commits, tags, and pushes — triggering the release workflow
@@ -52,14 +52,10 @@ sed -i '' -E "/^\[package\]/,/^\[/ s/^version = \".*\"/version = \"$VERSION\"/" 
 sed -i '' "s/\"version\": \"[^\"]*\"/\"version\": \"$VERSION\"/" \
   "$ROOT/tauri-app/package.json"
 
-# 4. App.tsx hardcoded version strings
-sed -i '' "s/version=\"[^\"]*\"/version=\"$VERSION\"/g" \
-  "$ROOT/tauri-app/src/App.tsx"
-
-# 5. Rebuild Cargo.lock
+# 4. Rebuild Cargo.lock
 (cd "$ROOT/tauri-app/src-tauri" && cargo check --quiet 2>/dev/null)
 
-# 6. Check CHANGELOG.md has a section for this version
+# 5. Check CHANGELOG.md has a section for this version
 if ! grep -q "^## $VERSION" "$ROOT/CHANGELOG.md"; then
   echo ""
   echo "WARNING: CHANGELOG.md does not have a '## $VERSION' section."
@@ -72,13 +68,12 @@ if ! grep -q "^## $VERSION" "$ROOT/CHANGELOG.md"; then
   fi
 fi
 
-# 7. Stage, commit, tag, push
+# 6. Stage, commit, tag, push
 git -C "$ROOT" add \
   tauri-app/src-tauri/tauri.conf.json \
   tauri-app/src-tauri/Cargo.toml \
   tauri-app/src-tauri/Cargo.lock \
   tauri-app/package.json \
-  tauri-app/src/App.tsx \
   CHANGELOG.md
 
 git -C "$ROOT" commit -m "chore: bump $TAG"

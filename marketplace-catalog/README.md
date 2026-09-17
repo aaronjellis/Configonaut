@@ -2,16 +2,17 @@
 
 Community catalog of MCP servers that ship in the **Configonaut** marketplace.
 
-Configonaut is a macOS app for managing MCP (Model Context Protocol) servers used
+Configonaut is a macOS and Windows app for managing MCP (Model Context Protocol) servers used
 by Claude Desktop and Claude Code. This repository hosts the curated list of
 ready-to-install servers that appear inside the in-app "Add Server" marketplace.
 
 ## How it works
 
 1. This repo hosts a single `catalog.json` file.
-2. Configonaut fetches `https://raw.githubusercontent.com/aaronellis/configonaut-catalog/main/catalog.json` once on launch (and on user refresh).
-3. It caches the result locally at `~/Library/Application Support/Configonaut/catalog.json` with a last-good fallback so the marketplace still works offline.
-4. Users browse, search, and one-click add servers to their `claude_desktop_config.json` (or `~/.claude/settings.json` in CLI mode).
+2. Configonaut fetches `https://raw.githubusercontent.com/aaronjellis/configonaut-catalog/main/catalog.json` once on launch (and on user refresh).
+3. It caches the result locally at `~/Library/Application Support/Configonaut/catalog-cache.json` with a last-good fallback so the marketplace still works offline.
+4. Users browse, search, and one-click add servers to their `claude_desktop_config.json` (or `~/.claude.json` in CLI mode).
+5. This directory is a mirror of the configonaut-catalog repo; the app embeds a copy at `tauri-app/src-tauri/resources/catalog-baseline.json` (see `scripts/sync-catalog-baseline.sh`).
 
 The app never uploads your tokens anywhere — the catalog only declares *which* environment variables a server needs, not their values.
 

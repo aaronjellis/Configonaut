@@ -1103,3 +1103,19 @@ mod prereq_install_tests {
         assert_eq!(args[1], "npx");
     }
 }
+
+#[cfg(test)]
+mod baseline_tests {
+    use super::*;
+
+    /// The embedded baseline is copied in from an external repo by
+    /// `scripts/sync-catalog-baseline.sh`; make sure what we ship parses
+    /// against the current schema and isn't empty.
+    #[test]
+    fn embedded_baseline_parses_and_is_non_empty() {
+        let catalog: Catalog = serde_json::from_str(BASELINE_CATALOG_JSON)
+            .expect("catalog-baseline.json must parse as Catalog");
+        assert!(!catalog.servers.is_empty());
+        assert!(catalog.servers.iter().all(|s| !s.id.is_empty()));
+    }
+}

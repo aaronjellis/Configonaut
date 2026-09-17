@@ -27,6 +27,7 @@ import { McpServersView } from "./views/McpServersView";
 import { SkillsView } from "./views/SkillsView";
 import { check, type Update } from "@tauri-apps/plugin-updater";
 import { listen } from "@tauri-apps/api/event";
+import { getVersion } from "@tauri-apps/api/app";
 import type { AppMode, ViewKey } from "./types";
 
 const MODE_KEY = "configonaut.mode";
@@ -51,7 +52,14 @@ function App() {
   const [pendingUpdate, setPendingUpdate] = useState<Update | null>(null);
   const [showUpdateModal, setShowUpdateModal] = useState(false);
   const [showAbout, setShowAbout] = useState(false);
+  const [appVersion, setAppVersion] = useState("");
   const toast = useToast();
+
+  useEffect(() => {
+    getVersion()
+      .then(setAppVersion)
+      .catch(() => { /* not running inside Tauri (plain vite dev); leave the version blank */ });
+  }, []);
 
   useEffect(() => {
     localStorage.setItem(MODE_KEY, mode);
@@ -174,7 +182,7 @@ function App() {
         mode={mode}
         onModeChange={setMode}
         badges={badges}
-        version="0.4.0"
+        version={appVersion}
       />
       <main className="main">{body}</main>
       {showUpdateModal && pendingUpdate && (
@@ -185,7 +193,7 @@ function App() {
       )}
       {showAbout && (
         <AboutModal
-          version="0.4.0"
+          version={appVersion}
           onCheckForUpdates={handleCheckForUpdates}
           onDismiss={() => setShowAbout(false)}
         />

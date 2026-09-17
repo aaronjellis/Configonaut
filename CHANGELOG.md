@@ -12,6 +12,7 @@
 
 ### Changed
 - **Remote servers get a `type` in CLI mode** -- Claude Code skips `url`-only entries, so `http` (or `sse`) is filled in when writing to `~/.claude.json`.
+- **Updated to Tauri 2.11** -- refreshes the bundled webview and menu/tray integration.
 
 ### Fixed
 - **Escape cancels a server rename** instead of committing the typed name.

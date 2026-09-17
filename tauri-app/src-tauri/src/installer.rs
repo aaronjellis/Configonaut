@@ -377,7 +377,7 @@ pub async fn download_node(app: AppHandle) -> Result<(), String> {
             msg
         })?;
         downloaded += chunk.len() as u64;
-        let pct = if total > 0 { (downloaded * 100) / total } else { 0 };
+        let pct = (downloaded * 100).checked_div(total).unwrap_or(0);
         if pct != last_pct || downloaded == total {
             last_pct = pct;
             emit(RuntimeInstallProgress::Downloading {

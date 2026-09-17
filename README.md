@@ -14,13 +14,14 @@ A desktop app for managing Claude Desktop and Claude Code configuration files. B
 - **Skills** -- Manage slash commands and skills, enable/disable plugin skills.
 - **Backups** -- Automatic config backups with diff preview and one-click restore.
 - **Cross-platform** -- macOS and Windows. Linux support planned.
+- **Claude Desktop connectors and extensions** are managed inside Claude Desktop and are not shown here.
 
 ## Project Structure
 
 ```
 tauri-app/           Tauri 2 + React + Rust application
 marketplace-catalog/ Catalog tooling and schema
-docs/                Design specs, plans, and guides
+docs/                Release checklists
 ```
 
 ## Development
@@ -28,22 +29,22 @@ docs/                Design specs, plans, and guides
 ### Prerequisites
 
 - [Rust](https://rustup.rs/) (stable)
-- [Node.js](https://nodejs.org/) 18+ and [bun](https://bun.sh/)
-- [Tauri CLI](https://tauri.app/start/): `cargo install tauri-cli`
+- [Node.js](https://nodejs.org/) 22.12+ and [bun](https://bun.sh/)
+- The `uv` sidecar binaries: run `tauri-app/src-tauri/binaries/download-uv.sh` once before the first build
 
 ### Run locally
 
 ```bash
 cd tauri-app
 bun install
-cargo tauri dev
+bun run tauri dev
 ```
 
 ### Build for release
 
 ```bash
 cd tauri-app
-cargo tauri build
+bun run tauri build
 ```
 
 The bundled `.app` (macOS) or `.msi` / `.exe` (Windows) will be in `tauri-app/src-tauri/target/release/bundle/`.
