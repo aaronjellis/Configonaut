@@ -15,6 +15,22 @@ UV_VER="0.11.6"
 BASE_URL="https://github.com/astral-sh/uv/releases/download/${UV_VER}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+# Skip the download entirely if every target binary is already present
+# (e.g. restored from a CI cache). Only require the universal macOS fat
+# binary when lipo is actually available to have produced one.
+ALL_TARGETS_PRESENT=1
+for f in uv-aarch64-apple-darwin uv-x86_64-apple-darwin \
+         uv-x86_64-pc-windows-msvc.exe uv-x86_64-unknown-linux-gnu; do
+  [[ -f "${SCRIPT_DIR}/${f}" ]] || ALL_TARGETS_PRESENT=0
+done
+
+if [[ "${ALL_TARGETS_PRESENT}" == "1" ]]; then
+  if ! command -v lipo &>/dev/null || [[ -f "${SCRIPT_DIR}/uv-universal-apple-darwin" ]]; then
+    echo "uv ${UV_VER} binaries already present, skipping download"
+    exit 0
+  fi
+fi
+
 echo "Downloading uv ${UV_VER} sidecar binaries..."
 
 verify_checksum() {
