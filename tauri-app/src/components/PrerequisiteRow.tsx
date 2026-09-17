@@ -35,6 +35,8 @@ function progressLabel(p: RuntimeInstallProgress): string {
       }
       return `Downloading… ${formatBytes(p.downloadedBytes)}`;
     }
+    case "verifyingDownload":
+      return "Verifying download…";
     case "extracting":
       return "Extracting…";
     case "verifying":

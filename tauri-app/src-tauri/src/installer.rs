@@ -186,16 +186,16 @@ const RUNTIME_INSTALL_EVENT: &str = "runtime-install-progress";
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum RuntimeInstallProgress {
     Downloading { percent: f64, downloaded_bytes: u64, total_bytes: u64 },
+    VerifyingDownload,
     Extracting,
     Verifying,
     Done { version: String },
     Error { message: String },
 }
 
-fn node_download_url(version: &str) -> String {
-    // Always use .tar.gz — Windows bsdtar doesn't support
-    // --strip-components on .zip archives, and Node publishes
-    // .tar.gz for all platforms including Windows.
+fn node_archive_name(version: &str) -> String {
+    // Always .tar.gz — Windows bsdtar doesn't support --strip-components on
+    // .zip archives, and Node publishes .tar.gz for all platforms.
     let os = if cfg!(target_os = "macos") {
         "darwin"
     } else if cfg!(target_os = "windows") {
@@ -204,7 +204,51 @@ fn node_download_url(version: &str) -> String {
         "linux"
     };
     let arch = if cfg!(target_arch = "aarch64") { "arm64" } else { "x64" };
-    format!("https://nodejs.org/dist/{version}/node-{version}-{os}-{arch}.tar.gz")
+    format!("node-{version}-{os}-{arch}.tar.gz")
+}
+
+fn node_download_url(version: &str) -> String {
+    format!("https://nodejs.org/dist/{version}/{}", node_archive_name(version))
+}
+
+/// Pull the sha256 for `filename` out of a SHASUMS256.txt body.
+pub(crate) fn find_sha_for_file(shasums: &str, filename: &str) -> Option<String> {
+    shasums.lines().find_map(|line| {
+        let mut parts = line.split_whitespace();
+        let hash = parts.next()?;
+        let name = parts.next()?.trim_start_matches('*');
+        (name == filename && hash.len() == 64).then(|| hash.to_ascii_lowercase())
+    })
+}
+
+async fn fetch_expected_sha256(
+    client: &reqwest::Client,
+    version: &str,
+    filename: &str,
+) -> Result<String, String> {
+    let url = format!("https://nodejs.org/dist/{version}/SHASUMS256.txt");
+    let resp = client
+        .get(&url)
+        .send()
+        .await
+        .map_err(|e| format!("Failed to fetch checksums: {e}"))?;
+    if !resp.status().is_success() {
+        return Err(format!("nodejs.org returned HTTP {} for SHASUMS256.txt", resp.status()));
+    }
+    let body = resp
+        .text()
+        .await
+        .map_err(|e| format!("Failed to read checksums: {e}"))?;
+    find_sha_for_file(&body, filename)
+        .ok_or_else(|| format!("No checksum listed for {filename}"))
+}
+
+fn sha256_of_file(path: &std::path::Path) -> Result<String, String> {
+    use sha2::{Digest, Sha256};
+    let mut file = std::fs::File::open(path).map_err(|e| format!("open archive: {e}"))?;
+    let mut hasher = Sha256::new();
+    std::io::copy(&mut file, &mut hasher).map_err(|e| format!("hash archive: {e}"))?;
+    Ok(format!("{:x}", hasher.finalize()))
 }
 
 #[derive(Debug, Deserialize)]
@@ -262,7 +306,13 @@ pub async fn download_node(app: AppHandle) -> Result<(), String> {
         percent: 0.0, downloaded_bytes: 0, total_bytes: 0,
     });
 
-    let version = fetch_latest_lts_version().await?;
+    let version = match fetch_latest_lts_version().await {
+        Ok(v) => v,
+        Err(msg) => {
+            emit(RuntimeInstallProgress::Error { message: msg.clone() });
+            return Err(msg);
+        }
+    };
     let url = node_download_url(&version);
 
     let client = reqwest::Client::builder()
@@ -333,6 +383,53 @@ pub async fn download_node(app: AppHandle) -> Result<(), String> {
     }
     drop(file);
 
+    // Verify the archive against nodejs.org's SHASUMS256.txt before extracting.
+    // The checksum comes from the same host over the same TLS trust path, so
+    // this catches a corrupted/truncated transfer or a swapped artifact at a
+    // CDN edge — it is not a defence against a compromised nodejs.org.
+    // Signature verification (SHASUMS256.txt.sig) would be needed for that.
+    emit(RuntimeInstallProgress::VerifyingDownload);
+    let archive_name = node_archive_name(&version);
+    let mut expected = Err(String::from("checksum fetch not attempted"));
+    for attempt in 1..=3u32 {
+        expected = fetch_expected_sha256(&client, &version, &archive_name).await;
+        if expected.is_ok() {
+            break;
+        }
+        if attempt < 3 {
+            tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+        }
+    }
+    let expected = match expected {
+        Ok(h) => h,
+        Err(msg) => {
+            emit(RuntimeInstallProgress::Error { message: msg.clone() });
+            let _ = std::fs::remove_file(&archive_path);
+            return Err(msg);
+        }
+    };
+    let hash_path = archive_path.clone();
+    let hashed = tokio::task::spawn_blocking(move || sha256_of_file(&hash_path))
+        .await
+        .unwrap_or_else(|e| Err(format!("hash task panicked: {e}")));
+    let actual = match hashed {
+        Ok(h) => h,
+        Err(msg) => {
+            emit(RuntimeInstallProgress::Error { message: msg.clone() });
+            let _ = std::fs::remove_file(&archive_path);
+            return Err(msg);
+        }
+    };
+    if actual != expected {
+        eprintln!("node download checksum mismatch: expected {expected} got {actual}");
+        let msg = format!(
+            "Checksum mismatch for {archive_name} — the download was discarded and not installed."
+        );
+        emit(RuntimeInstallProgress::Error { message: msg.clone() });
+        let _ = std::fs::remove_file(&archive_path);
+        return Err(msg);
+    }
+
     // Extract the archive.
     emit(RuntimeInstallProgress::Extracting);
 
@@ -378,7 +475,6 @@ pub async fn download_node(app: AppHandle) -> Result<(), String> {
 
     // Verify the install by running `node -v`.
     emit(RuntimeInstallProgress::Verifying);
-
     let node_bin = managed_node_bin().ok_or_else(|| {
         let msg = "Node binary not found after extraction".to_string();
         emit(RuntimeInstallProgress::Error { message: msg.clone() });
@@ -1123,6 +1219,50 @@ mod tests {
         assert!(url.starts_with("https://nodejs.org/dist/v22.13.1/node-v22.13.1-"));
         assert!(url.ends_with(".tar.gz"));
         assert!(url.contains("-x64.") || url.contains("-arm64."));
+    }
+
+    #[test]
+    fn find_sha_for_file_picks_exact_filename() {
+        let shasums = "\
+aaaa  node-v22.13.1-darwin-arm64.tar.gz
+bbbb  node-v22.13.1-darwin-arm64.tar.xz
+0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef  node-v22.13.1-linux-x64.tar.gz
+";
+        assert_eq!(
+            find_sha_for_file(shasums, "node-v22.13.1-linux-x64.tar.gz").as_deref(),
+            Some("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")
+        );
+        // A 4-char "hash" is not a sha256 and must be rejected.
+        assert!(find_sha_for_file(shasums, "node-v22.13.1-darwin-arm64.tar.gz").is_none());
+        assert!(find_sha_for_file(shasums, "missing.tar.gz").is_none());
+    }
+
+    #[test]
+    fn find_sha_for_file_handles_crlf_uppercase_and_star_prefix() {
+        let hash = "0123456789ABCDEF0123456789abcdef0123456789abcdef0123456789abcdef";
+        let shasums = format!("{hash}  node-v22.13.1-linux-x64.tar.gz\r\n");
+        assert_eq!(
+            find_sha_for_file(&shasums, "node-v22.13.1-linux-x64.tar.gz").as_deref(),
+            Some(hash.to_ascii_lowercase().as_str())
+        );
+        let starred = format!("{hash} *node-v22.13.1-linux-x64.tar.gz\n");
+        assert!(find_sha_for_file(&starred, "node-v22.13.1-linux-x64.tar.gz").is_some());
+    }
+
+    #[test]
+    fn sha256_of_file_matches_known_digest() {
+        let path = std::env::temp_dir().join(format!("configonaut-sha256-test-{}.bin", std::process::id()));
+        std::fs::write(&path, b"abc").unwrap();
+        let got = sha256_of_file(&path).unwrap();
+        let _ = std::fs::remove_file(&path);
+        assert_eq!(got, "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
+    }
+
+    #[test]
+    fn node_archive_name_matches_download_url() {
+        let name = node_archive_name("v22.13.1");
+        assert!(node_download_url("v22.13.1").ends_with(&name));
+        assert!(name.ends_with(".tar.gz"));
     }
 
     #[test]

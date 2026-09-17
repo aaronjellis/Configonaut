@@ -62,4 +62,8 @@ regex = "1"
 
 # Async runtime — needed for install_server (process spawning + stream reading).
 # Tauri already brings tokio transitively but we need explicit features.
-tokio = { version = "1", features = ["process", "io-util", "rt"] }
+tokio = { version = "1", features = ["process", "io-util", "rt", "time"] }
+
+# SHA-256 verification of the downloaded Node.js tarball against nodejs.org's
+# SHASUMS256.txt.
+sha2 = "0.10"

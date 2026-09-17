@@ -99,6 +99,15 @@ describe("PrerequisiteRow", () => {
     expect(screen.getByText(/Extracting/i)).toBeInTheDocument();
   });
 
+  it("shows verifying download state", () => {
+    render(<PrerequisiteRow
+      entry={ENTRY}
+      {...defaults}
+      downloadProgress={{ kind: "verifyingDownload" }}
+    />);
+    expect(screen.getByText(/Verifying download/i)).toBeInTheDocument();
+  });
+
   it("shows error and retry button after download failure", () => {
     render(<PrerequisiteRow
       entry={ENTRY}

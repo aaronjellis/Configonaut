@@ -241,6 +241,7 @@ export type InstallProgress =
 
 export type RuntimeInstallProgress =
   | { kind: "downloading"; percent: number; downloadedBytes: number; totalBytes: number }
+  | { kind: "verifyingDownload" }
   | { kind: "extracting" }
   | { kind: "verifying" }
   | { kind: "done"; version: string }

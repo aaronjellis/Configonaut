@@ -20,6 +20,7 @@
 - **New skills are created as `~/.claude/skills/<name>/SKILL.md`** -- the only layout Claude Code loads. Flat `<name>.md` files created by earlier versions are still listed; the app now refuses to create a skill whose legacy file already exists.
 - **Plugins are discovered from `installed_plugins.json`** -- every installed plugin from any marketplace now appears in Agents and Skills, and Enable/Disable uses the real `<plugin>@<marketplace>` key. Previously the app scanned the official marketplace's source clone, which listed uninstalled plugins and missed everything else.
 - **Every write to `~/.claude/settings.json` is now preceded by a timestamped backup** under Configonaut's storage directory (30 kept).
+- **The in-app Node.js download is verified against nodejs.org's SHASUMS256.txt** before extraction. A mismatch discards the archive and reports an error instead of running the binary.
 
 ## 0.4.0
 
