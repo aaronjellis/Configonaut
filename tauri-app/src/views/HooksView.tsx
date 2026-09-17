@@ -111,6 +111,9 @@ export function HooksView({ mode, onMutated }: Props) {
   const [statusIsError, setStatusIsError] = useState(false);
   const [settingsPath, setSettingsPath] = useState<string>("~/.claude/settings.json");
   const [storageDir, setStorageDir] = useState<string>("");
+  // Bumped by the ↻ Reload button to force the JSON-fetch effect below to
+  // re-run even when the selected rule's identity hasn't changed.
+  const [reloadNonce, setReloadNonce] = useState(0);
 
   const [detailHeight, setDetailHeight] = useState<number>(() => {
     const stored = localStorage.getItem(DETAIL_HEIGHT_KEY);
@@ -193,7 +196,7 @@ export function HooksView({ mode, onMutated }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [selectedEvent, selectedMatcher]);
+  }, [selectedEvent, selectedMatcher, reloadNonce]);
 
   async function handleToggle(rule: HookRule) {
     try {
@@ -334,7 +337,14 @@ export function HooksView({ mode, onMutated }: Props) {
           </div>
         </div>
         <div className="header-actions">
-          <button className="icon" onClick={refresh} title="Reload">
+          <button
+            className="icon"
+            onClick={() => {
+              refresh();
+              setReloadNonce((n) => n + 1);
+            }}
+            title="Reload"
+          >
             ↻
           </button>
           <button
