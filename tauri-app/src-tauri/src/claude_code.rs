@@ -18,7 +18,8 @@
 //   ~/.claude/agents/*.md                       (personal agents)
 //   ~/.claude/commands/*.md                     (custom slash commands)
 //   ~/.claude/commands/.disabled/*.md           (hidden/off)
-//   ~/.claude/skills/{name,SKILL.md|<name>.md}  (custom skills)
+//   ~/.claude/skills/<name>/SKILL.md            (custom skills — what we create)
+//   ~/.claude/skills/<name>.md                  (legacy flat layout — still read)
 //   ~/.claude/skills/.disabled/...              (hidden/off)
 //   ~/.claude/plugins/installed_plugins.json    (index: "<plugin>@<marketplace>" → installPath)
 //   <installPath>/agents/*.md                   (read-only plugin agents)
@@ -887,8 +888,43 @@ pub fn toggle_skill(
     Ok(())
 }
 
-/// Create a new personal slash command or skill file from the stock template.
-/// Source must be Command or Skill — plugin skills aren't user-creatable.
+/// Where a newly created skill or command file goes. Claude Code loads
+/// skills only from `<root>/<name>/SKILL.md`; commands are flat `.md` files.
+pub(crate) fn skill_target_path(root: &Path, safe: &str, source: SkillSource) -> PathBuf {
+    match source {
+        SkillSource::Skill => root.join(safe).join("SKILL.md"),
+        SkillSource::Command => root.join(format!("{safe}.md")),
+        SkillSource::Plugin => unreachable!("plugin skills are not user-creatable"),
+    }
+}
+
+/// Starter content for a new command or skill. Commands derive their name
+/// from the filename, so only `description`/`argument-hint` go in the
+/// frontmatter; skills need `name` + `description`.
+pub(crate) fn skill_template(safe: &str, source: SkillSource) -> String {
+    match source {
+        SkillSource::Command => format!(
+            "---\ndescription: A custom slash command\nargument-hint: [args]\n---\n\nYou are executing the /{safe} command.\n\n## Instructions\n\nDescribe what this command should do when invoked.\n"
+        ),
+        SkillSource::Skill => format!(
+            "---\nname: {safe}\ndescription: A custom skill. Describe when Claude should use it.\n---\n\n## Instructions\n\nDescribe what this skill does and the steps Claude should follow.\n"
+        ),
+        SkillSource::Plugin => unreachable!("plugin skills are not user-creatable"),
+    }
+}
+
+fn kind_label(source: SkillSource) -> &'static str {
+    match source {
+        SkillSource::Command => "command",
+        SkillSource::Skill => "skill",
+        SkillSource::Plugin => "plugin skill",
+    }
+}
+
+/// Create a new personal slash command or skill. Commands are created as
+/// `<name>.md`; skills are created as `<name>/SKILL.md`, the only layout
+/// Claude Code loads personal skills from. Source must be Command or Skill —
+/// plugin skills aren't user-creatable.
 pub fn create_skill(name: &str, source: SkillSource) -> AppResult<String> {
     if matches!(source, SkillSource::Plugin) {
         return Err(anyhow!("can't create plugin skills").into());
@@ -902,20 +938,21 @@ pub fn create_skill(name: &str, source: SkillSource) -> AppResult<String> {
         SkillSource::Skill => paths::skills_dir(),
         SkillSource::Plugin => unreachable!(),
     };
-    fs::create_dir_all(&dir)?;
-    let file_path = dir.join(format!("{safe}.md"));
+    let file_path = skill_target_path(&dir, &safe, source);
+    let legacy_flat = dir.join(format!("{safe}.md"));
     if file_path.exists() {
-        return Err(anyhow!("{safe}.md already exists").into());
+        return Err(anyhow!("a {} named \"{safe}\" already exists", kind_label(source)).into());
     }
-    let template = match source {
-        SkillSource::Command => format!(
-            "---\nname: {safe}\ndescription: A custom slash command\n---\n\nYou are executing the /{safe} command.\n\n## Instructions\n\nDescribe what this command should do when invoked.\n"
-        ),
-        SkillSource::Skill => format!(
-            "---\nname: {safe}\ndescription: A custom skill\n---\n\nYou are a specialized skill.\n\n## Instructions\n\nDescribe what this skill does and when it should activate.\n"
-        ),
-        SkillSource::Plugin => unreachable!(),
-    };
+    if source == SkillSource::Skill && legacy_flat.exists() {
+        return Err(anyhow!(
+            "a skill file named \"{safe}.md\" already exists (legacy layout); delete or rename it first"
+        )
+        .into());
+    }
+    if let Some(parent) = file_path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    let template = skill_template(&safe, source);
     fs::write(&file_path, template)?;
     Ok(file_path.to_string_lossy().into_owned())
 }
@@ -1303,5 +1340,30 @@ mod tests {
         assert_eq!(plugins[0].key, "tools@alpha");
         assert_eq!(plugins[1].key, "tools@beta");
         assert!(plugins.iter().all(|p| p.name == "tools"));
+    }
+
+    #[test]
+    fn skill_target_path_uses_directory_layout_for_skills() {
+        let root = Path::new("/r");
+        assert_eq!(
+            skill_target_path(root, "my-skill", SkillSource::Skill),
+            PathBuf::from("/r/my-skill/SKILL.md")
+        );
+        assert_eq!(
+            skill_target_path(root, "my-cmd", SkillSource::Command),
+            PathBuf::from("/r/my-cmd.md")
+        );
+    }
+
+    #[test]
+    fn skill_template_frontmatter_round_trips() {
+        let skill = parse_frontmatter(&skill_template("foo", SkillSource::Skill));
+        assert_eq!(skill.get("name").map(String::as_str), Some("foo"));
+        assert!(!skill.get("description").unwrap_or(&String::new()).is_empty());
+
+        let cmd = parse_frontmatter(&skill_template("bar", SkillSource::Command));
+        assert!(!cmd.contains_key("name"));
+        assert!(cmd.contains_key("description"));
+        assert_eq!(cmd.get("argument-hint").map(String::as_str), Some("[args]"));
     }
 }
