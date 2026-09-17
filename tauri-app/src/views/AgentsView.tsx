@@ -87,6 +87,10 @@ export function AgentsView({ mode, onMutated }: Props) {
   // Delete confirmation
   const [confirmDelete, setConfirmDelete] = useState<AgentEntry | null>(null);
 
+  // Bumped by the ↻ Reload button to force the file-content effect below to
+  // re-run even when the selected file's identity hasn't changed.
+  const [reloadNonce, setReloadNonce] = useState(0);
+
   const setStatus = useCallback((msg: string, isError = false) => {
     setStatusMessage(msg);
     setStatusIsError(isError);
@@ -136,7 +140,7 @@ export function AgentsView({ mode, onMutated }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [selectedFilePath]);
+  }, [selectedFilePath, reloadNonce]);
 
   // Filtered + grouped agents
   const filtered = useMemo(() => {
@@ -319,7 +323,14 @@ export function AgentsView({ mode, onMutated }: Props) {
             keeps the "+ New X" button in the same pixel position across
             every view. */}
         <div className="header-actions">
-          <button className="icon" onClick={refresh} title="Reload">
+          <button
+            className="icon"
+            onClick={() => {
+              refresh();
+              setReloadNonce((n) => n + 1);
+            }}
+            title="Reload"
+          >
             ↻
           </button>
           <button className="gradient-btn gradient-btn--blue" onClick={openNewAgentPanel}>

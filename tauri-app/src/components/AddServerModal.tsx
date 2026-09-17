@@ -311,18 +311,23 @@ export function AddServerModal({
               }
             }}
             onInstall={handleMarketplaceInstall}
-            // Deliberately unguarded: AddFeedModal renders its own inline
-            // error for add failures, so there's no separate toast to show
-            // here (a refresh failure below is still reported).
+            // Add failures are surfaced inline by AddFeedModal, so they're
+            // left unguarded here. The post-add refresh below is a separate
+            // step, though, and its failure is reported via toast rather
+            // than being mistaken for an add failure.
             onAddFeed={async (label, url) => {
               await addFeed(label, url);
               setFeeds(await listFeeds());
               // Refresh to fetch the new feed's catalog.
               setIsRefreshing(true);
               try {
-                const [fresh, statuses] = await refreshAllFeeds();
-                setCatalog(fresh);
-                setFeedStatuses(statuses);
+                try {
+                  const [fresh, statuses] = await refreshAllFeeds();
+                  setCatalog(fresh);
+                  setFeedStatuses(statuses);
+                } catch (e) {
+                  toast.show(`Feed added, but the catalog didn't refresh: ${String(e)}`, "warning");
+                }
               } finally {
                 setIsRefreshing(false);
               }
