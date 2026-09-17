@@ -96,14 +96,17 @@ export function SkillsView({ mode, onMutated }: Props) {
     () => (selectedPath ? skills.find((s) => s.filePath === selectedPath) ?? null : null),
     [selectedPath, skills]
   );
+  const selectedFilePath = selected?.filePath ?? null;
 
+  // Load content when the selected *file* changes, not when the skills
+  // array is replaced by a refresh (which would discard unsaved edits).
   useEffect(() => {
-    if (!selected) {
+    if (selectedFilePath === null) {
       setEditingContent("");
       return;
     }
     let cancelled = false;
-    readClaudeFile(selected.filePath)
+    readClaudeFile(selectedFilePath)
       .then((content) => {
         if (cancelled) return;
         setEditingContent(content);
@@ -115,7 +118,7 @@ export function SkillsView({ mode, onMutated }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [selected]);
+  }, [selectedFilePath]);
 
   const filtered = useMemo(() => {
     if (!searchText.trim()) return skills;

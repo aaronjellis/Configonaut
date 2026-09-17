@@ -114,15 +114,17 @@ export function AgentsView({ mode, onMutated }: Props) {
     () => (selectedPath ? agents.find((a) => a.filePath === selectedPath) ?? null : null),
     [selectedPath, agents]
   );
+  const selectedFilePath = selected?.filePath ?? null;
 
-  // Load content when selection changes
+  // Load content when the selected *file* changes, not when the agents
+  // array is replaced by a refresh (which would discard unsaved edits).
   useEffect(() => {
-    if (!selected) {
+    if (selectedFilePath === null) {
       setEditingContent("");
       return;
     }
     let cancelled = false;
-    readClaudeFile(selected.filePath)
+    readClaudeFile(selectedFilePath)
       .then((content) => {
         if (cancelled) return;
         setEditingContent(content);
@@ -134,7 +136,7 @@ export function AgentsView({ mode, onMutated }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [selected]);
+  }, [selectedFilePath]);
 
   // Filtered + grouped agents
   const filtered = useMemo(() => {
