@@ -66,11 +66,11 @@ jobs:
         uses: actions/cache@v4
         with:
           path: tauri-app/src-tauri/binaries/uv-*
-          key: uv-${{ runner.os }}-0.11.6
+          key: uv-${{ runner.os }}-${{ hashFiles('tauri-app/src-tauri/binaries/download-uv.sh') }}
       - name: Download uv sidecar (tauri-build requires externalBin to exist)
         shell: bash
         run: bash tauri-app/src-tauri/binaries/download-uv.sh
-      - name: Test
+      - name: Test / check
         working-directory: tauri-app/src-tauri
         run: cargo ${{ matrix.cargo }}
       - name: Clippy

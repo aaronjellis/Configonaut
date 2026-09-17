@@ -164,7 +164,7 @@ export function Sidebar({
       {renderItem(BACKUPS)}
 
       <div className="sidebar-version">
-        v{version}
+        {version ? `v${version}` : ""}
         {import.meta.env.DEV && <span className="sidebar-dev-badge">DEV</span>}
       </div>
     </aside>

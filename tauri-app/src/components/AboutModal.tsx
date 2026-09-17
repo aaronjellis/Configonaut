@@ -29,7 +29,7 @@ export function AboutModal({ version, onCheckForUpdates, onDismiss }: Props) {
           <img src="/icon.png" alt="" draggable={false} />
         </div>
         <h2 className="about-title">Configonaut</h2>
-        <p className="about-version">v{version}</p>
+        <p className="about-version">{version ? `v${version}` : ""}</p>
         <p className="about-desc">
           MCP server, hook, and skill manager for
           <br />
