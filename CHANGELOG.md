@@ -15,8 +15,8 @@
 
 ### Fixed
 - **Escape cancels a server rename** instead of committing the typed name.
-- **Unsaved hook and agent edits survive Enable/Disable** -- toggling no longer reloads the editor from disk.
-- **About, release-notes and help links open in the browser** -- three remaining `target="_blank"` links were silently swallowed by the webview.
+- **Unsaved hook, agent, and MCP server edits survive Enable/Disable and background refreshes** -- toggling or refreshing no longer reloads the editor from disk out from under an in-progress edit. The ↻ Reload button now re-reads the open editor's contents, where before it only refreshed the list.
+- **About, release-notes and help links open in the browser without risking the app frame** -- they're rendered as buttons instead of `<a href>` links, so middle-click or the context menu's "Open Link" can no longer navigate the Tauri window away from the app.
 - **Feed remove/toggle failures show an error toast** instead of failing silently.
 - **CLI-mode backups and restores touch only `mcpServers`** -- restoring a backup of `~/.claude.json` used to overwrite the whole file, rolling back the OAuth account, project trust decisions, and caches that Claude Code owns. Backups taken in CLI mode now contain just the servers, and restoring an older full-file backup only replaces the servers.
 - **Content Security Policy enabled** for the app's webviews, and the webview no longer holds any shell permission (the bundled `uv` sidecar is only ever invoked from Rust). Previously the webview had no CSP and could run the sidecar with arbitrary arguments.
